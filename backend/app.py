@@ -957,6 +957,25 @@ def get_pepi_evaluations():
     except Exception as e:
         return jsonify({'success': True, 'evaluations': []})
 
+@app.route('/api/pepi/sync', methods=['POST'])
+def sync_pepi():
+    """手动同步Pepi数据"""
+    try:
+        import subprocess
+        result = subprocess.run(
+            ['python3', 'sync_pepi.py'],
+            cwd=os.path.dirname(os.path.abspath(__file__)),
+            capture_output=True,
+            text=True
+        )
+        
+        if result.returncode == 0:
+            return jsonify({'success': True, 'message': '同步成功', 'output': result.stdout})
+        else:
+            return jsonify({'success': False, 'error': result.stderr})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
 # ============================================
 # 系统监控 API
 # ============================================
