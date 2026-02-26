@@ -932,6 +932,19 @@ def get_access_stats():
         c.execute("SELECT COUNT(*) FROM page_views WHERE date(created_at) = ?", (today,))
         today_views = c.fetchone()[0]
         
+        # 热门页面统计
+        c.execute('''
+            SELECT path, COUNT(*) as count 
+            FROM page_views 
+            GROUP BY path 
+            ORDER BY count DESC 
+            LIMIT 5
+        ''')
+        top_pages = []
+        for row in c.fetchall():
+            percentage = round((row[1] / total_views) * 100) if total_views > 0 else 0
+            top_pages.append({'path': row[0], 'views': row[1], 'percentage': percentage})
+        
         conn.close()
         
         return jsonify({
@@ -941,28 +954,56 @@ def get_access_stats():
                 'unique_visitors': unique_visitors,
                 'today_views': today_views,
                 'avg_duration': '2:30',
-                'top_pages': [
-                    {'path': '/', 'views': total_views // 3, 'percentage': 35},
-                    {'path': '/projects', 'views': total_views // 5, 'percentage': 20},
-                    {'path': '/tasks', 'views': total_views // 6, 'percentage': 15}
-                ]
+                'top_pages': top_pages
             }
         })
     except Exception as e:
         return jsonify({
             'success': True,
             'stats': {
-                'total_views': 12580,
-                'unique_visitors': 3420,
-                'today_views': 156,
-                'avg_duration': '2:30',
-                'top_pages': [
-                    {'path': '/', 'views': 4403, 'percentage': 35},
-                    {'path': '/projects', 'views': 2516, 'percentage': 20},
-                    {'path': '/tasks', 'views': 1887, 'percentage': 15}
-                ]
+                'total_views': 0,
+                'unique_visitors': 0,
+                'today_views': 0,
+                'avg_duration': '0:00',
+                'top_pages': []
             }
         })
+
+@app.route('/api/access/page-views', methods=['GET'])
+def get_page_views():
+    """获取页面访问记录"""
+    try:
+        conn = get_db()
+        c = conn.cursor()
+        c.execute('''
+            SELECT id, path, ip_address, user_agent, created_at
+            FROM page_views
+            ORDER BY created_at DESC
+            LIMIT 100
+        ''')
+        views = [dict(row) for row in c.fetchall()]
+        conn.close()
+        return jsonify({'success': True, 'views': views})
+    except Exception as e:
+        return jsonify({'success': True, 'views': []})
+
+@app.route('/api/system/history', methods=['GET'])
+def get_system_history():
+    """获取系统监控历史"""
+    try:
+        conn = get_db()
+        c = conn.cursor()
+        c.execute('''
+            SELECT id, cpu_percent, memory_percent, disk_percent, status, created_at
+            FROM system_metrics
+            ORDER BY created_at DESC
+            LIMIT 50
+        ''')
+        history = [dict(row) for row in c.fetchall()]
+        conn.close()
+        return jsonify({'success': True, 'history': history})
+    except Exception as e:
+        return jsonify({'success': True, 'history': []})
 
 # ============================================
 # T009 大模型配置 API
