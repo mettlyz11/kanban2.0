@@ -70,10 +70,6 @@ export const api = {
     })
     return res.json()
   },
-  async getCronHistory() {
-    const res = await fetch(`${API_BASE}/cron/history`)
-    return res.json()
-  },
 
   // 资产/股票
   async getStocks() {
@@ -102,6 +98,24 @@ export const api = {
   // 技能库
   async getSkills() {
     const res = await fetch(`${API_BASE}/skills`)
+    return res.json()
+  },
+
+  // 系统监控
+  async getSystemHistory() {
+    const res = await fetch(`${API_BASE}/system/history`)
+    return res.json()
+  },
+
+  // 访问统计
+  async getPageViews() {
+    const res = await fetch(`${API_BASE}/access/page-views`)
+    return res.json()
+  },
+
+  // Cron历史
+  async getCronHistory() {
+    const res = await fetch(`${API_BASE}/cron/history`)
     return res.json()
   }
 }

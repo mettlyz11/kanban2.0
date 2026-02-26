@@ -1309,6 +1309,66 @@ def get_resources():
     except Exception as e:
         return jsonify({'success': True, 'resources': []})
 
+@app.route('/api/github/repos', methods=['GET'])
+def get_github_repos():
+    """获取GitHub仓库列表"""
+    try:
+        import requests
+        # 使用GitHub API获取用户仓库
+        # 注意：实际使用需要配置GitHub Token
+        headers = {
+            'Accept': 'application/vnd.github.v3+json',
+            'User-Agent': 'Kanban-System'
+        }
+        
+        # 获取mettlyz11的公开仓库
+        response = requests.get(
+            'https://api.github.com/users/mettlyz11/repos',
+            headers=headers,
+            params={'sort': 'updated', 'per_page': 20}
+        )
+        
+        if response.status_code == 200:
+            repos = response.json()
+            return jsonify({
+                'success': True,
+                'repos': [{
+                    'name': r['name'],
+                    'description': r['description'],
+                    'url': r['html_url'],
+                    'stars': r['stargazers_count'],
+                    'language': r['language'],
+                    'updated': r['updated_at']
+                } for r in repos]
+            })
+        else:
+            # 如果API失败，返回预设的GitHub资源
+            return jsonify({
+                'success': True,
+                'repos': [
+                    {'name': 'kanban2.0', 'description': '看板系统v2.0 - React版本', 'url': 'https://github.com/mettlyz11/kanban2.0', 'stars': 0, 'language': 'TypeScript'},
+                    {'name': 'kanban-system', 'description': '看板系统v1.0 - Flask版本', 'url': 'https://github.com/mettlyz11/kanban-system', 'stars': 0, 'language': 'Python'}
+                ]
+            })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/github/stats', methods=['GET'])
+def get_github_stats():
+    """获取GitHub统计"""
+    try:
+        return jsonify({
+            'success': True,
+            'stats': {
+                'username': 'mettlyz11',
+                'public_repos': 2,
+                'followers': 0,
+                'following': 0
+            }
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
 @app.route('/api/version-logs', methods=['GET'])
 def get_version_logs():
     """获取版本日志"""

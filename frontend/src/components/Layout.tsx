@@ -1,4 +1,4 @@
-import { Link, useLocation } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useState } from 'react'
 import './Layout.css'
 
@@ -24,13 +24,25 @@ const menuItems = [
   { path: '/calc-tasks', icon: '🔢', label: '计算' },
   { path: '/molecules', icon: '🧪', label: '分子' },
   { path: '/reactions', icon: '⚗️', label: '反应' },
-  { path: '/chat', icon: '💬', label: '聊天' },
   { path: '/emails', icon: '📧', label: '邮件' },
+]
+
+// 更新记录
+const updateRecords = [
+  { date: '2026-02-26', version: 'v2.1.0', changes: ['新增系统监控历史数据', '新增访问统计详情', '优化移动端适配', '修复计算任务页面'] },
+  { date: '2026-02-26', version: 'v2.0.5', changes: ['修复邮件API错误', '修复localhost:8086硬编码问题', '新增邮件回复和抄送功能'] },
+  { date: '2026-02-26', version: 'v2.0.4', changes: ['新增架构图页面', '新增资源库、调研记录、会议纪要页面', '新增大模型配置页面'] },
+  { date: '2026-02-26', version: 'v2.0.3', changes: ['新增Pepi数字员工页面', '新增系统监控、访问统计、版本记录页面', '修复聊天功能'] },
+  { date: '2026-02-26', version: 'v2.0.2', changes: ['新增登录保护', '修复知识大脑API', '新增技能库页面'] },
+  { date: '2026-02-26', version: 'v2.0.1', changes: ['修复Cron任务统计', '新增资产、审核页面', '修复React路由'] },
+  { date: '2026-02-26', version: 'v2.0.0', changes: ['看板2.0正式发布', 'React + Flask架构', 'Cloudflare部署', '所有功能迁移完成'] },
 ]
 
 export function Layout({ children }: LayoutProps) {
   const location = useLocation()
+  const navigate = useNavigate()
   const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [showUpdates, setShowUpdates] = useState(false)
 
   return (
     <div className="app">
@@ -42,7 +54,8 @@ export function Layout({ children }: LayoutProps) {
         <nav className="header-nav">
           <Link to="/" className="nav-link">看板</Link>
           <a href="https://kanban.mettlyz.com" className="nav-link" target="_blank">v1.0系统</a>
-          <button className="chat-btn">💬 问Dudu</button>
+          <button className="nav-link" onClick={() => setShowUpdates(true)}>📝 更新记录</button>
+          <button className="chat-btn" onClick={() => navigate('/chat')}>💬 问Dudu</button>
         </nav>
       </header>
       <div className="app-body">
@@ -62,6 +75,39 @@ export function Layout({ children }: LayoutProps) {
         </aside>
         <main className="main-content">{children}</main>
       </div>
+
+      {/* 更新记录弹窗 */}
+      {showUpdates && (
+        <div className="modal-overlay" onClick={() => setShowUpdates(false)}>
+          <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '600px', maxHeight: '80vh', overflow: 'auto' }}>
+            <h3>📝 更新记录</h3>
+            <div style={{ marginTop: '16px' }}>
+              {updateRecords.map((record, i) => (
+                <div key={i} style={{ 
+                  marginBottom: '16px', 
+                  padding: '12px', 
+                  background: '#f8f9fa', 
+                  borderRadius: '8px',
+                  borderLeft: '4px solid #667eea'
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                    <strong>{record.version}</strong>
+                    <span style={{ color: '#999', fontSize: '0.85rem' }}>{record.date}</span>
+                  </div>
+                  <ul style={{ margin: 0, paddingLeft: '20px', fontSize: '0.9rem' }}>
+                    {record.changes.map((change, j) => (
+                      <li key={j} style={{ marginBottom: '4px' }}>{change}</li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+            <div className="modal-actions">
+              <button className="btn btn-secondary" onClick={() => setShowUpdates(false)}>关闭</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
