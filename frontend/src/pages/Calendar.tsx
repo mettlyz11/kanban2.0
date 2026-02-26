@@ -157,9 +157,14 @@ export function Calendar() {
     <div>
       <div className="page-header">
         <h2 className="page-title">📅 日历</h2>
-        <button className="btn btn-success" onClick={() => setShowModal(true)}>
-          <PlusIcon /> 新建事件
-        </button>
+        <div style={{ display: 'flex', gap: '12px' }}>
+          <button className="btn btn-secondary" onClick={() => window.location.href = '/calendar-settings'}>
+            ⚙️ 同步设置
+          </button>
+          <button className="btn btn-success" onClick={() => setShowModal(true)}>
+            <PlusIcon /> 新建事件
+          </button>
+        </div>
       </div>
 
       {stats && (

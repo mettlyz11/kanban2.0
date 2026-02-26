@@ -25,6 +25,7 @@ import { MeetingNotes } from './pages/MeetingNotes'
 import { DailyReviews } from './pages/DailyReviews'
 import { Resources } from './pages/Resources'
 import { Calendar } from './pages/Calendar'
+import { CalendarSettings } from './pages/CalendarSettings'
 import './components/Layout.css'
 
 // 路由守卫组件
@@ -63,6 +64,7 @@ function AppRoutes() {
       <Route path="/architecture" element={<PrivateRoute><Layout><Architecture /></Layout></PrivateRoute>} />
       <Route path="/resources" element={<PrivateRoute><Layout><Resources /></Layout></PrivateRoute>} />
       <Route path="/calendar" element={<PrivateRoute><Layout><Calendar /></Layout></PrivateRoute>} />
+      <Route path="/calendar-settings" element={<PrivateRoute><Layout><CalendarSettings /></Layout></PrivateRoute>} />
     </Routes>
   )
 }
