@@ -250,6 +250,46 @@ def get_stats():
     })
 
 # ============================================
+# 本地文件索引 API
+# ============================================
+
+from file_indexer import scan_workspace
+
+@app.route('/api/files/index', methods=['GET'])
+def get_file_index():
+    """获取本地workspace文件索引"""
+    try:
+        result = scan_workspace()
+        return jsonify({'success': True, **result})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/files/content/<path:filepath>', methods=['GET'])
+def get_file_content(filepath):
+    """获取文件内容"""
+    try:
+        workspace_path = os.path.expanduser('~/.openclaw/workspace')
+        full_path = os.path.join(workspace_path, filepath)
+        
+        # 安全检查：确保文件在workspace内
+        if not full_path.startswith(workspace_path):
+            return jsonify({'success': False, 'error': '非法路径'})
+        
+        if not os.path.exists(full_path):
+            return jsonify({'success': False, 'error': '文件不存在'})
+        
+        # 限制文件大小
+        if os.path.getsize(full_path) > 1024 * 1024:  # 1MB
+            return jsonify({'success': False, 'error': '文件过大'})
+        
+        with open(full_path, 'r', encoding='utf-8', errors='ignore') as f:
+            content = f.read()
+        
+        return jsonify({'success': True, 'content': content})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+# ============================================
 # 静态文件服务
 # ============================================
 
