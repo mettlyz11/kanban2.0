@@ -1507,6 +1507,61 @@ def get_version_logs():
 # 日历 API
 # ============================================
 
+@app.route('/api/calendar/accounts', methods=['GET'])
+def get_calendar_accounts():
+    """获取CalDAV账户列表"""
+    try:
+        conn = get_db()
+        c = conn.cursor()
+        c.execute('SELECT id, name, account_type, server_url, username, calendar_name, sync_enabled, last_sync_at FROM calendar_accounts')
+        accounts = [dict(row) for row in c.fetchall()]
+        conn.close()
+        return jsonify({'success': True, 'accounts': accounts})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/calendar/accounts', methods=['POST'])
+def create_calendar_account():
+    """创建CalDAV账户"""
+    try:
+        data = request.get_json()
+        
+        conn = get_db()
+        c = conn.cursor()
+        c.execute('''
+            INSERT INTO calendar_accounts
+            (name, account_type, server_url, username, password, calendar_path, calendar_name, sync_enabled)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (
+            data.get('name'),
+            data.get('account_type', 'caldav'),
+            data.get('server_url'),
+            data.get('username'),
+            data.get('password'),
+            data.get('calendar_path', '/'),
+            data.get('calendar_name'),
+            1
+        ))
+        
+        conn.commit()
+        account_id = c.lastrowid
+        conn.close()
+        
+        return jsonify({'success': True, 'id': account_id})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/calendar/sync', methods=['POST'])
+def sync_calendar():
+    """手动同步日历"""
+    try:
+        from caldav_sync import sync_all_accounts
+        
+        results = sync_all_accounts(DB_PATH)
+        return jsonify({'success': True, 'results': results})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
 @app.route('/api/calendar/events', methods=['GET'])
 def get_calendar_events():
     """获取日历事件"""

@@ -15,3 +15,12 @@ Press CTRL+C to quit
  * Debugger PIN: 405-067-024
 127.0.0.1 - - [26/Feb/2026 23:04:22] "GET /api/pepi/info HTTP/1.1" 200 -
 127.0.0.1 - - [26/Feb/2026 23:04:41] "GET /api/pepi/info HTTP/1.1" 200 -
+ * Detected change in '/Users/mettlyz/.openclaw/workspace/kanban-react/backend/app.py', reloading
+============================================================
+Kanban React - Flask API Server
+============================================================
+API地址: http://localhost:8086
+============================================================
+ * Restarting with stat
+ * Debugger is active!
+ * Debugger PIN: 405-067-024
