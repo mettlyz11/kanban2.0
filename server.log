@@ -50,3 +50,5 @@ API地址: http://localhost:8086
  * Debugger is active!
  * Debugger PIN: 405-067-024
 127.0.0.1 - - [26/Feb/2026 23:15:49] "GET /api/stats HTTP/1.1" 200 -
+127.0.0.1 - - [26/Feb/2026 23:16:26] "GET /api/stats HTTP/1.1" 200 -
+127.0.0.1 - - [26/Feb/2026 23:18:28] "GET /api/stats HTTP/1.1" 200 -
