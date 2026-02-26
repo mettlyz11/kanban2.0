@@ -1484,6 +1484,210 @@ def get_version_logs():
             ]
         })
 
+# ============================================
+# 日历 API
+# ============================================
+
+@app.route('/api/calendar/events', methods=['GET'])
+def get_calendar_events():
+    """获取日历事件"""
+    try:
+        start = request.args.get('start')
+        end = request.args.get('end')
+        
+        conn = get_db()
+        c = conn.cursor()
+        
+        query = '''
+            SELECT * FROM calendar_events
+            WHERE status != 'cancelled'
+        '''
+        params = []
+        
+        if start:
+            query += ' AND end_time >= ?'
+            params.append(start)
+        if end:
+            query += ' AND start_time <= ?'
+            params.append(end)
+            
+        query += ' ORDER BY start_time'
+        
+        c.execute(query, params)
+        events = [dict(row) for row in c.fetchall()]
+        conn.close()
+        
+        return jsonify({'success': True, 'events': events})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/calendar/events', methods=['POST'])
+def create_calendar_event():
+    """创建日历事件"""
+    try:
+        data = request.get_json()
+        
+        conn = get_db()
+        c = conn.cursor()
+        
+        c.execute('''
+            INSERT INTO calendar_events 
+            (title, description, start_time, end_time, all_day, location, 
+             category, color, project_id, task_id, reminder_minutes, status)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (
+            data.get('title'),
+            data.get('description'),
+            data.get('start_time'),
+            data.get('end_time'),
+            data.get('all_day', 0),
+            data.get('location'),
+            data.get('category', 'default'),
+            data.get('color'),
+            data.get('project_id'),
+            data.get('task_id'),
+            data.get('reminder_minutes', 15),
+            data.get('status', 'confirmed')
+        ))
+        
+        conn.commit()
+        event_id = c.lastrowid
+        conn.close()
+        
+        return jsonify({'success': True, 'id': event_id})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/calendar/events/<int:event_id>', methods=['PUT'])
+def update_calendar_event(event_id):
+    """更新日历事件"""
+    try:
+        data = request.get_json()
+        
+        conn = get_db()
+        c = conn.cursor()
+        
+        # 获取现有数据
+        c.execute('SELECT * FROM calendar_events WHERE id = ?', (event_id,))
+        existing = c.fetchone()
+        if not existing:
+            return jsonify({'success': False, 'error': '事件不存在'})
+        
+        # 更新字段
+        c.execute('''
+            UPDATE calendar_events SET
+                title = ?,
+                description = ?,
+                start_time = ?,
+                end_time = ?,
+                all_day = ?,
+                location = ?,
+                category = ?,
+                color = ?,
+                reminder_minutes = ?,
+                status = ?,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        ''', (
+            data.get('title', existing['title']),
+            data.get('description', existing['description']),
+            data.get('start_time', existing['start_time']),
+            data.get('end_time', existing['end_time']),
+            data.get('all_day', existing['all_day']),
+            data.get('location', existing['location']),
+            data.get('category', existing['category']),
+            data.get('color', existing['color']),
+            data.get('reminder_minutes', existing['reminder_minutes']),
+            data.get('status', existing['status']),
+            event_id
+        ))
+        
+        conn.commit()
+        conn.close()
+        
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/calendar/events/<int:event_id>', methods=['DELETE'])
+def delete_calendar_event(event_id):
+    """删除日历事件"""
+    try:
+        conn = get_db()
+        c = conn.cursor()
+        
+        # 软删除
+        c.execute('''
+            UPDATE calendar_events 
+            SET status = 'cancelled', updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        ''', (event_id,))
+        
+        conn.commit()
+        conn.close()
+        
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/calendar/stats', methods=['GET'])
+def get_calendar_stats():
+    """获取日历统计"""
+    try:
+        conn = get_db()
+        c = conn.cursor()
+        
+        # 今日事件数
+        c.execute('''
+            SELECT COUNT(*) FROM calendar_events
+            WHERE date(start_time) = date('now')
+            AND status != 'cancelled'
+        ''')
+        today_count = c.fetchone()[0]
+        
+        # 本周事件数
+        c.execute('''
+            SELECT COUNT(*) FROM calendar_events
+            WHERE start_time >= date('now', 'weekday 0', '-7 days')
+            AND start_time < date('now', 'weekday 0', '0 days')
+            AND status != 'cancelled'
+        ''')
+        week_count = c.fetchone()[0]
+        
+        # 本月事件数
+        c.execute('''
+            SELECT COUNT(*) FROM calendar_events
+            WHERE strftime('%Y-%m', start_time) = strftime('%Y-%m', 'now')
+            AND status != 'cancelled'
+        ''')
+        month_count = c.fetchone()[0]
+        
+        # 待处理事件（未来）
+        c.execute('''
+            SELECT COUNT(*) FROM calendar_events
+            WHERE start_time > datetime('now')
+            AND status != 'cancelled'
+        ''')
+        upcoming_count = c.fetchone()[0]
+        
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'stats': {
+                'today': today_count,
+                'week': week_count,
+                'month': month_count,
+                'upcoming': upcoming_count
+            }
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+# ============================================
+# 静态文件服务
+# ============================================
+
 @app.route('/<path:path>')
 def serve_static(path):
     """提供静态文件"""
