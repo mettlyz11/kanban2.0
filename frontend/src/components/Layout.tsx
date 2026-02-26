@@ -105,6 +105,7 @@ export function Layout({ children }: LayoutProps) {
           <Link to="/" className="nav-link">看板</Link>
           <a href="https://kanban.mettlyz.com" className="nav-link" target="_blank" rel="noopener noreferrer">v1.0系统</a>
           <Link to="/system-monitor" className="nav-link">📈 系统监控</Link>
+          <Link to="/calendar" className="nav-link">📅 日历</Link>
           <Link to="/pepi" className="nav-link">🤖 Pepi</Link>
           <button className="nav-link" onClick={() => setShowUpdates(true)}>📝 更新记录</button>
           <button className="chat-btn" onClick={() => navigate('/chat')}>💬 问Dudu</button>
