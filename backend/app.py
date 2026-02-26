@@ -385,6 +385,52 @@ def get_stocks():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
 
+@app.route('/api/stock-fund-links', methods=['GET'])
+def get_stock_fund_links():
+    """获取股票基金关联"""
+    try:
+        conn = get_db()
+        c = conn.cursor()
+        c.execute('''
+            SELECT * FROM stock_fund_links
+            ORDER BY correlation DESC
+        ''')
+        links = [dict(row) for row in c.fetchall()]
+        conn.close()
+        return jsonify({'success': True, 'links': links})
+    except Exception as e:
+        return jsonify({'success': True, 'links': []})
+
+@app.route('/api/stocks/<symbol>', methods=['GET'])
+def get_stock_detail(symbol):
+    """获取股票详情"""
+    try:
+        conn = get_db()
+        c = conn.cursor()
+        c.execute('SELECT * FROM stocks WHERE symbol = ? OR code = ?', (symbol, symbol))
+        stock = c.fetchone()
+        
+        # 获取历史价格
+        c.execute('''
+            SELECT date, close_price FROM stock_history
+            WHERE symbol = ?
+            ORDER BY date DESC
+            LIMIT 30
+        ''', (symbol,))
+        history = [dict(row) for row in c.fetchall()]
+        
+        conn.close()
+        
+        if stock:
+            return jsonify({
+                'success': True,
+                'stock': dict(stock),
+                'history': history
+            })
+        return jsonify({'success': False, 'error': '股票不存在'})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
 @app.route('/api/stocks/stats', methods=['GET'])
 def get_stock_stats():
     """获取股票统计"""
