@@ -72,9 +72,12 @@ export function Tasks() {
                 tasks.map(t => (
                   <tr key={t.id}>
                     <td>
-                      <strong>{t.title}</strong>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ fontSize: '0.75rem', color: '#667eea', fontWeight: 600, fontFamily: 'monospace' }}>{t.number || `T-${t.id}`}</span>
+                        <strong>{t.title}</strong>
+                      </div>
                       {t.description && (
-                        <div style={{ fontSize: '0.85rem', color: '#666', marginTop: '4px' }}>
+                        <div style={{ fontSize: '0.85rem', color: '#666', marginTop: '4px', paddingLeft: '45px' }}>
                           {t.description}
                         </div>
                       )}

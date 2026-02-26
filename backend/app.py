@@ -160,16 +160,22 @@ def create_task():
     
     conn = get_db()
     c = conn.cursor()
+    
+    # 生成任务编号
+    c.execute("SELECT COUNT(*) FROM tasks")
+    count = c.fetchone()[0] + 1
+    number = f"T{count:03d}"
+    
     c.execute('''
-        INSERT INTO tasks (title, description, project_id, status, priority, created_at, updated_at)
-        VALUES (?, ?, ?, 'todo', ?, datetime('now'), datetime('now'))
-    ''', (title, description, project_id, priority))
+        INSERT INTO tasks (number, title, description, project_id, status, priority, created_at, updated_at)
+        VALUES (?, ?, ?, ?, 'todo', ?, datetime('now'), datetime('now'))
+    ''', (number, title, description, project_id, priority))
     
     task_id = c.lastrowid
     conn.commit()
     conn.close()
     
-    return jsonify({'success': True, 'task_id': task_id})
+    return jsonify({'success': True, 'task_id': task_id, 'number': number})
 
 @app.route('/api/tasks/<int:task_id>', methods=['PUT'])
 def update_task(task_id):
