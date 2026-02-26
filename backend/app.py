@@ -386,6 +386,41 @@ def delete_cron_task(task_id):
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
 
+@app.route('/api/cron/tasks/<int:task_id>', methods=['PUT'])
+def update_cron_task(task_id):
+    """更新Cron任务"""
+    try:
+        data = request.get_json()
+        
+        conn = get_db()
+        c = conn.cursor()
+        
+        # 检查任务是否存在
+        c.execute('SELECT id FROM cron_tasks WHERE id = ?', (task_id,))
+        if not c.fetchone():
+            conn.close()
+            return jsonify({'success': False, 'error': '任务不存在'})
+        
+        # 构建更新字段
+        allowed_fields = ['name', 'description', 'schedule', 'command', 'status']
+        updates = {k: v for k, v in data.items() if k in allowed_fields}
+        
+        if not updates:
+            conn.close()
+            return jsonify({'success': False, 'error': '没有要更新的字段'})
+        
+        # 构建SQL
+        set_clause = ', '.join([f"{k} = ?" for k in updates.keys()])
+        values = list(updates.values()) + [task_id]
+        
+        c.execute(f'UPDATE cron_tasks SET {set_clause} WHERE id = ?', values)
+        conn.commit()
+        conn.close()
+        
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
 @app.route('/api/cron/history', methods=['GET'])
 def get_cron_history():
     """获取Cron执行历史"""

@@ -132,3 +132,12 @@ API地址: http://localhost:8086
 127.0.0.1 - - [26/Feb/2026 23:38:26] "GET /api/stocks HTTP/1.1" 200 -
 127.0.0.1 - - [26/Feb/2026 23:38:27] "GET /api/stock-fund-links HTTP/1.1" 200 -
 127.0.0.1 - - [26/Feb/2026 23:41:23] "GET /api/stats HTTP/1.1" 200 -
+ * Detected change in '/Users/mettlyz/.openclaw/workspace/kanban-react/backend/app.py', reloading
+============================================================
+Kanban React - Flask API Server
+============================================================
+API地址: http://localhost:8086
+============================================================
+ * Restarting with stat
+ * Debugger is active!
+ * Debugger PIN: 405-067-024
