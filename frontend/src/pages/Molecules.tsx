@@ -1,99 +1,93 @@
-import { useState, useEffect } from 'react'
-
 export function Molecules() {
-  const [molecules, setMolecules] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
-  const [search, setSearch] = useState('')
-
-  useEffect(() => {
-    loadMolecules()
-  }, [])
-
-  const loadMolecules = async () => {
-    try {
-      const res = await fetch('/api/chemistry/molecules')
-      const data = await res.json()
-      if (data.success) {
-        setMolecules(data.molecules || [])
-      }
-    } catch (e) {
-      console.error(e)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const filteredMolecules = molecules.filter(m => 
-    !search || 
-    m.name?.toLowerCase().includes(search.toLowerCase()) ||
-    m.formula?.toLowerCase().includes(search.toLowerCase())
-  )
-
-  if (loading) return <div className="loading">加载中...</div>
-
   return (
     <div>
       <div className="page-header">
-        <h2 className="page-title">🧪 分子管理</h2>
+        <h2 className="page-title">🧪 和光智成 (Helight)</h2>
       </div>
 
-      {/* 搜索 */}
-      <div className="filter-bar">
-        <input
-          type="text"
-          placeholder="搜索分子名称或化学式..."
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          style={{ 
-            padding: '10px 16px', 
-            borderRadius: '8px', 
-            border: '1px solid #ddd',
-            minWidth: '300px'
-          }}
-        />
-      </div>
-
-      {/* 分子网格 */}
-      <div className="grid-4">
-        {filteredMolecules.map(mol => (
-          <div key={mol.id} className="card" style={{ textAlign: 'center' }}>
-            <div style={{ 
-              fontSize: '3rem', 
-              marginBottom: '12px',
-              padding: '20px',
-              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-              borderRadius: '12px',
-              color: 'white'
-            }}>
-              🧪
-            </div>
-            <h4 style={{ marginBottom: '8px' }}>{mol.name || 'Unknown'}</h4>
-            <code style={{ 
-              display: 'inline-block',
-              padding: '4px 12px', 
-              background: '#f8f9fa', 
-              borderRadius: '4px',
-              marginBottom: '8px'
-            }}>
-              {mol.formula || 'C?H?'}
-            </code>
-            <p style={{ color: '#666', fontSize: '0.85rem' }}>
-              {mol.description || '暂无描述'}
+      {/* 和光智成网站 */}
+      <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+        <div style={{ 
+          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', 
+          padding: '16px 20px',
+          color: 'white',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center'
+        }}>
+          <div>
+            <h4 style={{ margin: 0 }}>🧪 和光智成</h4>
+            <p style={{ margin: '4px 0 0 0', opacity: 0.9, fontSize: '0.9rem' }}>
+              AI驱动的智能化学计算平台
             </p>
-            <div style={{ marginTop: '12px', display: 'flex', gap: '8px', justifyContent: 'center' }}>
-              <span className="badge badge-blue">MW: {mol.molecular_weight?.toFixed(2) || '?'}</span>
-              <span className="badge badge-green">{mol.charge || 0}电荷</span>
-            </div>
           </div>
-        ))}
+          <a 
+            href="https://helight.mettlyz.com" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="btn"
+            style={{ 
+              background: 'white', 
+              color: '#667eea',
+              padding: '10px 20px',
+              borderRadius: '8px',
+              textDecoration: 'none',
+              fontWeight: 600
+            }}
+          >
+            访问网站 ↗
+          </a>
+        </div>
+        <div style={{ padding: '30px', textAlign: 'center' }}>
+          <div style={{ fontSize: '4rem', marginBottom: '16px' }}>🧪</div>
+          <h3>和光智成 (Helight)</h3>
+          <p style={{ color: '#666', maxWidth: '600px', margin: '16px auto', lineHeight: '1.6' }}>
+            和光智成是一个AI驱动的智能化学计算平台，提供分子建模、
+            反应预测、性质计算等功能，助力化学研究和药物开发。
+          </p>
+          <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', flexWrap: 'wrap', marginTop: '24px' }}>
+            <a 
+              href="https://helight.mettlyz.com" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="btn btn-primary"
+              style={{ padding: '12px 24px' }}
+            >
+              🚀 进入平台
+            </a>
+            <a 
+              href="https://helight.mettlyz.com/docs" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="btn btn-secondary"
+              style={{ padding: '12px 24px' }}
+            >
+              📖 查看文档
+            </a>
+          </div>
+        </div>
       </div>
 
-      {filteredMolecules.length === 0 && (
-        <div className="empty-state">
-          <div className="empty-state-icon">🧪</div>
-          <p>{search ? '未找到匹配的分子' : '暂无分子数据'}</p>
+      {/* 功能特性 */}
+      <div className="card">
+        <h5 style={{ marginBottom: '16px' }}>✨ 核心功能</h5>
+        <div className="grid-3">
+          {[
+            { icon: '🧬', title: '分子建模', desc: '3D分子结构构建与可视化' },
+            { icon: '⚡', title: '反应预测', desc: 'AI预测化学反应路径和产物' },
+            { icon: '📊', title: '性质计算', desc: '计算分子物理化学性质' },
+            { icon: '🔬', title: '光谱模拟', desc: '模拟各类光谱数据' },
+            { icon: '💊', title: '药物设计', desc: '基于AI的药物分子设计' },
+            { icon: '📈', title: '数据分析', desc: '化学数据智能分析' }
+          ].map((feature, i) => (
+            <div key={i} className="card" style={{ marginBottom: 0, padding: '20px', textAlign: 'center' }}>
+              <div style={{ fontSize: '2.5rem', marginBottom: '12px' }}>{feature.icon}</div>
+              <h6>{feature.title}</h6>
+              <p style={{ color: '#666', fontSize: '0.85rem', margin: 0 }}>{feature.desc}</p>
+            </div>
+          ))}
         </div>
-      )}
+      </div>
     </div>
   )
 }

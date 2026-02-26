@@ -86,27 +86,27 @@ export function Architecture() {
         <h2 className="page-title">🏗️ 架构图 (T019)</h2>
       </div>
 
-      {/* 统计卡片 */}
-      <div className="stats-grid" style={{ marginBottom: '24px' }}>
-        <div className="stat-card blue">
-          <div className="stat-icon">📦</div>
+      {/* 统计卡片 - 缩小尺寸 */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: '12px', marginBottom: '20px' }}>
+        <div className="stat-card blue" style={{ padding: '12px' }}>
+          <div className="stat-icon" style={{ width: '40px', height: '40px', fontSize: '1.1rem' }}>📦</div>
           <div className="stat-info">
-            <h3>15+</h3>
-            <p>系统模块</p>
+            <h3 style={{ fontSize: '1.3rem' }}>15+</h3>
+            <p style={{ fontSize: '0.75rem' }}>系统模块</p>
           </div>
         </div>
-        <div className="stat-card green">
-          <div className="stat-icon">🗄️</div>
+        <div className="stat-card green" style={{ padding: '12px' }}>
+          <div className="stat-icon" style={{ width: '40px', height: '40px', fontSize: '1.1rem' }}>🗄️</div>
           <div className="stat-info">
-            <h3>49</h3>
-            <p>数据库表</p>
+            <h3 style={{ fontSize: '1.3rem' }}>49</h3>
+            <p style={{ fontSize: '0.75rem' }}>数据库表</p>
           </div>
         </div>
-        <div className="stat-card orange">
-          <div className="stat-icon">💻</div>
+        <div className="stat-card orange" style={{ padding: '12px' }}>
+          <div className="stat-icon" style={{ width: '40px', height: '40px', fontSize: '1.1rem' }}>💻</div>
           <div className="stat-info">
-            <h3>5000+</h3>
-            <p>代码行数</p>
+            <h3 style={{ fontSize: '1.3rem' }}>5000+</h3>
+            <p style={{ fontSize: '0.75rem' }}>代码行数</p>
           </div>
         </div>
       </div>

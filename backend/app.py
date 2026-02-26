@@ -1685,6 +1685,103 @@ def get_calendar_stats():
         return jsonify({'success': False, 'error': str(e)})
 
 # ============================================
+# 用户管理 API
+# ============================================
+
+# 存储用户密码（简单版本，实际应使用密码哈希）
+# 格式: {username: {password: 'hashed', role: 'admin'}}
+USERS_DB = {
+    'admin': {'password': 'kanban2024', 'role': 'admin'}
+}
+
+@app.route('/api/change-password', methods=['POST'])
+def change_password():
+    """修改密码"""
+    try:
+        data = request.get_json()
+        old_password = data.get('oldPassword')
+        new_password = data.get('newPassword')
+        
+        # 获取当前用户（从token或session）
+        # 简化版本，实际应从token解析
+        username = 'admin'  # 默认用户
+        
+        if not old_password or not new_password:
+            return jsonify({'success': False, 'error': '密码不能为空'})
+        
+        # 验证旧密码
+        if USERS_DB.get(username, {}).get('password') != old_password:
+            return jsonify({'success': False, 'error': '旧密码错误'})
+        
+        # 更新密码
+        USERS_DB[username]['password'] = new_password
+        
+        return jsonify({'success': True, 'message': '密码修改成功'})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/user/info', methods=['GET'])
+def get_user_info():
+    """获取用户信息"""
+    try:
+        # 简化版本，实际应从token解析
+        return jsonify({
+            'success': True,
+            'user': {
+                'username': 'admin',
+                'role': 'admin',
+                'last_login': datetime.now().isoformat()
+            }
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+# ============================================
+# 安全中间件
+# ============================================
+
+@app.after_request
+def add_security_headers(response):
+    """添加安全响应头"""
+    # 防止点击劫持
+    response.headers['X-Frame-Options'] = 'DENY'
+    # 防止MIME类型嗅探
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    # XSS保护
+    response.headers['X-XSS-Protection'] = '1; mode=block'
+    # 内容安全策略
+    response.headers['Content-Security-Policy'] = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline';"
+    # 禁用缓存敏感页面
+    if request.path.startswith('/api/'):
+        response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '0'
+    return response
+
+# 请求频率限制（简单实现）
+request_counts = {}
+
+@app.before_request
+def rate_limit():
+    """简单的请求频率限制"""
+    if request.path == '/api/login':
+        ip = request.remote_addr
+        now = datetime.now()
+        
+        # 清理旧记录
+        for key in list(request_counts.keys()):
+            if (now - request_counts[key]['time']).seconds > 60:
+                del request_counts[key]
+        
+        # 检查频率
+        if ip in request_counts:
+            if request_counts[ip]['count'] > 10:  # 每分钟最多10次登录尝试
+                return jsonify({'success': False, 'error': '请求过于频繁，请稍后再试'}), 429
+            request_counts[ip]['count'] += 1
+        else:
+            request_counts[ip] = {'count': 1, 'time': now}
+
+# ============================================
 # 静态文件服务
 # ============================================
 

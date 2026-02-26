@@ -6,6 +6,8 @@ export function Brain() {
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [selectedType, setSelectedType] = useState('')
+  const [showAllEntities, setShowAllEntities] = useState(false)
+  const [showAllRelations, setShowAllRelations] = useState(false)
 
   useEffect(() => {
     loadData()
@@ -57,21 +59,33 @@ export function Brain() {
         <h2 className="page-title">🧠 知识大脑</h2>
       </div>
 
-      {/* 统计卡片 */}
+      {/* 统计卡片 - 紧凑尺寸 */}
       {stats && (
-        <div className="stats-grid" style={{ marginBottom: '24px' }}>
-          <div className="stat-card purple">
-            <div className="stat-icon">🧩</div>
-            <div className="stat-info">
-              <h3>{stats.entities?.toLocaleString()}</h3>
-              <p>实体总数</p>
+        <div style={{ display: 'flex', gap: '12px', marginBottom: '16px' }}>
+          <div 
+            className="stat-card purple" 
+            style={{ padding: '10px 16px', cursor: 'pointer', flex: 1, maxWidth: '200px' }}
+            onClick={() => setShowAllEntities(true)}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <span style={{ fontSize: '1.5rem' }}>🧩</span>
+              <div>
+                <div style={{ fontSize: '1.4rem', fontWeight: 600, lineHeight: 1 }}>{stats.entities?.toLocaleString()}</div>
+                <div style={{ fontSize: '0.7rem', color: '#666', marginTop: '2px' }}>实体总数</div>
+              </div>
             </div>
           </div>
-          <div className="stat-card blue">
-            <div className="stat-icon">🔗</div>
-            <div className="stat-info">
-              <h3>{stats.relationships?.toLocaleString()}</h3>
-              <p>关系总数</p>
+          <div 
+            className="stat-card blue" 
+            style={{ padding: '10px 16px', cursor: 'pointer', flex: 1, maxWidth: '200px' }}
+            onClick={() => setShowAllRelations(true)}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <span style={{ fontSize: '1.5rem' }}>🔗</span>
+              <div>
+                <div style={{ fontSize: '1.4rem', fontWeight: 600, lineHeight: 1 }}>{stats.relationships?.toLocaleString()}</div>
+                <div style={{ fontSize: '0.7rem', color: '#666', marginTop: '2px' }}>关系总数</div>
+              </div>
             </div>
           </div>
         </div>
@@ -187,6 +201,61 @@ export function Brain() {
         <div className="empty-state">
           <div className="empty-state-icon">🧠</div>
           <p>{search ? '未找到匹配的实体' : '暂无实体数据'}</p>
+        </div>
+      )}
+
+      {/* 所有实体弹窗 */}
+      {showAllEntities && (
+        <div className="modal-overlay" onClick={() => setShowAllEntities(false)}>
+          <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '800px', maxHeight: '80vh', overflow: 'auto' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <h3>🧩 所有实体 ({entities.length})</h3>
+              <button className="btn btn-sm btn-secondary" onClick={() => setShowAllEntities(false)}>✕</button>
+            </div>
+            <div style={{ maxHeight: '60vh', overflow: 'auto' }}>
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>类型</th>
+                    <th>名称</th>
+                    <th>描述</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {entities.map(e => (
+                    <tr key={e.id}>
+                      <td>
+                        <span className="badge" style={{ background: typeColors[e.entity_type] || '#667eea', color: 'white' }}>
+                          {typeLabels[e.entity_type] || e.entity_type}
+                        </span>
+                      </td>
+                      <td>{e.name}</td>
+                      <td>{e.description?.slice(0, 50) || '-'}{e.description?.length > 50 ? '...' : ''}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 所有关系弹窗 */}
+      {showAllRelations && (
+        <div className="modal-overlay" onClick={() => setShowAllRelations(false)}>
+          <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '800px', maxHeight: '80vh', overflow: 'auto' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <h3>🔗 所有关系 ({stats?.relationships || 0})</h3>
+              <button className="btn btn-sm btn-secondary" onClick={() => setShowAllRelations(false)}>✕</button>
+            </div>
+            <div style={{ padding: '40px', textAlign: 'center' }}>
+              <div className="empty-state-icon">🔗</div>
+              <p>关系详情功能开发中</p>
+              <p style={{ fontSize: '0.85rem', color: '#999', marginTop: '8px' }}>
+                将展示所有实体间的关联关系网络
+              </p>
+            </div>
+          </div>
         </div>
       )}
     </div>

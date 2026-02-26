@@ -1,7 +1,4 @@
-import { useState } from 'react'
-
 export function CalcTasks() {
-  const [activeTab, setActiveTab] = useState('submit')
 
   const t109Links = [
     { name: '提交计算任务', url: 'https://t109.mettlyz.com/submit', desc: '提交新的计算任务到T109平台', icon: '📝' },

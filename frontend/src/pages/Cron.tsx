@@ -7,7 +7,7 @@ export function Cron() {
   const [stats, setStats] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
-  const [activeTab, setActiveTab] = useState('tasks')
+  const [historyTab, setHistoryTab] = useState('all')
   const [formData, setFormData] = useState({
     name: '',
     command: '',
@@ -27,7 +27,6 @@ export function Cron() {
         api.getCronStats(),
         api.getCronHistory()
       ])
-      // 只显示非deleted的任务
       if (tasksRes.success) {
         const activeTasks = (tasksRes.tasks || []).filter((t: any) => t.status !== 'deleted')
         setTasks(activeTasks)
@@ -84,6 +83,19 @@ export function Cron() {
     return labels[schedule] || schedule
   }
 
+  // 按任务过滤历史
+  const filteredHistory = historyTab === 'all' 
+    ? history 
+    : history.filter((h: any) => h.task_name === historyTab)
+
+  // 历史统计
+  const historyStats = {
+    total: history.length,
+    success: history.filter((h: any) => h.status === 'success').length,
+    failed: history.filter((h: any) => h.status === 'failed').length,
+    recent: history.slice(0, 10)
+  }
+
   if (loading) return <div className="loading">加载中...</div>
 
   return (
@@ -101,70 +113,54 @@ export function Cron() {
       {stats && (
         <div style={{ 
           display: 'grid', 
-          gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', 
+          gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', 
           gap: '12px',
           marginBottom: '20px' 
         }}>
-          <div className="stat-card purple" style={{ padding: '16px' }}>
-            <div className="stat-icon" style={{ width: '48px', height: '48px', fontSize: '1.25rem' }}>📋</div>
+          <div className="stat-card purple" style={{ padding: '12px' }}>
+            <div className="stat-icon" style={{ width: '40px', height: '40px', fontSize: '1.1rem' }}>📋</div>
             <div className="stat-info">
-              <h3 style={{ fontSize: '1.5rem' }}>{tasks.length}</h3>
-              <p style={{ fontSize: '0.8rem' }}>活跃任务</p>
+              <h3 style={{ fontSize: '1.3rem' }}>{tasks.length}</h3>
+              <p style={{ fontSize: '0.75rem' }}>活跃任务</p>
             </div>
           </div>
-          <div className="stat-card green" style={{ padding: '16px' }}>
-            <div className="stat-icon" style={{ width: '48px', height: '48px', fontSize: '1.25rem' }}>▶️</div>
+          <div className="stat-card green" style={{ padding: '12px' }}>
+            <div className="stat-icon" style={{ width: '40px', height: '40px', fontSize: '1.1rem' }}>▶️</div>
             <div className="stat-info">
-              <h3 style={{ fontSize: '1.5rem' }}>{stats.active || 0}</h3>
-              <p style={{ fontSize: '0.8rem' }}>运行中</p>
+              <h3 style={{ fontSize: '1.3rem' }}>{stats.active || 0}</h3>
+              <p style={{ fontSize: '0.75rem' }}>运行中</p>
             </div>
           </div>
-          <div className="stat-card orange" style={{ padding: '16px' }}>
-            <div className="stat-icon" style={{ width: '48px', height: '48px', fontSize: '1.25rem' }}>❌</div>
+          <div className="stat-card orange" style={{ padding: '12px' }}>
+            <div className="stat-icon" style={{ width: '40px', height: '40px', fontSize: '1.1rem' }}>❌</div>
             <div className="stat-info">
-              <h3 style={{ fontSize: '1.5rem' }}>{stats.failed || 0}</h3>
-              <p style={{ fontSize: '0.8rem' }}>失败次数</p>
+              <h3 style={{ fontSize: '1.3rem' }}>{stats.failed || 0}</h3>
+              <p style={{ fontSize: '0.75rem' }}>失败次数</p>
             </div>
           </div>
-          <div className="stat-card cyan" style={{ padding: '16px' }}>
-            <div className="stat-icon" style={{ width: '48px', height: '48px', fontSize: '1.25rem' }}>📅</div>
+          <div className="stat-card cyan" style={{ padding: '12px' }}>
+            <div className="stat-icon" style={{ width: '40px', height: '40px', fontSize: '1.1rem' }}>📅</div>
             <div className="stat-info">
-              <h3 style={{ fontSize: '1.5rem' }}>{stats.today || 0}</h3>
-              <p style={{ fontSize: '0.8rem' }}>今日执行</p>
+              <h3 style={{ fontSize: '1.3rem' }}>{stats.today || 0}</h3>
+              <p style={{ fontSize: '0.75rem' }}>今日执行</p>
             </div>
           </div>
         </div>
       )}
 
-      {/* 标签切换 */}
-      <div className="filter-bar" style={{ marginBottom: '16px' }}>
-        <button 
-          className={`filter-btn ${activeTab === 'tasks' ? 'active' : ''}`}
-          onClick={() => setActiveTab('tasks')}
-        >
-          📋 任务列表
-        </button>
-        <button 
-          className={`filter-btn ${activeTab === 'history' ? 'active' : ''}`}
-          onClick={() => setActiveTab('history')}
-        >
-          📜 执行历史 ({history.length})
-        </button>
-      </div>
-
-      {/* 任务列表 */}
-      {activeTab === 'tasks' && (
-        <div className="card">
+      {/* 两列布局：任务列表 | 执行历史 */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+        {/* 左列：任务列表 */}
+        <div className="card" style={{ marginBottom: 0 }}>
           <div className="card-header">
-            <h5>活跃任务列表</h5>
+            <h5>📋 任务列表 ({tasks.length})</h5>
           </div>
           <div className="table-container">
             <table className="data-table">
               <thead>
                 <tr>
                   <th>任务名称</th>
-                  <th>执行频率</th>
-                  <th>下次执行</th>
+                  <th>频率</th>
                   <th>状态</th>
                   <th>操作</th>
                 </tr>
@@ -172,7 +168,7 @@ export function Cron() {
               <tbody>
                 {tasks.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="empty-state">暂无定时任务</td>
+                    <td colSpan={4} className="empty-state">暂无定时任务</td>
                   </tr>
                 ) : (
                   tasks.map(task => (
@@ -180,7 +176,7 @@ export function Cron() {
                       <td>
                         <strong>{task.name}</strong>
                         {task.description && (
-                          <div style={{ fontSize: '0.85rem', color: '#666', marginTop: '4px' }}>
+                          <div style={{ fontSize: '0.8rem', color: '#666', marginTop: '2px' }}>
                             {task.description}
                           </div>
                         )}
@@ -188,7 +184,6 @@ export function Cron() {
                       <td>
                         <span className="badge badge-blue">{getScheduleLabel(task.schedule)}</span>
                       </td>
-                      <td>{task.next_run || '-'}</td>
                       <td>
                         <span className={`status-badge ${task.status === 'active' ? 'status-active' : 'status-inactive'}`}>
                           {task.status === 'active' ? '运行中' : '已停用'}
@@ -197,7 +192,7 @@ export function Cron() {
                       <td>
                         <button 
                           className="btn btn-danger" 
-                          style={{ padding: '6px 12px', fontSize: '12px' }}
+                          style={{ padding: '4px 10px', fontSize: '11px' }}
                           onClick={() => handleDelete(task.id, task.name)}
                         >
                           删除
@@ -210,40 +205,85 @@ export function Cron() {
             </table>
           </div>
         </div>
-      )}
 
-      {/* 执行历史 */}
-      {activeTab === 'history' && (
-        <div className="card">
-          <div className="card-header">
-            <h5>执行历史</h5>
+        {/* 右列：执行历史 */}
+        <div>
+          {/* 历史汇总卡片 */}
+          <div style={{ 
+            display: 'grid', 
+            gridTemplateColumns: 'repeat(3, 1fr)', 
+            gap: '10px',
+            marginBottom: '16px' 
+          }}>
+            <div className="stat-card" style={{ padding: '12px', background: '#f8f9fa' }}>
+              <div className="stat-info" style={{ textAlign: 'center' }}>
+                <h3 style={{ fontSize: '1.2rem', color: '#333' }}>{historyStats.total}</h3>
+                <p style={{ fontSize: '0.7rem', margin: 0 }}>总记录</p>
+              </div>
+            </div>
+            <div className="stat-card green" style={{ padding: '12px' }}>
+              <div className="stat-info" style={{ textAlign: 'center' }}>
+                <h3 style={{ fontSize: '1.2rem' }}>{historyStats.success}</h3>
+                <p style={{ fontSize: '0.7rem', margin: 0 }}>成功</p>
+              </div>
+            </div>
+            <div className="stat-card orange" style={{ padding: '12px' }}>
+              <div className="stat-info" style={{ textAlign: 'center' }}>
+                <h3 style={{ fontSize: '1.2rem' }}>{historyStats.failed}</h3>
+                <p style={{ fontSize: '0.7rem', margin: 0 }}>失败</p>
+              </div>
+            </div>
           </div>
-          <div className="table-container">
-            <table className="data-table">
+
+          {/* 任务筛选标签 */}
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '12px' }}>
+            <button 
+              className={`filter-btn ${historyTab === 'all' ? 'active' : ''}`}
+              onClick={() => setHistoryTab('all')}
+              style={{ fontSize: '12px', padding: '6px 12px' }}
+            >
+              全部
+            </button>
+            {tasks.map(t => (
+              <button 
+                key={t.id}
+                className={`filter-btn ${historyTab === t.name ? 'active' : ''}`}
+                onClick={() => setHistoryTab(t.name)}
+                style={{ fontSize: '12px', padding: '6px 12px' }}
+              >
+                {t.name}
+              </button>
+            ))}
+          </div>
+
+          {/* 历史记录表格 */}
+          <div className="card" style={{ maxHeight: '500px', overflow: 'auto' }}>
+            <div className="card-header">
+              <h5>📜 执行历史 ({filteredHistory.length})</h5>
+            </div>
+            <table className="data-table" style={{ fontSize: '0.85rem' }}>
               <thead>
                 <tr>
-                  <th>执行时间</th>
-                  <th>任务名称</th>
+                  <th>时间</th>
+                  <th>任务</th>
                   <th>状态</th>
-                  <th>耗时</th>
                 </tr>
               </thead>
               <tbody>
-                {history.length === 0 ? (
+                {filteredHistory.length === 0 ? (
                   <tr>
-                    <td colSpan={4} className="empty-state">暂无执行记录</td>
+                    <td colSpan={3} className="empty-state">暂无执行记录</td>
                   </tr>
                 ) : (
-                  history.slice(0, 20).map((record: any) => (
+                  filteredHistory.slice(0, 50).map((record: any) => (
                     <tr key={record.id}>
-                      <td>{record.started_at || record.created_at || '-'}</td>
-                      <td>{record.task_name || '-'}</td>
+                      <td style={{ fontSize: '0.8rem' }}>{record.started_at?.slice(5, 16) || '-'}</td>
+                      <td style={{ fontSize: '0.8rem' }}>{record.task_name || '-'}</td>
                       <td>
-                        <span className={`badge ${record.status === 'success' ? 'badge-green' : 'badge-red'}`}>
-                          {record.status === 'success' ? '成功' : '失败'}
+                        <span className={`badge ${record.status === 'success' ? 'badge-green' : 'badge-red'}`} style={{ fontSize: '0.7rem' }}>
+                          {record.status === 'success' ? '✓' : '✗'}
                         </span>
                       </td>
-                      <td>{record.duration ? `${record.duration}s` : '-'}</td>
                     </tr>
                   ))
                 )}
@@ -251,54 +291,57 @@ export function Cron() {
             </table>
           </div>
         </div>
-      )}
+      </div>
 
       {/* 添加任务弹窗 */}
       {showModal && (
         <div className="modal-overlay" onClick={() => setShowModal(false)}>
           <div className="modal" onClick={e => e.stopPropagation()}>
             <h3>➕ 添加定时任务</h3>
-            {error && <div className="error-msg">{error}</div>}
-            <form onSubmit={handleSubmit}>
-              <div className="form-group">
-                <label>任务名称 *</label>
-                <input 
-                  value={formData.name} 
+            {error && <div className="alert alert-error">{error}</div>}
+            <form onSubmit={handleSubmit} style={{ marginTop: '16px' }}>
+              <div style={{ marginBottom: '16px' }}>
+                <label>任务名称</label>
+                <input
+                  type="text"
+                  value={formData.name}
                   onChange={e => setFormData({...formData, name: e.target.value})}
-                  placeholder="例如：数据备份"
+                  placeholder="例如：每日邮件检查"
                   required
                 />
               </div>
-              <div className="form-group">
-                <label>执行频率 *</label>
-                <select 
-                  value={formData.schedule} 
+              <div style={{ marginBottom: '16px' }}>
+                <label>执行命令</label>
+                <input
+                  type="text"
+                  value={formData.command}
+                  onChange={e => setFormData({...formData, command: e.target.value})}
+                  placeholder="例如：python3 check_emails.py"
+                  required
+                />
+              </div>
+              <div style={{ marginBottom: '16px' }}>
+                <label>执行频率 (Cron表达式)</label>
+                <select
+                  value={formData.schedule}
                   onChange={e => setFormData({...formData, schedule: e.target.value})}
                 >
+                  <option value="* * * * *">每分钟</option>
                   <option value="*/5 * * * *">每5分钟</option>
                   <option value="*/10 * * * *">每10分钟</option>
                   <option value="*/30 * * * *">每30分钟</option>
-                  <option value="0 8 * * *">每天上午8点</option>
-                  <option value="0 2 * * *">每天凌晨2点</option>
+                  <option value="0 8 * * *">每天8点</option>
+                  <option value="0 2 * * *">每天2点</option>
                   <option value="0 0 * * *">每天零点</option>
                 </select>
               </div>
-              <div className="form-group">
-                <label>执行命令 *</label>
-                <textarea 
-                  value={formData.command} 
-                  onChange={e => setFormData({...formData, command: e.target.value})}
-                  placeholder="例如：python3 /path/to/script.py"
-                  rows={3}
-                  required
-                />
-              </div>
-              <div className="form-group">
-                <label>任务描述</label>
-                <input 
-                  value={formData.description} 
+              <div style={{ marginBottom: '16px' }}>
+                <label>描述 (可选)</label>
+                <input
+                  type="text"
+                  value={formData.description}
                   onChange={e => setFormData({...formData, description: e.target.value})}
-                  placeholder="可选：描述任务用途"
+                  placeholder="任务描述..."
                 />
               </div>
               <div className="modal-actions">
@@ -306,7 +349,7 @@ export function Cron() {
                   取消
                 </button>
                 <button type="submit" className="btn btn-success">
-                  确认添加
+                  添加任务
                 </button>
               </div>
             </form>

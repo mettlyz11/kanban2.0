@@ -33,26 +33,26 @@ export function LLMConfigs() {
       </div>
 
       {stats && (
-        <div className="stats-grid" style={{ marginBottom: '24px' }}>
-          <div className="stat-card blue">
-            <div className="stat-icon">🔧</div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: '12px', marginBottom: '20px' }}>
+          <div className="stat-card blue" style={{ padding: '12px' }}>
+            <div className="stat-icon" style={{ width: '40px', height: '40px', fontSize: '1.1rem' }}>🔧</div>
             <div className="stat-info">
-              <h3>{stats.total || 0}</h3>
-              <p>配置总数</p>
+              <h3 style={{ fontSize: '1.3rem' }}>{stats.total || 0}</h3>
+              <p style={{ fontSize: '0.75rem' }}>配置总数</p>
             </div>
           </div>
-          <div className="stat-card green">
-            <div className="stat-icon">✅</div>
+          <div className="stat-card green" style={{ padding: '12px' }}>
+            <div className="stat-icon" style={{ width: '40px', height: '40px', fontSize: '1.1rem' }}>✅</div>
             <div className="stat-info">
-              <h3>{stats.active || 0}</h3>
-              <p>活跃配置</p>
+              <h3 style={{ fontSize: '1.3rem' }}>{stats.active || 0}</h3>
+              <p style={{ fontSize: '0.75rem' }}>活跃配置</p>
             </div>
           </div>
-          <div className="stat-card purple">
-            <div className="stat-icon">📊</div>
+          <div className="stat-card purple" style={{ padding: '12px' }}>
+            <div className="stat-icon" style={{ width: '40px', height: '40px', fontSize: '1.1rem' }}>📊</div>
             <div className="stat-info">
-              <h3>{stats.usage || 0}</h3>
-              <p>使用次数</p>
+              <h3 style={{ fontSize: '1.3rem' }}>{stats.usage || 0}</h3>
+              <p style={{ fontSize: '0.75rem' }}>使用次数</p>
             </div>
           </div>
         </div>
