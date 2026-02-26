@@ -1,0 +1,60 @@
+import { useState, useEffect } from 'react'
+
+export function ResearchNotes() {
+  const [notes, setNotes] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    loadNotes()
+  }, [])
+
+  const loadNotes = async () => {
+    try {
+      const res = await fetch('/api/research')
+      const data = await res.json()
+      if (data.success) setNotes(data.notes || [])
+    } catch (e) {
+      console.error(e)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  if (loading) return <div className="loading">加载中...</div>
+
+  return (
+    <div>
+      <div className="page-header">
+        <h2 className="page-title">📚 调研记录 (T018)</h2>
+      </div>
+
+      <div className="card">
+        {notes.length === 0 ? (
+          <div className="empty-state">
+            <div className="empty-state-icon">📚</div>
+            <p>暂无调研记录</p>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            {notes.map((note: any, i: number) => (
+              <div key={i} style={{
+                padding: '16px',
+                background: '#f8f9fa',
+                borderRadius: '8px',
+                borderLeft: '4px solid #667eea'
+              }}>
+                <h4>{note.title || '未命名调研'}</h4>
+                <p style={{ color: '#666', marginTop: '8px' }}>{note.content || note.description || ''}</p>
+                {note.created_at && (
+                  <span style={{ color: '#999', fontSize: '0.85rem' }}>
+                    {new Date(note.created_at).toLocaleDateString('zh-CN')}
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
