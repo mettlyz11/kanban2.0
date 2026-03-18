@@ -1,0 +1,18 @@
+{
+  "tasks": [
+    {
+      "project": "T109",
+      "query": "transition state calculation DFT",
+      "max_results": 20,
+      "schedule": "0 9 * * 1"
+    },
+    {
+      "project": "Pepi",
+      "query": "AI agent memory system",
+      "max_results": 15,
+      "schedule": "0 9 * * 3"
+    }
+  ],
+  "reports_dir": "./reports/literature",
+  "api_base_url": "http://localhost:5001"
+}

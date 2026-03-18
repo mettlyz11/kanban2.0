@@ -1,0 +1,6 @@
+2026-03-11 23:16:06,051 - TaskWorker - INFO - 已添加 slurm_job_id 字段
+2026-03-11 23:16:06,051 - TaskWorker - INFO - 开始执行任务 296: T109架构设计图绘制
+2026-03-11 23:16:06,051 - TaskWorker - INFO - 任务 296 状态更新为: in_progress
+2026-03-11 23:16:06,053 - TaskWorker - ERROR - sbatch 命令未找到，请确保 SLURM 已安装
+2026-03-11 23:16:06,054 - TaskWorker - WARNING - 任务 296 提交失败，第 1 次重试
+2026-03-11 23:16:06,054 - TaskWorker - INFO - 任务 296 状态更新为: retrying

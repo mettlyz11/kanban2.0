@@ -1,0 +1,15 @@
+INFO:__main__:✅ PerceptionAgent 已启动
+INFO:__main__:✅ 感知Agent初始化成功
+============================================================
+Kanban React - Flask API Server
+============================================================
+API地址: http://localhost:8086
+============================================================
+ * Serving Flask app 'app'
+ * Debug mode: on
+Address already in use
+Port 8086 is in use by another program. Either identify and stop that program, or start the server with a different port.
+INFO:__main__:🛑 PerceptionAgent 已停止
+INFO:__main__:🛑 感知Agent已停止
+
+✅ PerceptionAgent stopped

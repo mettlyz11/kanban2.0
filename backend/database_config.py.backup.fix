@@ -1,0 +1,247 @@
+#!/usr/bin/env python3
+"""
+数据库配置模块 - 支持 SQLite 和 MySQL/RDS
+"""
+
+import os
+import sqlite3
+import pymysql
+from contextlib import contextmanager
+from typing import Optional, Any, List, Tuple, Union
+import logging
+
+logger = logging.getLogger(__name__)
+
+# ============================================
+# 数据库配置
+# ============================================
+
+# 数据库类型: sqlite | mysql
+DB_TYPE = os.environ.get('DB_TYPE', 'mysql').lower()
+
+# SQLite 配置
+SQLITE_DB_PATH = os.environ.get('SQLITE_DB_PATH', 
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), 'kanban_v5.db'))
+
+# MySQL/RDS 配置
+MYSQL_CONFIG = {
+    'host': os.environ.get('MYSQL_HOST', 'rm-2zew4su9p966e8x2ofo.mysql.rds.aliyuncs.com'),
+    'port': int(os.environ.get('MYSQL_PORT', '3306')),
+    'user': os.environ.get('MYSQL_USER', 'kanban'),
+    'password': os.environ.get('MYSQL_PASSWORD', ''),
+    'database': os.environ.get('MYSQL_DATABASE', 'kanban'),
+    'charset': 'utf8mb4',
+    'cursorclass': pymysql.cursors.DictCursor,
+    'autocommit': False,
+}
+
+# ============================================
+# 连接管理
+# ============================================
+
+def get_db_path() -> str:
+    """获取数据库路径（兼容旧代码）"""
+    if DB_TYPE == 'sqlite':
+        return SQLITE_DB_PATH
+    else:
+        # MySQL 模式下返回空字符串，使用连接池
+        return ''
+
+def init_mysql_connection():
+    """初始化 MySQL 连接"""
+    try:
+        conn = pymysql.connect(**MYSQL_CONFIG)
+        logger.info("✅ MySQL/RDS 连接成功")
+        return conn
+    except Exception as e:
+        logger.error(f"❌ MySQL/RDS 连接失败: {e}")
+        raise
+
+@contextmanager
+def get_db_connection():
+    """
+    获取数据库连接（上下文管理器）
+    根据 DB_TYPE 自动选择 SQLite 或 MySQL
+    """
+    if DB_TYPE == 'sqlite':
+        conn = sqlite3.connect(SQLITE_DB_PATH)
+        conn.row_factory = sqlite3.Row
+        try:
+            yield conn
+        finally:
+            conn.close()
+    else:
+        conn = pymysql.connect(**MYSQL_CONFIG)
+        try:
+            yield conn
+        finally:
+            conn.close()
+
+@contextmanager
+def get_db_cursor():
+    """
+    获取数据库游标（上下文管理器）
+    自动处理提交和回滚
+    """
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        try:
+            yield cursor
+            conn.commit()
+        except Exception as e:
+            conn.rollback()
+            raise e
+        finally:
+            cursor.close()
+
+# ============================================
+# SQL 兼容性处理
+# ============================================
+
+def adapt_sql(sql: str) -> str:
+    """
+    适配 SQL 语句，处理 SQLite 和 MySQL 的差异
+    """
+    if DB_TYPE == 'sqlite':
+        return sql
+    
+    # MySQL 适配
+    adapted = sql
+    
+    # 1. 替换 ? 占位符为 %s
+    adapted = adapted.replace('?', '%s')
+    
+    # 2. 处理日期时间函数
+    adapted = adapted.replace('CURRENT_TIMESTAMP', 'NOW()')
+    adapted = adapted.replace('datetime(\'now\')', 'NOW()')
+    
+    # 3. 处理 LIMIT 语法（SQLite: LIMIT n OFFSET m, MySQL: LIMIT m, n）
+    # 这个比较复杂，暂时不处理，使用时注意
+    
+    # 4. 处理随机数函数
+    adapted = adapted.replace('RANDOM()', 'RAND()')
+    
+    # 5. 处理字符串连接
+    adapted = adapted.replace('||', 'CONCAT()')
+    
+    return adapted
+
+def execute_query(sql: str, params: Optional[Union[Tuple, List, dict]] = None) -> List[dict]:
+    """
+    执行查询并返回结果列表
+    自动适配 SQLite 和 MySQL
+    """
+    adapted_sql = adapt_sql(sql)
+    
+    with get_db_connection() as conn:
+        if DB_TYPE == 'sqlite':
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+        else:
+            cursor = conn.cursor(pymysql.cursors.DictCursor)
+        
+        try:
+            if params:
+                cursor.execute(adapted_sql, params)
+            else:
+                cursor.execute(adapted_sql)
+            
+            if DB_TYPE == 'sqlite':
+                rows = cursor.fetchall()
+                result = [dict(row) for row in rows]
+            else:
+                result = cursor.fetchall()
+            
+            return result
+        finally:
+            cursor.close()
+
+def execute_update(sql: str, params: Optional[Union[Tuple, List, dict]] = None) -> int:
+    """
+    执行更新操作（INSERT/UPDATE/DELETE）
+    返回影响的行数
+    """
+    adapted_sql = adapt_sql(sql)
+    
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        try:
+            if params:
+                cursor.execute(adapted_sql, params)
+            else:
+                cursor.execute(adapted_sql)
+            conn.commit()
+            return cursor.rowcount
+        finally:
+            cursor.close()
+
+def execute_many(sql: str, params_list: List[Union[Tuple, dict]]) -> int:
+    """
+    批量执行更新操作
+    返回影响的行数
+    """
+    adapted_sql = adapt_sql(sql)
+    
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        try:
+            cursor.executemany(adapted_sql, params_list)
+            conn.commit()
+            return cursor.rowcount
+        finally:
+            cursor.close()
+
+# ============================================
+# 表结构检查
+# ============================================
+
+def table_exists(table_name: str) -> bool:
+    """检查表是否存在"""
+    if DB_TYPE == 'sqlite':
+        sql = "SELECT name FROM sqlite_master WHERE type='table' AND name=?"
+        result = execute_query(sql, (table_name,))
+        return len(result) > 0
+    else:
+        sql = "SHOW TABLES LIKE %s"
+        result = execute_query(sql, (table_name,))
+        return len(result) > 0
+
+def get_table_columns(table_name: str) -> List[str]:
+    """获取表的列名列表"""
+    if DB_TYPE == 'sqlite':
+        sql = f"PRAGMA table_info({table_name})"
+        result = execute_query(sql)
+        return [row['name'] for row in result]
+    else:
+        sql = "SHOW COLUMNS FROM %s"
+        result = execute_query(sql, (table_name,))
+        return [row['Field'] for row in result]
+
+# ============================================
+# 初始化检查
+# ============================================
+
+def check_database():
+    """检查数据库连接"""
+    try:
+        with get_db_connection() as conn:
+            logger.info(f"✅ 数据库连接正常 ({DB_TYPE})")
+            return True
+    except Exception as e:
+        logger.error(f"❌ 数据库连接失败: {e}")
+        return False
+
+def get_db_info() -> dict:
+    """获取数据库信息"""
+    return {
+        'type': DB_TYPE,
+        'sqlite_path': SQLITE_DB_PATH if DB_TYPE == 'sqlite' else None,
+        'mysql_host': MYSQL_CONFIG['host'] if DB_TYPE == 'mysql' else None,
+        'mysql_database': MYSQL_CONFIG['database'] if DB_TYPE == 'mysql' else None,
+    }
+
+# 启动时检查
+if __name__ == '__main__':
+    print(f"数据库类型: {DB_TYPE}")
+    print(f"数据库信息: {get_db_info()}")
+    check_database()

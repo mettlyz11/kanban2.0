@@ -1,0 +1,28 @@
+INFO:__main__:🗄️ 数据库模式: mysql
+INFO:__main__:🗄️ RDS 连接: None / None
+WARNING:__main__:⚠️ 认证路由导入失败: No module named 'auth_routes'
+WARNING:__main__:⚠️ 监控告警路由导入失败: No module named 'monitoring_routes'
+WARNING:__main__:⚠️ 管理员后台路由导入失败: No module named 'admin_routes'
+WARNING:__main__:⚠️ 文献调研记录路由导入失败：No module named 'research_logs_routes'
+WARNING:__main__:⚠️ 感知 Agent 路由导入失败：No module named 'perception_routes'
+WARNING:__main__:⚠️ 工作流程架构图路由导入失败：No module named 'workflow_architecture_routes'
+INFO:__main__:✅ 人员和公司动态Tab路由已注册
+ERROR:__main__:记录感知事件失败: no such table: perception_events
+INFO:__main__:✅ PerceptionAgent 已启动
+INFO:__main__:✅ 感知Agent初始化成功
+✅ 人员和公司动态Tab表初始化完成
+============================================================
+Kanban React - Flask API Server
+============================================================
+API地址: http://localhost:8086
+============================================================
+✅ 系统启动事件已记录到感知监控
+⚠️ 监控告警系统启动失败: No module named 'p049_monitoring'
+ * Serving Flask app 'app'
+ * Debug mode: on
+Address already in use
+Port 8086 is in use by another program. Either identify and stop that program, or start the server with a different port.
+INFO:__main__:🛑 PerceptionAgent 已停止
+INFO:__main__:🛑 感知Agent已停止
+
+✅ PerceptionAgent stopped

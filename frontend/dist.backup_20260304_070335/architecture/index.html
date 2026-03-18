@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dudu工作流程架构 - 看板2.4</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="bg-gradient-to-br from-blue-50 to-indigo-100 min-h-screen">
+    <div id="app"></div>
+    <script>
+        const defaultSteps = [
+            {id: 1, title: "HEARTBEAT检查", content: "每小时检查系统状态
+- 检查Git状态
+- 检查阿里云服务状态
+- 检查日历日程", file: "HEARTBEAT.md"},
+            {id: 2, title: "邮件处理", content: "检查并处理新邮件
+- 同步邮件
+- 分析重要邮件
+- 生成回复建议", file: "email_handler.md"},
+            {id: 3, title: "日历管理", content: "管理日程安排
+- 检查即将开始的日程
+- 发送提醒
+- 记录会议要点", file: "calendar_manager.md"},
+            {id: 4, title: "任务执行", content: "执行看板任务
+- 读取任务列表
+- 执行开发/修复任务
+- 更新任务状态", file: "task_executor.md"},
+            {id: 5, title: "进展汇报", content: "整点汇报进展
+- 汇总Git提交
+- 汇报服务状态
+- 报告任务进度", file: "progress_reporter.md"}
+        ];
+        
+        let steps = [];
+        let editMode = false;
+        let editingStep = null;
+        let editForm = null;
+        
+        function loadWorkflow() {
+            const saved = localStorage.getItem('dudu_workflow');
+            steps = saved ? JSON.parse(saved) : [...defaultSteps];
+            render();
+        }
+        
+        function saveWorkflow() {
+            localStorage.setItem('dudu_workflow', JSON.stringify(steps));
+            
+            // 保存关联文件
+            const files = JSON.parse(localStorage.getItem('workflow_files') || '{}');
+            steps.forEach(step => {
+                if (!files[step.file]) {
+                    files[step.file] = `# ${step.title}
+
+${step.content}`;
+                }
+            });
+            localStorage.setItem('workflow_files', JSON.stringify(files));
+            
+            alert('保存成功！');
+        }
+        
+        function resetWorkflow() {
+            if (confirm('确定要重置为默认工作流程吗？')) {
+                localStorage.removeItem('dudu_workflow');
+                localStorage.removeItem('workflow_files');
+                steps = [...defaultSteps];
+                render();
+            }
+        }
+        
+        function moveStep(index, direction) {
+            if (direction === 'up' && index > 0) {
+                [steps[index], steps[index-1]] = [steps[index-1], steps[index]];
+            } else if (direction === 'down' && index < steps.length - 1) {
+                [steps[index], steps[index+1]] = [steps[index+1], steps[index]];
+            }
+            render();
+        }
+        
+        function deleteStep(index) {
+            if (confirm('确定要删除这个步骤吗？')) {
+                steps.splice(index, 1);
+                render();
+            }
+        }
+        
+        function addStep() {
+            steps.push({
+                id: Date.now(),
+                title: "新步骤",
+                content: "点击编辑内容...",
+                file: `step_${steps.length + 1}.md`
+            });
+            render();
+        }
+        
+        function startEdit(index) {
+            editingStep = index;
+            editForm = {...steps[index]};
+            render();
+        }
+        
+        function saveEdit() {
+            if (editingStep !== null && editForm) {
+                steps[editingStep] = {...editForm};
+                editingStep = null;
+                editForm = null;
+                render();
+            }
+        }
+        
+        function cancelEdit() {
+            editingStep = null;
+            editForm = null;
+            render();
+        }
+        
+        function editFile(filename) {
+            const files = JSON.parse(localStorage.getItem('workflow_files') || '{}');
+            const content = files[filename] || `# ${filename}
+
+请输入内容...`;
+            const newContent = prompt(`编辑文件: ${filename}`, content);
+            if (newContent !== null) {
+                files[filename] = newContent;
+                localStorage.setItem('workflow_files', JSON.stringify(files));
+                alert(`文件 ${filename} 已保存！`);
+            }
+        }
+        
+        function render() {
+            const app = document.getElementById('app');
+            app.innerHTML = `
+                <div class="p-6 max-w-5xl mx-auto">
+                    <!-- 头部 -->
+                    <div class="flex items-center justify-between mb-6">
+                        <div class="flex items-center gap-4">
+                            <a href="/" class="p-2 bg-white rounded-lg shadow hover:shadow-md">
+                                <i class="fas fa-arrow-left text-gray-600"></i>
+                            </a>
+                            <div>
+                                <h1 class="text-2xl font-bold text-gray-900">Dudu工作流程架构</h1>
+                                <p class="text-sm text-gray-500">可编辑的工作流程管理系统</p>
+                            </div>
+                        </div>
+                        <div class="flex gap-3">
+                            <button onclick="resetWorkflow()" class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200">
+                                重置
+                            </button>
+                            <button onclick="toggleEditMode()" class="px-4 py-2 ${editMode ? 'bg-green-600 hover:bg-green-700' : 'bg-blue-600 hover:bg-blue-700'} text-white rounded-lg">
+                                ${editMode ? '完成编辑' : '编辑模式'}
+                            </button>
+                            <button onclick="saveWorkflow()" class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">
+                                <i class="fas fa-save mr-2"></i>保存
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- 提示 -->
+                    <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-r-lg mb-6">
+                        <p class="text-sm text-yellow-800">
+                            <strong>💡 提示：</strong>${editMode ? '编辑模式已开启。点击"编辑"修改内容，使用箭头调整顺序。' : '点击"编辑模式"可以修改工作流程。'}
+                        </p>
+                    </div>
+                    
+                    <!-- 添加按钮 -->
+                    ${editMode ? `
+                        <button onclick="addStep()" class="w-full mb-4 p-4 border-2 border-dashed border-gray-300 rounded-xl text-gray-500 hover:border-blue-400 hover:text-blue-600">
+                            <i class="fas fa-plus mr-2"></i>添加新步骤
+                        </button>
+                    ` : ''}
+                    
+                    <!-- 步骤列表 -->
+                    <div class="space-y-4">
+                        ${steps.map((step, index) => `
+                            <div>
+                                <div class="bg-white rounded-xl shadow-sm border p-6 ${editMode ? 'border-blue-300 shadow-md' : ''}">
+                                    <div class="flex items-start justify-between mb-4">
+                                        <div class="flex items-center gap-4">
+                                            <div class="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 text-white flex items-center justify-center font-bold text-lg">
+                                                ${index + 1}
+                                            </div>
+                                            ${editingStep === index ? `
+                                                <input type="text" value="${editForm?.title || ''}" 
+                                                    onchange="updateEditForm('title', this.value)"
+                                                    class="text-xl font-bold border-b-2 border-blue-500 focus:outline-none bg-transparent">
+                                            ` : `
+                                                <h3 class="text-xl font-bold text-gray-900">${step.title}</h3>
+                                            `}
+                                        </div>
+                                        
+                                        <div class="flex gap-2">
+                                            ${editMode ? `
+                                                ${editingStep === index ? `
+                                                    <button onclick="saveEdit()" class="p-2 text-green-600 hover:bg-green-50 rounded-lg" title="保存">
+                                                        <i class="fas fa-save"></i>
+                                                    </button>
+                                                    <button onclick="cancelEdit()" class="p-2 text-gray-600 hover:bg-gray-50 rounded-lg" title="取消">
+                                                        <i class="fas fa-times"></i>
+                                                    </button>
+                                                ` : `
+                                                    <button onclick="startEdit(${index})" class="p-2 text-blue-600 hover:bg-blue-50 rounded-lg" title="编辑">
+                                                        <i class="fas fa-edit"></i>
+                                                    </button>
+                                                `}
+                                                <button onclick="moveStep(${index}, 'up')" ${index === 0 ? 'disabled' : ''} class="p-2 text-gray-600 hover:bg-gray-50 rounded-lg disabled:opacity-30">
+                                                    <i class="fas fa-arrow-up"></i>
+                                                </button>
+                                                <button onclick="moveStep(${index}, 'down')" ${index === steps.length - 1 ? 'disabled' : ''} class="p-2 text-gray-600 hover:bg-gray-50 rounded-lg disabled:opacity-30">
+                                                    <i class="fas fa-arrow-down"></i>
+                                                </button>
+                                                <button onclick="deleteStep(${index})" class="p-2 text-red-600 hover:bg-red-50 rounded-lg" title="删除">
+                                                    <i class="fas fa-trash"></i>
+                                                </button>
+                                            ` : ''}
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="ml-14">
+                                        ${editingStep === index ? `
+                                            <textarea onchange="updateEditForm('content', this.value)" 
+                                                class="w-full h-32 p-3 border rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-500">${editForm?.content || ''}</textarea>
+                                        ` : `
+                                            <div class="text-gray-600 whitespace-pre-line">${step.content}</div>
+                                        `}
+                                        
+                                        <div class="mt-4 flex items-center gap-2">
+                                            <i class="fas fa-file-alt text-gray-400"></i>
+                                            <span class="text-sm text-gray-500">关联文件:</span>
+                                            ${editingStep === index ? `
+                                                <input type="text" value="${editForm?.file || ''}" 
+                                                    onchange="updateEditForm('file', this.value)"
+                                                    class="text-sm border-b border-gray-300 focus:border-blue-500 focus:outline-none">
+                                            ` : `
+                                                <span class="text-sm font-mono bg-gray-100 px-2 py-1 rounded">${step.file}</span>
+                                            `}
+                                            <button onclick="editFile('${step.file}')" class="text-sm text-blue-600 hover:text-blue-700 ml-2">
+                                                编辑文件
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                ${index < steps.length - 1 ? `
+                                    <div class="flex justify-center my-2">
+                                        <div class="text-2xl text-gray-300">↓</div>
+                                    </div>
+                                ` : ''}
+                            </div>
+                        `).join('')}
+                    </div>
+                    
+                    <div class="mt-8 text-center text-sm text-gray-500">
+                        <p>共 ${steps.length} 个步骤</p>
+                    </div>
+                </div>
+            `;
+        }
+        
+        function toggleEditMode() {
+            editMode = !editMode;
+            editingStep = null;
+            editForm = null;
+            render();
+        }
+        
+        function updateEditForm(field, value) {
+            if (editForm) {
+                editForm[field] = value;
+            }
+        }
+        
+        // 初始化
+        loadWorkflow();
+    </script>
+</body>
+</html>

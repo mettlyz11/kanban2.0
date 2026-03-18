@@ -1,0 +1,37 @@
+启动后端服务...
+DB_TYPE: mysql
+MYSQL_HOST: rm-2zew4su9p966e8x2ofo.mysql.rds.aliyuncs.com
+MYSQL_USER: kanban
+MYSQL_DATABASE: kanban
+INFO:app:🗄️ 数据库模式: mysql
+INFO:app:🗄️ RDS 连接: rm-2zew4su9p966e8x2ofo.mysql.rds.aliyuncs.com / kanban
+INFO:app:✅ 认证路由已注册 (P049-T007: 密码管理, P049-T008: API密钥管理)
+INFO:app:✅ 监控告警路由已注册 (P049-T041: 监控告警)
+INFO:app:✅ 管理员后台路由已注册 (P049-T8-2: 管理员后台)
+INFO:app:✅ 文献调研记录路由已注册
+INFO:app:✅ 感知 Agent 路由已注册 (P049-T042: 感知 Agent)
+INFO:app:✅ 工作流程架构图路由已注册
+INFO:app:🗄️ 数据库模式: mysql
+INFO:app:🗄️ RDS 连接: rm-2zew4su9p966e8x2ofo.mysql.rds.aliyuncs.com / kanban
+INFO:app:✅ 人员和公司动态Tab路由已注册
+INFO:app:✅ 认证路由已注册 (P049-T007: 密码管理, P049-T008: API密钥管理)
+INFO:app:✅ 监控告警路由已注册 (P049-T041: 监控告警)
+INFO:app:✅ 管理员后台路由已注册 (P049-T8-2: 管理员后台)
+INFO:app:✅ 文献调研记录路由已注册
+INFO:app:✅ 感知 Agent 路由已注册 (P049-T042: 感知 Agent)
+INFO:app:✅ 工作流程架构图路由已注册
+INFO:PerceptionAgent:Listener 'LogListener' started
+INFO:PerceptionAgent:Listener 'ErrorListener' started
+INFO:PerceptionAgent:Listener 'MetricListener' started
+INFO:PerceptionAgent:Listener 'BehaviorListener' started
+INFO:PerceptionAgent:🎯 PerceptionAgent started with 4 listeners
+INFO:app:✅ 感知 Agent 已启动 (P049-T042: 感知 Agent)
+INFO:app:✅ 人员和公司动态Tab路由已注册
+INFO:PerceptionAgent:Listener 'LogListener' started
+INFO:PerceptionAgent:Listener 'ErrorListener' started
+INFO:PerceptionAgent:Listener 'MetricListener' started
+INFO:PerceptionAgent:Listener 'BehaviorListener' started
+INFO:PerceptionAgent:🎯 PerceptionAgent started with 4 listeners
+INFO:app:✅ 感知 Agent 已启动 (P049-T042: 感知 Agent)
+✅ 人员和公司动态Tab表初始化完成
+✅ 人员和公司动态Tab表初始化完成

@@ -1,0 +1,4 @@
+# Cloudflare Pages 路由配置
+# 将所有路由重定向到 index.html 以支持 React Router
+
+/* /index.html 200

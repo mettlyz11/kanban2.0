@@ -1,0 +1,431 @@
+import { useState, useEffect } from 'react'
+import { NetworkGraph } from '../components/NetworkGraph'
+
+export function Brain() {
+  const [stats, setStats] = useState<any>(null)
+  const [entities, setEntities] = useState<any[]>([])
+  const [relationships, setRelationships] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [search, setSearch] = useState('')
+  const [selectedType, setSelectedType] = useState('')
+  const [showAllEntities, setShowAllEntities] = useState(false)
+  const [showAllRelations, setShowAllRelations] = useState(false)
+  const [selectedNode, setSelectedNode] = useState<string | null>(null)
+  const [showNetworkView, setShowNetworkView] = useState(true)
+
+  useEffect(() => {
+    loadData()
+  }, [selectedType])
+
+  const loadData = async () => {
+    try {
+      const [statsRes, entitiesRes, relationsRes] = await Promise.all([
+        fetch('/api/brain/stats').then(r => r.json()),
+        fetch(`/api/brain/entities?type=${selectedType}`).then(r => r.json()),
+        fetch('/api/brain/relationships').then(r => r.json())
+      ])
+      
+      if (statsRes.success) setStats(statsRes.stats)
+      if (entitiesRes.success) setEntities(entitiesRes.entities)
+      if (relationsRes.success) {
+        setRelationships(relationsRes.relationships || [])
+        // 使用关系API返回的关联实体（确保网络图完整显示）
+        if (relationsRes.entities) {
+          setEntities(relationsRes.entities)
+        }
+      }
+    } catch (e) {
+      console.error(e)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const filteredEntities = entities.filter(e => 
+    !search || e.name?.toLowerCase().includes(search.toLowerCase())
+  )
+
+  if (loading) return <div className="loading">加载中...</div>
+
+  const typeColors: Record<string, string> = {
+    'person': '#667eea',
+    'org': '#11998e',
+    'product': '#fc4a1a',
+    'project': '#f7b733',
+    'group': '#a855f7',
+    'event': '#ec4899'
+  }
+
+  const typeLabels: Record<string, string> = {
+    'person': '👤 人物',
+    'org': '🏢 组织',
+    'product': '📦 产品',
+    'project': '📁 项目',
+    'group': '👥 群组',
+    'event': '📅 事件'
+  }
+
+  return (
+    <div>
+      <div className="page-header">
+        <h2 className="page-title">🧠 知识大脑</h2>
+      </div>
+
+      {/* 统计卡片 - 紧凑尺寸 */}
+      {stats && (
+        <div style={{ display: 'flex', gap: '12px', marginBottom: '16px' }}>
+          <div 
+            className="stat-card purple" 
+            style={{ padding: '10px 16px', cursor: 'pointer', flex: 1, maxWidth: '200px' }}
+            onClick={() => setShowAllEntities(true)}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <span style={{ fontSize: '1.5rem' }}>🧩</span>
+              <div>
+                <div style={{ fontSize: '1.4rem', fontWeight: 600, lineHeight: 1 }}>{stats.entities?.toLocaleString()}</div>
+                <div style={{ fontSize: '0.7rem', color: '#666', marginTop: '2px' }}>实体总数</div>
+              </div>
+            </div>
+          </div>
+          <div 
+            className="stat-card blue" 
+            style={{ padding: '10px 16px', cursor: 'pointer', flex: 1, maxWidth: '200px' }}
+            onClick={() => setShowAllRelations(true)}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <span style={{ fontSize: '1.5rem' }}>🔗</span>
+              <div>
+                <div style={{ fontSize: '1.4rem', fontWeight: 600, lineHeight: 1 }}>{stats.relationships?.toLocaleString()}</div>
+                <div style={{ fontSize: '0.7rem', color: '#666', marginTop: '2px' }}>关系总数</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 类型分布 */}
+      {stats?.types && (
+        <div className="card" style={{ marginBottom: '24px' }}>
+          <h5 style={{ marginBottom: '16px' }}>实体类型分布</h5>
+          <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+            {Object.entries(stats.types).map(([type, count]) => (
+              <button
+                key={type}
+                onClick={() => setSelectedType(selectedType === type ? '' : type)}
+                style={{
+                  padding: '10px 20px',
+                  borderRadius: '20px',
+                  border: 'none',
+                  background: selectedType === type ? typeColors[type] || '#667eea' : '#f0f0f0',
+                  color: selectedType === type ? 'white' : '#333',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  fontSize: '14px'
+                }}
+              >
+                {typeLabels[type] || type}
+                <span style={{
+                  background: selectedType === type ? 'rgba(255,255,255,0.3)' : '#ddd',
+                  padding: '2px 8px',
+                  borderRadius: '10px',
+                  fontSize: '12px'
+                }}>
+                  {count as number}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 视图切换 */}
+      <div style={{ marginBottom: '20px', display: 'flex', gap: '12px' }}>
+        <button
+          onClick={() => setShowNetworkView(!showNetworkView)}
+          style={{
+            padding: '10px 20px',
+            borderRadius: '8px',
+            border: 'none',
+            background: showNetworkView ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' : '#f0f0f0',
+            color: showNetworkView ? 'white' : '#333',
+            cursor: 'pointer',
+            fontSize: '14px',
+            fontWeight: 500
+          }}
+        >
+          🕸️ {showNetworkView ? '隐藏' : '显示'}神经网络图
+        </button>
+      </div>
+
+      {/* 神经网络图 */}
+      {showNetworkView && entities.length > 0 && (
+        <div className="card" style={{ marginBottom: '24px', padding: '24px' }}>
+          <div style={{ 
+            display: 'flex', 
+            justifyContent: 'space-between', 
+            alignItems: 'center',
+            marginBottom: '16px'
+          }}>
+            <h5 style={{ margin: 0, fontSize: '18px' }}>🧠 知识神经网络</h5>
+            <div style={{ fontSize: '13px', color: '#64748b' }}>
+              节点: {entities.length} | 关系: {relationships.length} | 
+              拖拽节点可调整布局 | 滚轮缩放
+            </div>
+          </div>
+          <NetworkGraph
+            nodes={entities.map(e => ({
+              id: String(e.id),
+              name: e.name,
+              type: e.entity_type,
+              description: e.description
+            }))}
+            links={relationships.map(r => ({
+              source: String(r.source_id),
+              target: String(r.target_id),
+              relation: r.relation_type
+            }))}
+            debug={true}
+            width={850}
+            height={550}
+            selectedNode={selectedNode}
+            onNodeClick={(node) => setSelectedNode(selectedNode === node.id ? null : node.id)}
+            showAllLinks={showAllRelations}
+            onToggleLinks={() => setShowAllRelations(!showAllRelations)}
+          />
+          {selectedNode && (
+            <div style={{ 
+              marginTop: '16px', 
+              padding: '16px', 
+              background: '#f8fafc', 
+              borderRadius: '8px',
+              borderLeft: '4px solid #667eea'
+            }}>
+              <strong>选中实体:</strong> {entities.find(e => String(e.id) === selectedNode)?.name}
+              <button
+                onClick={() => setSelectedNode(null)}
+                style={{
+                  marginLeft: '12px',
+                  padding: '4px 12px',
+                  borderRadius: '4px',
+                  border: 'none',
+                  background: '#e2e8f0',
+                  cursor: 'pointer',
+                  fontSize: '12px'
+                }}
+              >
+                清除选择
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 搜索 */}
+      <div className="filter-bar" style={{ marginBottom: '16px' }}>
+        <input
+          type="text"
+          placeholder="搜索实体..."
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          style={{ 
+            padding: '10px 16px', 
+            borderRadius: '8px', 
+            border: '1px solid #ddd',
+            minWidth: '300px'
+          }}
+        />
+      </div>
+
+      {/* 实体网格 */}
+      <div className="grid-4">
+        {filteredEntities.map(entity => (
+          <div key={entity.id} className="card" style={{ 
+            borderTop: `4px solid ${typeColors[entity.entity_type] || '#667eea'}`
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
+              <span 
+                className="badge" 
+                style={{ 
+                  background: typeColors[entity.entity_type] || '#667eea',
+                  color: 'white'
+                }}
+              >
+                {typeLabels[entity.entity_type] || entity.entity_type}
+              </span>
+            </div>
+            <h4 style={{ marginBottom: '8px', fontSize: '1.1rem' }}>{entity.name}</h4>
+            <p style={{ 
+              color: '#666', 
+              fontSize: '0.85rem', 
+              marginBottom: '12px',
+              display: '-webkit-box',
+              WebkitLineClamp: 2,
+              WebkitBoxOrient: 'vertical',
+              overflow: 'hidden'
+            }}>
+              {entity.description || '暂无描述'}
+            </p>
+            {entity.metadata && (
+              <div style={{ 
+                padding: '8px', 
+                background: '#f8f9fa', 
+                borderRadius: '4px',
+                fontSize: '0.75rem',
+                color: '#666'
+              }}>
+                {(() => {
+                  try {
+                    const meta = JSON.parse(entity.metadata)
+                    return Object.entries(meta).slice(0, 2).map(([k, v]) => (
+                      <div key={k}><strong>{k}:</strong> {String(v).slice(0, 30)}</div>
+                    ))
+                  } catch {
+                    return <div>元数据</div>
+                  }
+                })()}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {filteredEntities.length === 0 && (
+        <div className="empty-state">
+          <div className="empty-state-icon">🧠</div>
+          <p>{search ? '未找到匹配的实体' : '暂无实体数据'}</p>
+        </div>
+      )}
+
+      {/* 所有实体弹窗 */}
+      {showAllEntities && (
+        <div className="modal-overlay" onClick={() => setShowAllEntities(false)}>
+          <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '800px', maxHeight: '80vh', overflow: 'auto' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <h3>🧩 所有实体 ({entities.length})</h3>
+              <button className="btn btn-sm btn-secondary" onClick={() => setShowAllEntities(false)}>✕</button>
+            </div>
+            <div style={{ maxHeight: '60vh', overflow: 'auto' }}>
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>类型</th>
+                    <th>名称</th>
+                    <th>描述</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {entities.map(e => (
+                    <tr key={e.id}>
+                      <td>
+                        <span className="badge" style={{ background: typeColors[e.entity_type] || '#667eea', color: 'white' }}>
+                          {typeLabels[e.entity_type] || e.entity_type}
+                        </span>
+                      </td>
+                      <td>{e.name}</td>
+                      <td>{e.description?.slice(0, 50) || '-'}{e.description?.length > 50 ? '...' : ''}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 查看全部关系 - 页面内显示（上下排列） */}
+      {showAllRelations && (
+        <>
+          {/* 第二个网络图（全关系视图） */}
+          <div className="card" style={{ marginBottom: '24px' }}>
+            <div style={{ 
+              display: 'flex', 
+              justifyContent: 'space-between', 
+              alignItems: 'center',
+              marginBottom: '16px'
+            }}>
+              <h5 style={{ margin: 0, fontSize: '18px' }}>🔗 全部关系网络 ({stats?.relationships || 0})</h5>
+              <button className="btn btn-sm btn-secondary" onClick={() => setShowAllRelations(false)}>收起</button>
+            </div>
+            <div style={{ border: '1px solid #e2e8f0', borderRadius: '8px', overflow: 'hidden' }}>
+              <NetworkGraph
+                nodes={entities.map(e => ({
+                  id: String(e.id),
+                  name: e.name,
+                  type: e.entity_type,
+                  description: e.description
+                }))}
+                links={relationships.map(r => ({
+                  source: String(r.source_id),
+                  target: String(r.target_id),
+                  relation: r.relation_type
+                }))}
+                width={850}
+                height={500}
+                showAllLinks={true}
+              />
+            </div>
+          </div>
+
+          {/* 文字关系列表 */}
+          <div className="card">
+            <h5 style={{ margin: '0 0 16px 0', fontSize: '18px' }}>📋 关系详情列表</h5>
+            <div style={{ maxHeight: '400px', overflow: 'auto' }}>
+              {relationships.length > 0 ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {relationships.map((rel, idx) => {
+                    const sourceEntity = entities.find(e => String(e.id) === String(rel.source_id))
+                    const targetEntity = entities.find(e => String(e.id) === String(rel.target_id))
+                    return (
+                      <div 
+                        key={idx}
+                        style={{
+                          padding: '12px 16px',
+                          background: '#f8fafc',
+                          borderRadius: '8px',
+                          border: '1px solid #e2e8f0',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '12px'
+                        }}
+                      >
+                        <span style={{ 
+                          fontWeight: 600, 
+                          color: '#667eea',
+                          background: '#e0e7ff',
+                          padding: '4px 12px',
+                          borderRadius: '12px',
+                          fontSize: '14px'
+                        }}>
+                          {sourceEntity?.name || '未知'}
+                        </span>
+                        <span style={{ color: '#64748b', fontSize: '13px' }}>
+                          --{rel.relation_type}--
+                        </span>
+                        <span style={{ 
+                          fontWeight: 600, 
+                          color: '#764ba2',
+                          background: '#f3e8ff',
+                          padding: '4px 12px',
+                          borderRadius: '12px',
+                          fontSize: '14px'
+                        }}>
+                          {targetEntity?.name || '未知'}
+                        </span>
+                      </div>
+                    )
+                  })}
+                </div>
+              ) : (
+                <p style={{ color: '#64748b', textAlign: 'center', padding: '20px' }}>
+                  暂无关系数据
+                </p>
+              )}
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}

@@ -1,0 +1,47 @@
+# 长思考系统配置
+# 路径: kanban-react/backend/long_thinking_config.yml
+
+# 定时设置
+schedule:
+  hour: 13          # 执行小时 (24小时制)
+  minute: 0         # 执行分钟
+  timezone: "Asia/Shanghai"
+
+# 分析范围
+analysis:
+  projects: true    # 分析项目
+  tasks: true       # 分析任务
+  system: true      # 分析系统指标
+  history_days: 7   # 查看历史天数
+
+# 阈值设置
+thresholds:
+  project_health: 70      # 项目健康度警告线 (分)
+  task_backlog_days: 5    # 任务积压警告天数
+  failure_rate: 0.1       # 失败率警告阈值 (10%)
+
+# 任务生成规则
+task_generation:
+  auto_create: true       # 是否自动创建任务
+  auto_execute: true      # 是否自动执行常规任务
+  require_review_for:     # 需要人工审核的任务类型
+    - "asset"             # 资产相关
+    - "security"          # 安全相关
+    - "bank"              # 银行相关
+    - "identity"          # 身份相关
+    - "physical"          # 真实物理世界活动
+
+# 报告设置
+report:
+  save_to_file: true
+  output_dir: "~/.openclaw/workspace/logs/long_thinking/"
+  retention_days: 90      # 保留90天
+
+# 通知设置 (预留)
+notifications:
+  enabled: false
+  on_danger: true         # 发现危险问题时通知
+  on_manual_review: true  # 有待审核任务时通知
+  channels:               # 通知渠道
+    - "email"
+    - "feishu"
