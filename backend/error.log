@@ -39706,3 +39706,33 @@ NameError: name 'init_person_company_tables' is not defined
 [2026-03-18 11:36:26 +0800] [967969] [INFO] Using worker: sync
 [2026-03-18 11:36:26 +0800] [967970] [INFO] Booting worker with pid: 967970
 [2026-03-18 11:36:26 +0800] [967971] [INFO] Booting worker with pid: 967971
+[2026-03-18 11:36:47 +0800] [968438] [INFO] Starting gunicorn 20.1.0
+[2026-03-18 11:36:47 +0800] [968438] [INFO] Listening at: http://0.0.0.0:8086 (968438)
+[2026-03-18 11:36:47 +0800] [968438] [INFO] Using worker: sync
+[2026-03-18 11:36:47 +0800] [968439] [INFO] Booting worker with pid: 968439
+[2026-03-18 11:36:47 +0800] [968440] [INFO] Booting worker with pid: 968440
+[2026-03-18 11:38:06 +0800] [969331] [INFO] Starting gunicorn 20.1.0
+[2026-03-18 11:38:06 +0800] [969331] [INFO] Listening at: http://0.0.0.0:8086 (969331)
+[2026-03-18 11:38:06 +0800] [969331] [INFO] Using worker: sync
+[2026-03-18 11:38:06 +0800] [969334] [INFO] Booting worker with pid: 969334
+[2026-03-18 11:38:06 +0800] [969335] [INFO] Booting worker with pid: 969335
+[2026-03-18 11:39:10 +0800] [969961] [INFO] Starting gunicorn 20.1.0
+[2026-03-18 11:39:10 +0800] [969961] [INFO] Listening at: http://0.0.0.0:8086 (969961)
+[2026-03-18 11:39:10 +0800] [969961] [INFO] Using worker: sync
+[2026-03-18 11:39:10 +0800] [969962] [INFO] Booting worker with pid: 969962
+[2026-03-18 11:39:10 +0800] [969963] [INFO] Booting worker with pid: 969963
+[2026-03-18 11:40:16 +0800] [970657] [INFO] Starting gunicorn 20.1.0
+[2026-03-18 11:40:16 +0800] [970657] [INFO] Listening at: http://0.0.0.0:8086 (970657)
+[2026-03-18 11:40:16 +0800] [970657] [INFO] Using worker: sync
+[2026-03-18 11:40:16 +0800] [970660] [INFO] Booting worker with pid: 970660
+[2026-03-18 11:40:16 +0800] [970661] [INFO] Booting worker with pid: 970661
+[2026-03-18 11:41:12 +0800] [971276] [INFO] Starting gunicorn 20.1.0
+[2026-03-18 11:41:12 +0800] [971276] [INFO] Listening at: http://0.0.0.0:8086 (971276)
+[2026-03-18 11:41:12 +0800] [971276] [INFO] Using worker: sync
+[2026-03-18 11:41:12 +0800] [971277] [INFO] Booting worker with pid: 971277
+[2026-03-18 11:41:12 +0800] [971278] [INFO] Booting worker with pid: 971278
+[2026-03-18 11:42:57 +0800] [972294] [INFO] Starting gunicorn 20.1.0
+[2026-03-18 11:42:57 +0800] [972294] [INFO] Listening at: http://0.0.0.0:8086 (972294)
+[2026-03-18 11:42:57 +0800] [972294] [INFO] Using worker: sync
+[2026-03-18 11:42:57 +0800] [972297] [INFO] Booting worker with pid: 972297
+[2026-03-18 11:42:57 +0800] [972298] [INFO] Booting worker with pid: 972298

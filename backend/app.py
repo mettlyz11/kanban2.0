@@ -62,16 +62,16 @@ except ImportError as e:
     logger.warning(f"⚠️ 认证路由导入失败: {e}")
 
 # ============================================
-# 导入监控告警路由 (P049-T041)
-# ============================================
-try:
-    # # from monitoring_routes import monitoring_bp, init_monitoring_db  # DISABLED - SQLite dependency  # DISABLED
-    # # init_monitoring_db(DB_PATH)  # DISABLED  # DISABLED
-    # # app.register_blueprint(monitoring_bp)  # DISABLED  # DISABLED
-    logger.info("✅ 监控告警路由已注册 (P049-T041: 监控告警)")
-except ImportError as e:
-    logger.warning(f"⚠️ 监控告警路由导入失败: {e}")
-
+## 导入监控告警路由 (P049-T041)
+## ============================================
+#try:
+#    # # from monitoring_routes import monitoring_bp, init_monitoring_db  # DISABLED - SQLite dependency  # DISABLED
+#    # # init_monitoring_db(DB_PATH)  # DISABLED  # DISABLED
+#    # # app.register_blueprint(monitoring_bp)  # DISABLED  # DISABLED
+#    logger.info("✅ 监控告警路由已注册 (P049-T041: 监控告警)")
+#except ImportError as e:
+#    logger.warning(f"⚠️ 监控告警路由导入失败: {e}")
+#
 # ============================================
 # 导入管理员后台路由 (P049-T8-2)
 # ============================================
@@ -189,6 +189,7 @@ perception_recorder = PerceptionRecorder()
 
 def get_db():
     """获取 MySQL 数据库连接"""
+    # 直接使用 database_config 中的 get_db_cursor 获取连接
     conn = get_db_connection()
     return conn
 
