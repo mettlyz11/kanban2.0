@@ -27,3 +27,28 @@
 - 保持SQLite和MySQL双模式支持
 - 后端API现在可以正常从RDS MySQL数据库读取数据
 
+
+
+## v2.4.13 (2026-03-18) - 纯 MySQL 化
+
+### 重大变更
+- 移除 SQLite 支持
+- 完全迁移到 MySQL/RDS
+
+### 修改文件
+- backend/task_worker.py - 改用 pymysql
+- backend/db_config.py - 纯 MySQL 配置
+- backend/app.py - 移除 SQLite 引用
+- backend/.env - 移除 SQLite 配置
+- backend/migrate_*.py - 标记弃用
+
+### 数据库变更
+- tasks 表新增 slurm_job_id (INTEGER)
+- tasks 表新增 slurm_output_file (TEXT)
+- tasks 表新增 retry_count (INTEGER)
+
+### 验证
+- SQLite 代码引用：0 处
+- MySQL 连接：正常
+- 表结构：完整
+
