@@ -194,3 +194,5 @@ export function Pepi() {
     </div>
   )
 }
+
+export default Pepi

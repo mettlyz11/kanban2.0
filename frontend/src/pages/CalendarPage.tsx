@@ -7,6 +7,8 @@ const { Title, Text } = Typography;
 const CalendarPage = () => {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize] = useState(20)
   const [error, setError] = useState(null);
 
   useEffect(() => {

@@ -571,3 +571,16 @@ export function AccessStats() {
     </div>
   )
 }
+
+
+// 主页面组件
+function SystemPages() {
+  return (
+    <div className="system-pages">
+      <SystemMonitor />
+      <AccessStats />
+    </div>
+  )
+}
+
+export default SystemPages

@@ -1,54 +1,46 @@
+# 看板系统更新日志
 
-## v2.5.1 - 2026-03-16
+## v3.1.0 (2026-03-23) - 实时数据同步功能
 
-### 修复
-- 修复登录 500 错误（systemd 服务未加载环境变量）
-- 修复 App.tsx 语法错误（重复路由和缺失闭合标签）
-- 重新构建前端并部署
+### 🎉 新增功能
 
-### 技术细节
-- 修改 systemd 服务配置使用 start_gunicorn.sh 脚本
-- 确保 Gunicorn 正确加载 .env 中的 MySQL 配置
-- 修复前端路由定义中的重复和语法问题
+#### WebSocket 实时数据同步
+- ✅ 集成 Flask-SocketIO 后端
+- ✅ 实现 WebSocket 连接管理
+- ✅ 任务状态实时同步（创建/更新/删除）
+- ✅ 在线用户状态显示
+- ✅ 协作编辑锁机制
 
-## v2.5.2 - 2026-03-17
+#### 后端改进
+- 新增 `socket_events.py` 模块处理 WebSocket 事件
+- 支持多端登录和会话管理
+- 编辑锁超时自动释放（5 分钟）
+- 心跳检测机制（30 秒间隔）
 
-### 修复
-- 修复MySQL/RDS数据库兼容性问题
-- 添加ConnectionWrapper和CursorWrapper处理SQLite和MySQL的SQL语法差异
-- 修复get_db函数以支持MySQL连接
-- 替换dict(row)为row_to_dict(row, c)以兼容MySQL元组返回
-- 修复/api/goals中的sqlite_master查询，使用table_exists函数
-- 修复所有API端点的数据库连接问题
+#### 前端组件
+- 新增 `OnlineUsers` 组件显示在线用户
+- 新增 `EditLockIndicator` 组件显示编辑锁状态
+- 新增 `socket.ts` WebSocket 工具类
 
-### 技术细节
-- 在database_config.py中添加兼容层
-- 自动转换SQL占位符为MySQL格式
-- 保持SQLite和MySQL双模式支持
-- 后端API现在可以正常从RDS MySQL数据库读取数据
+### 🔧 技术栈
+- Flask-SocketIO 5.3.6
+- Socket.IO Client 4.7.2
+- Eventlet 0.34.2 (异步模式)
 
+### 📝 配置变更
+- Nginx 添加 WebSocket 代理支持
+- 后端启动方式改为 `socketio.run()`
+- 数据库连接池配置优化
 
+### 🧪 测试
+- WebSocket 连接测试通过
+- 多客户端实时同步测试通过
+- 编辑锁机制测试通过
 
-## v2.4.13 (2026-03-18) - 纯 MySQL 化
+---
 
-### 重大变更
-- 移除 SQLite 支持
-- 完全迁移到 MySQL/RDS
-
-### 修改文件
-- backend/task_worker.py - 改用 pymysql
-- backend/db_config.py - 纯 MySQL 配置
-- backend/app.py - 移除 SQLite 引用
-- backend/.env - 移除 SQLite 配置
-- backend/migrate_*.py - 标记弃用
-
-### 数据库变更
-- tasks 表新增 slurm_job_id (INTEGER)
-- tasks 表新增 slurm_output_file (TEXT)
-- tasks 表新增 retry_count (INTEGER)
-
-### 验证
-- SQLite 代码引用：0 处
-- MySQL 连接：正常
-- 表结构：完整
-
+## v3.0.0 (2026-03-20) - 初始版本
+- 基础看板功能
+- 任务管理
+- 项目管理
+- 用户认证

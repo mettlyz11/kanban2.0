@@ -751,3 +751,5 @@ export function LiuYuzhou() {
     </div>
   )
 }
+
+export default LiuYuzhou

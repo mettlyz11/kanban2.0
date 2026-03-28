@@ -399,3 +399,5 @@ export function CommunicationHub() {
     </div>
   )
 }
+
+export default CommunicationHub

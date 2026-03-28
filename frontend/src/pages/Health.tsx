@@ -476,3 +476,5 @@ export function Health() {
     </div>
   )
 }
+
+export default Health

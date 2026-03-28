@@ -91,3 +91,5 @@ export function Molecules() {
     </div>
   )
 }
+
+export default Molecules

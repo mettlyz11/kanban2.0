@@ -29,6 +29,7 @@ export function Goals() {
   const [goals, setGoals] = useState<Goal[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('')
+  const [showAddModal, setShowAddModal] = useState(false)
 
   useEffect(() => {
     loadGoals()
@@ -120,8 +121,38 @@ export function Goals() {
         {goals.length === 0 ? (
           <div className="card" style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '60px 20px' }}>
             <Target size={48} style={{ opacity: 0.3, marginBottom: '16px' }} />
-            <h3 style={{ color: '#666', marginBottom: '8px' }}>暂无目标</h3>
-            <p style={{ color: '#999' }}>目标数据将从数据库加载</p>
+            <div style={{ 
+              padding: '60px 20px', 
+              textAlign: 'center',
+              background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
+              borderRadius: '12px',
+              margin: '20px 0'
+            }}>
+              <div style={{ fontSize: '64px', marginBottom: '16px' }}>🎯</div>
+              <h3 style={{ margin: '0 0 8px 0', color: '#1e293b', fontSize: '18px' }}>暂无项目目标</h3>
+              <p style={{ margin: '0 0 24px 0', color: '#64748b', fontSize: '14px' }}>
+                还没有设定任何目标，点击下方按钮创建第一个目标
+              </p>
+              <button
+                onClick={() => setShowAddModal(true)}
+                style={{
+                  padding: '12px 32px',
+                  borderRadius: '8px',
+                  border: 'none',
+                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                  color: 'white',
+                  cursor: 'pointer',
+                  fontSize: '15px',
+                  fontWeight: 600,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px'
+                }}
+              >
+                <span style={{ fontSize: '18px' }}>➕</span>
+                创建第一个目标
+              </button>
+            </div>
           </div>
         ) : (
           goals.map(goal => (
@@ -449,3 +480,5 @@ function getMockGoals(): Goal[] {
     }
   ]
 }
+
+export default Goals

@@ -796,7 +796,7 @@ function ProjectTaskList({ tasks, loading, onDeleteTask }: {
   if (loading) {
     return (
       <div style={{ textAlign: 'center', padding: '20px', color: '#999' }}>
-        加载任务中...
+        点击展开查看任务
       </div>
     )
   }
@@ -956,7 +956,7 @@ function ProjectFilesSection({
   if (loading) {
     return (
       <div style={{ textAlign: 'center', padding: '20px', color: '#999' }}>
-        加载文件中...
+        点击展开查看文件
       </div>
     )
   }
@@ -1247,3 +1247,5 @@ function TaskDetailPopup({ task, onClose }: { task: Task | null; onClose: () => 
     </div>
   )
 }
+
+export default Projects

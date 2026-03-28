@@ -459,3 +459,5 @@ function generateMockData(timeRange: string): MetricPoint[] {
 
   return points
 }
+
+export default ResourceMonitor

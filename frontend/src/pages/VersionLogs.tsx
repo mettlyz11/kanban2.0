@@ -69,3 +69,4 @@ export function VersionLogs() {
     </div>
   )
 }
+export default VersionLogs

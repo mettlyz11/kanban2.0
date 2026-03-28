@@ -555,3 +555,5 @@ export function Cron() {
     </div>
   )
 }
+
+export default Cron

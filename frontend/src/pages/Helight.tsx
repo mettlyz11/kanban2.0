@@ -370,3 +370,5 @@ export function Helight() {
     </div>
   )
 }
+
+export default Helight

@@ -410,3 +410,5 @@ export function PerceptionAgent() {
     </div>
   )
 }
+
+export default PerceptionAgent

@@ -228,3 +228,5 @@ export function ManualReview() {
     </div>
   )
 }
+
+export default ManualReview

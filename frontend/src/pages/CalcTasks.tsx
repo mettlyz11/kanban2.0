@@ -100,3 +100,5 @@ export function CalcTasks() {
     </div>
   )
 }
+
+export default CalcTasks

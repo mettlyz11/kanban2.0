@@ -252,3 +252,5 @@ export function ProjectDocuments() {
     </div>
   )
 }
+
+export default ProjectDocuments

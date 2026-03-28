@@ -329,3 +329,5 @@ function getCategoryIcon(category: string): string {
   }
   return icons[category] || '📚'
 }
+
+export default Resources

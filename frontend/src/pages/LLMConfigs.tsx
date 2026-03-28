@@ -296,7 +296,42 @@ export function LLMConfigs() {
             <tbody>
               {filteredConfigs.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="empty-state">暂无模型配置</td>
+                  <td colSpan={8} className="empty-state">
+                  <div style={{ 
+                    padding: '60px 20px', 
+                    textAlign: 'center',
+                    background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
+                    borderRadius: '12px',
+                    margin: '20px 0'
+                  }}>
+                    <div style={{ fontSize: '64px', marginBottom: '16px' }}>🤖</div>
+                    <h3 style={{ margin: '0 0 8px 0', color: '#1e293b', fontSize: '18px' }}>
+                      暂无模型配置
+                    </h3>
+                    <p style={{ margin: '0 0 24px 0', color: '#64748b', fontSize: '14px' }}>
+                      系统支持 725+ 个大模型，但您尚未配置任何模型。点击下方按钮添加第一个模型配置。
+                    </p>
+                    <button
+                      onClick={() => setShowAddModal(true)}
+                      style={{
+                        padding: '12px 32px',
+                        borderRadius: '8px',
+                        border: 'none',
+                        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                        color: 'white',
+                        cursor: 'pointer',
+                        fontSize: '15px',
+                        fontWeight: 600,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '8px'
+                      }}
+                    >
+                      <span style={{ fontSize: '18px' }}>➕</span>
+                      添加第一个模型配置
+                    </button>
+                  </div>
+                </td>
                 </tr>
               ) : (
                 filteredConfigs.map((config) => (
@@ -596,3 +631,5 @@ print(response.choices[0].message.content)`}</pre>
     </div>
   )
 }
+
+export default LLMConfigs

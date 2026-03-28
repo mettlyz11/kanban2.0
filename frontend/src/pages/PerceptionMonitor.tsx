@@ -323,7 +323,7 @@ export function PerceptionMonitor() {
               📡 监听器状态
             </h3>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px' }}>
-              {(status.listeners ? Object.entries(status.listeners).map : []).map(([name, listener]) => (
+              {(status.listeners ? Object.entries(status.listeners) : []).map(([name, listener]) => (
                 <div
                   key={name}
                   style={{
@@ -433,3 +433,5 @@ export function PerceptionMonitor() {
     </div>
   )
 }
+
+export default PerceptionMonitor

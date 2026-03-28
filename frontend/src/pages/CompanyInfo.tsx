@@ -149,3 +149,5 @@ export function CompanyInfo() {
     </div>
   )
 }
+
+export default CompanyInfo

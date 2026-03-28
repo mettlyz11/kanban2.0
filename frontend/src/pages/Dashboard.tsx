@@ -32,7 +32,7 @@ export function Dashboard() {
 
   if (loading) return <div className="loading">加载中...</div>
 
-  const completionRate = stats?.tasks?.total 
+  const completionRate = stats && stats.tasks && stats.tasks.total 
     ? Math.round((stats.tasks.done / stats.tasks.total) * 100) 
     : 0
 
@@ -89,7 +89,7 @@ export function Dashboard() {
             <div style={{ marginBottom: '16px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '0.9rem' }}>
                 <span>任务完成率</span>
-                <span>{completionRate}%</span>
+                <span>{completionRate || 0}%</span>
               </div>
               <div style={{ 
                 height: '10px', 
@@ -99,7 +99,7 @@ export function Dashboard() {
               }}>
                 <div style={{ 
                   height: '100%', 
-                  width: `${completionRate}%`,
+                  width: `${completionRate || 0}%`,
                   background: 'white',
                   borderRadius: '5px',
                   transition: 'width 0.3s ease'
@@ -108,15 +108,15 @@ export function Dashboard() {
             </div>
             <div style={{ display: 'flex', gap: '16px', justifyContent: 'space-around' }}>
               <div style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>{stats?.tasks?.done || 0}</div>
+                <div style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>{stats && stats.tasks ? stats.tasks.done : 0}</div>
                 <div style={{ fontSize: '0.8rem', opacity: 0.9 }}>已完成</div>
               </div>
               <div style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>{stats?.tasks?.progress || 0}</div>
+                <div style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>{stats && stats.tasks ? stats.tasks.progress : 0}</div>
                 <div style={{ fontSize: '0.8rem', opacity: 0.9 }}>进行中</div>
               </div>
               <div style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>{stats?.tasks?.todo || 0}</div>
+                <div style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>{stats && stats.tasks ? stats.tasks.todo : 0}</div>
                 <div style={{ fontSize: '0.8rem', opacity: 0.9 }}>待处理</div>
               </div>
             </div>
@@ -191,7 +191,7 @@ export function Dashboard() {
           <div className="stat-card orange" style={{ padding: '12px', cursor: 'pointer', transition: 'transform 0.2s' }}>
             <div className="stat-icon" style={{ width: '36px', height: '36px', fontSize: '1.1rem' }}>✨</div>
             <div className="stat-info">
-              <h3 style={{ fontSize: '1.2rem' }}>{stats?.tasks?.done || 0}</h3>
+              <h3 style={{ fontSize: '1.2rem' }}>{stats && stats.tasks ? stats.tasks.done : 0}</h3>
               <p style={{ fontSize: '0.7rem' }}>已完成</p>
             </div>
           </div>
@@ -200,7 +200,7 @@ export function Dashboard() {
           <div className="stat-card cyan" style={{ padding: '12px', cursor: 'pointer', transition: 'transform 0.2s' }}>
             <div className="stat-icon" style={{ width: '36px', height: '36px', fontSize: '1.1rem' }}>🚀</div>
             <div className="stat-info">
-              <h3 style={{ fontSize: '1.2rem' }}>{stats?.tasks?.progress || 0}</h3>
+              <h3 style={{ fontSize: '1.2rem' }}>{stats && stats.tasks ? stats.tasks.progress : 0}</h3>
               <p style={{ fontSize: '0.7rem' }}>进行中</p>
             </div>
           </div>
@@ -260,7 +260,7 @@ export function Dashboard() {
       )}
 
       <div className="card">
-        <h3>👋 欢迎使用看板系统 v2.0</h3>
+        <h3>👋 欢迎使用看板系统 v4.5.1</h3>
         <p style={{ color: '#666', marginTop: '8px' }}>
           这是使用 React + Flask 构建的新版本看板系统，与原系统共用数据库，数据实时同步。
           点击上方统计卡片可快速跳转到对应页面。
@@ -269,3 +269,5 @@ export function Dashboard() {
     </div>
   )
 }
+
+export default Dashboard

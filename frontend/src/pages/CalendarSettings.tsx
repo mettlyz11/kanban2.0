@@ -265,3 +265,5 @@ export function CalendarSettings() {
     </div>
   )
 }
+
+export default CalendarSettings

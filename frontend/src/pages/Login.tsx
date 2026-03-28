@@ -128,7 +128,7 @@ export function Login() {
       }}>
         <div style={{ textAlign: 'center', marginBottom: '32px' }}>
           <div style={{ fontSize: '4rem', marginBottom: '16px' }}>📊</div>
-          <h1 style={{ margin: 0, color: '#333' }}>看板系统 v2.0</h1>
+          <h1 style={{ margin: 0, color: '#333' }}>看板系统 v4.5.1</h1>
           <p style={{ color: '#666', marginTop: '8px' }}>请登录以继续</p>
         </div>
 
@@ -309,3 +309,5 @@ export function Login() {
     </div>
   )
 }
+
+export default Login

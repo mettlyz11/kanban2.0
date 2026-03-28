@@ -6,6 +6,8 @@ export function Brain() {
   const [entities, setEntities] = useState<any[]>([])
   const [relationships, setRelationships] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize] = useState(50)
   const [search, setSearch] = useState('')
   const [selectedType, setSelectedType] = useState('')
   const [showAllEntities, setShowAllEntities] = useState(false)
@@ -196,27 +198,78 @@ export function Brain() {
           />
           {selectedNode && (
             <div style={{ 
-              marginTop: '16px', 
-              padding: '16px', 
-              background: '#f8fafc', 
-              borderRadius: '8px',
-              borderLeft: '4px solid #667eea'
+              marginTop: '20px', 
+              padding: '20px', 
+              background: 'white', 
+              borderRadius: '12px',
+              boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+              border: '1px solid #e2e8f0'
             }}>
-              <strong>选中实体:</strong> {entities.find(e => String(e.id) === selectedNode)?.name}
-              <button
-                onClick={() => setSelectedNode(null)}
-                style={{
-                  marginLeft: '12px',
-                  padding: '4px 12px',
-                  borderRadius: '4px',
-                  border: 'none',
-                  background: '#e2e8f0',
-                  cursor: 'pointer',
-                  fontSize: '12px'
-                }}
-              >
-                清除选择
-              </button>
+              {(() => {
+                const entity = entities.find(e => String(e.id) === selectedNode);
+                if (!entity) return null;
+                return (
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                      <h4 style={{ margin: 0, fontSize: '18px', color: '#1e293b' }}>
+                        {typeLabels[entity.type] || '🔹'} {entity.name}
+                      </h4>
+                      <button
+                        onClick={() => setSelectedNode(null)}
+                        style={{
+                          padding: '6px 14px',
+                          borderRadius: '6px',
+                          border: 'none',
+                          background: '#f1f5f9',
+                          cursor: 'pointer',
+                          fontSize: '13px',
+                          color: '#64748b'
+                        }}
+                      >
+                        ✕ 关闭
+                      </button>
+                    </div>
+                    <div style={{ display: 'grid', gap: '12px' }}>
+                      {entity.description && (
+                        <div>
+                          <strong style={{ color: '#64748b', fontSize: '13px' }}>描述:</strong>
+                          <p style={{ margin: '4px 0 0 0', color: '#334155', fontSize: '14px', lineHeight: 1.6 }}>
+                            {entity.description}
+                          </p>
+                        </div>
+                      )}
+                      <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap' }}>
+                        <div>
+                          <strong style={{ color: '#64748b', fontSize: '13px' }}>类型:</strong>
+                          <span style={{ marginLeft: '8px', color: '#334155' }}>{typeLabels[entity.type] || entity.type}</span>
+                        </div>
+                        <div>
+                          <strong style={{ color: '#64748b', fontSize: '13px' }}>ID:</strong>
+                          <span style={{ marginLeft: '8px', color: '#334155', fontFamily: 'monospace', fontSize: '12px' }}>{entity.id}</span>
+                        </div>
+                        {entity.created_at && (
+                          <div>
+                            <strong style={{ color: '#64748b', fontSize: '13px' }}>创建时间:</strong>
+                            <span style={{ marginLeft: '8px', color: '#334155' }}>{new Date(entity.created_at).toLocaleDateString('zh-CN')}</span>
+                          </div>
+                        )}
+                      </div>
+                      {entity.tags && (
+                        <div>
+                          <strong style={{ color: '#64748b', fontSize: '13px' }}>标签:</strong>
+                          <div style={{ display: 'flex', gap: '6px', marginTop: '6px', flexWrap: 'wrap' }}>
+                            {entity.tags.split(',').map((tag, idx) => (
+                              <span key={idx} style={{ padding: '4px 10px', background: '#f1f5f9', borderRadius: '12px', fontSize: '12px', color: '#475569' }}>
+                                {tag.trim()}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           )}
         </div>
@@ -429,3 +482,5 @@ export function Brain() {
     </div>
   )
 }
+
+export default Brain

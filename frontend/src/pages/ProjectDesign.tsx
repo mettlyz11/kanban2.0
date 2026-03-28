@@ -302,3 +302,5 @@ export function ProjectDesign() {
     </div>
   )
 }
+
+export default ProjectDesign
