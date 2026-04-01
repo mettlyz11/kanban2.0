@@ -7072,3 +7072,147 @@ def delete_backlog(item_id):
     except Exception as e:
         print(f"[ERROR] delete_backlog: {e}")
         return jsonify({'success': False, 'error': str(e)})
+
+
+# ============ 产品百科 Wiki API ============
+@app.route('/api/wiki/entries', methods=['GET'])
+def get_wiki_entries():
+    """获取所有百科词条，支持分类筛选和关键词搜索"""
+    try:
+        category = request.args.get('category')
+        search = request.args.get('search')
+        
+        conn = get_db()
+        c = conn.cursor(pymysql.cursors.DictCursor)
+        
+        sql = "SELECT id, title, category, tags, author, status, views, created_at, updated_at FROM wiki_entries WHERE status = 'published'"
+        params = []
+        
+        if category:
+            sql += " AND category = %s"
+            params.append(category)
+        
+        if search:
+            sql += " AND (title LIKE %s OR content LIKE %s)"
+            search_term = f"%{search}%"
+            params.append(search_term)
+            params.append(search_term)
+        
+        sql += " ORDER BY created_at DESC"
+        
+        c.execute(sql, params)
+        entries = c.fetchall()
+        conn.close()
+        return jsonify({'success': True, 'entries': entries})
+    except Exception as e:
+        print(f"[ERROR] get_wiki_entries: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/wiki/entries/<int:entry_id>', methods=['GET'])
+def get_wiki_entry(entry_id):
+    """获取单个百科词条详情"""
+    try:
+        conn = get_db()
+        c = conn.cursor(pymysql.cursors.DictCursor)
+        c.execute('SELECT * FROM wiki_entries WHERE id = %s AND status = "published"', (entry_id,))
+        entry = c.fetchone()
+        
+        if entry:
+            # 增加浏览次数
+            c.execute('UPDATE wiki_entries SET views = views + 1 WHERE id = %s', (entry_id,))
+            conn.commit()
+        
+        conn.close()
+        
+        if entry:
+            return jsonify({'success': True, 'entry': entry})
+        else:
+            return jsonify({'success': False, 'error': '词条不存在'})
+    except Exception as e:
+        print(f"[ERROR] get_wiki_entry: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/wiki/categories', methods=['GET'])
+def get_wiki_categories():
+    """获取所有分类"""
+    try:
+        conn = get_db()
+        c = conn.cursor(pymysql.cursors.DictCursor)
+        c.execute('''
+            SELECT category, COUNT(*) as count 
+            FROM wiki_entries 
+            WHERE status = 'published' 
+            GROUP BY category 
+            ORDER BY count DESC
+        ''')
+        categories = c.fetchall()
+        conn.close()
+        return jsonify({'success': True, 'categories': categories})
+    except Exception as e:
+        print(f"[ERROR] get_wiki_categories: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/wiki/entries', methods=['POST'])
+def create_wiki_entry():
+    """创建新词条"""
+    try:
+        data = request.get_json()
+        conn = get_db()
+        c = conn.cursor()
+        c.execute('''
+            INSERT INTO wiki_entries (title, content, category, tags, author, status)
+            VALUES (%s, %s, %s, %s, %s, %s)
+        ''', (
+            data.get('title'),
+            data.get('content'),
+            data.get('category'),
+            data.get('tags'),
+            data.get('author'),
+            data.get('status', 'published')
+        ))
+        conn.commit()
+        new_id = c.lastrowid
+        conn.close()
+        return jsonify({'success': True, 'id': new_id})
+    except Exception as e:
+        print(f"[ERROR] create_wiki_entry: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/wiki/entries/<int:entry_id>', methods=['PUT'])
+def update_wiki_entry(entry_id):
+    """更新词条"""
+    try:
+        data = request.get_json()
+        conn = get_db()
+        c = conn.cursor()
+        
+        fields = []
+        params = []
+        for key in ['title', 'content', 'category', 'tags', 'author', 'status']:
+            if key in data:
+                fields.append(f"{key} = %s")
+                params.append(data[key])
+        params.append(entry_id)
+        
+        sql = f"UPDATE wiki_entries SET {', '.join(fields)} WHERE id = %s"
+        c.execute(sql, params)
+        conn.commit()
+        conn.close()
+        return jsonify({'success': True})
+    except Exception as e:
+        print(f"[ERROR] update_wiki_entry: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/wiki/entries/<int:entry_id>', methods=['DELETE'])
+def delete_wiki_entry(entry_id):
+    """删除词条"""
+    try:
+        conn = get_db()
+        c = conn.cursor()
+        c.execute('DELETE FROM wiki_entries WHERE id = %s', (entry_id,))
+        conn.commit()
+        conn.close()
+        return jsonify({'success': True})
+    except Exception as e:
+        print(f"[ERROR] delete_wiki_entry: {e}")
+        return jsonify({'success': False, 'error': str(e)})
