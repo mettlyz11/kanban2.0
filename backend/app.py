@@ -6986,3 +6986,89 @@ def get_email_stats():
     except Exception as e:
         print(f"[ERROR] get_email_stats: {e}")
         return jsonify({'success': False, 'error': str(e)})
+
+
+# ============ Backlog 需求池 API ============
+@app.route('/api/backlog', methods=['GET'])
+def get_backlog():
+    """获取所有需求，按状态分组返回"""
+    try:
+        conn = get_db()
+        c = conn.cursor(pymysql.cursors.DictCursor)
+        c.execute('''
+            SELECT * FROM backlog 
+            ORDER BY priority DESC, created_at DESC
+        ''')
+        backlog = c.fetchall()
+        conn.close()
+        return jsonify({'success': True, 'backlog': backlog})
+    except Exception as e:
+        print(f"[ERROR] get_backlog: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/backlog', methods=['POST'])
+def create_backlog():
+    """创建新需求"""
+    try:
+        data = request.get_json()
+        conn = get_db()
+        c = conn.cursor()
+        c.execute('''
+            INSERT INTO backlog (title, description, status, priority, project, tags, estimated_hours)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+        ''', (
+            data.get('title'),
+            data.get('description'),
+            data.get('status', 'todo'),
+            data.get('priority', 1),
+            data.get('project'),
+            data.get('tags'),
+            data.get('estimated_hours')
+        ))
+        conn.commit()
+        new_id = c.lastrowid
+        conn.close()
+        return jsonify({'success': True, 'id': new_id})
+    except Exception as e:
+        print(f"[ERROR] create_backlog: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/backlog/<int:item_id>', methods=['PUT'])
+def update_backlog(item_id):
+    """更新需求"""
+    try:
+        data = request.get_json()
+        conn = get_db()
+        c = conn.cursor()
+        
+        # 构建更新 SQL
+        fields = []
+        params = []
+        for key in ['title', 'description', 'status', 'priority', 'project', 'tags', 'estimated_hours']:
+            if key in data:
+                fields.append(f"{key} = %s")
+                params.append(data[key])
+        params.append(item_id)
+        
+        sql = f"UPDATE backlog SET {', '.join(fields)} WHERE id = %s"
+        c.execute(sql, params)
+        conn.commit()
+        conn.close()
+        return jsonify({'success': True})
+    except Exception as e:
+        print(f"[ERROR] update_backlog: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/backlog/<int:item_id>', methods=['DELETE'])
+def delete_backlog(item_id):
+    """删除需求"""
+    try:
+        conn = get_db()
+        c = conn.cursor()
+        c.execute('DELETE FROM backlog WHERE id = %s', (item_id,))
+        conn.commit()
+        conn.close()
+        return jsonify({'success': True})
+    except Exception as e:
+        print(f"[ERROR] delete_backlog: {e}")
+        return jsonify({'success': False, 'error': str(e)})
