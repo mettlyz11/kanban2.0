@@ -7,6 +7,7 @@ import logging
 from datetime import datetime, timedelta
 from functools import wraps
 
+import pymysql
 # 设置日志
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -28,7 +29,7 @@ DB_TYPE = 'mysql'
 DB_PATH = '/opt/kanban-react/backend/monitoring.db'
 
 from database_config import (
-    MYSQL_CONFIG, get_db_connection, get_db_cursor,
+    MYSQL_CONFIG, get_db_connection, get_db_cursor, get_mysql_connection,
     execute_query, execute_update, table_exists, get_db_info,
 
 )
@@ -121,6 +122,8 @@ except ImportError as e:
 # 导入人员和公司动态Tab路由
 # ============================================
 try:
+    from person_company_routes import person_company_bp
+    app.register_blueprint(person_company_bp)
     # init_person_company_tables()  # Disabled - using database_config functions
     logger.info("✅ 人员和公司动态Tab路由已注册")
 except ImportError as e:
@@ -152,24 +155,23 @@ class PerceptionRecorder:
     def record_event(self, event_type, severity, source, message, metadata=None):
         """记录感知事件"""
         try:
-            conn = get_db_connection()
-            c = conn.cursor()
+            with get_db_connection() as conn:
+                c = conn.cursor()
         
-            import hashlib
-            hash_str = hashlib.md5(f"{event_type}{source}{message}{datetime.now()}".encode()).hexdigest()[:16]
+                import hashlib
+                hash_str = hashlib.md5(f"{event_type}{source}{message}{datetime.now()}".encode()).hexdigest()[:16]
         
-            c.execute('''
-                INSERT INTO perception_events 
-                (event_type, severity, source, message, metadata, timestamp, hash)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-            ''', (
-                event_type, severity, source, message,
-                json.dumps(metadata) if metadata else '{}',
-                datetime.now().isoformat(), hash_str
-            ))
+                c.execute('''
+                    INSERT INTO perception_events 
+                    (event_type, severity, source, message, metadata, timestamp, hash)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                ''', (
+                    event_type, severity, source, message,
+                    json.dumps(metadata) if metadata else '{}',
+                    datetime.now().isoformat(), hash_str
+                ))
         
-            conn.commit()
-            conn.close()
+                conn.commit()
         except Exception as e:
             logger.error(f"记录感知事件失败: {e}")
 
@@ -186,11 +188,22 @@ class PerceptionRecorder:
 
 # 全局感知记录器实例
 perception_recorder = PerceptionRecorder()
-
 def get_db():
     """获取 MySQL 数据库连接"""
-    # 直接使用 database_config 中的 get_db_cursor 获取连接
-    conn = get_db_connection()
+    # 从环境变量获取完整配置，确保密码正确传递
+    config = {
+        "host": os.environ.get("MYSQL_HOST", "rm-2zew4su9p966e8x2ofo.mysql.rds.aliyuncs.com"),
+        "port": int(os.environ.get("MYSQL_PORT", "3306")),
+        "user": os.environ.get("MYSQL_USER", "kanban"),
+        "password": os.environ.get("MYSQL_PASSWORD", "Irc210Irc210!"),
+        "database": os.environ.get("MYSQL_DATABASE", "kanban"),
+        "charset": "utf8mb4",
+        "cursorclass": pymysql.cursors.DictCursor,
+        "autocommit": False,
+    }
+    conn = pymysql.connect(**config)
+    return conn
+
     return conn
 
 
@@ -204,7 +217,7 @@ def row_to_dict(row, cursor):
     if hasattr(cursor, 'description') and cursor.description:
         columns = [desc[0] for desc in cursor.description]
         return dict(zip(columns, row))
-    return row_to_dict(row, c)
+    return row_to_dict(row, cursor)
 
 
 # ============================================
@@ -308,7 +321,7 @@ def record_token_usage(provider: str, model: str, prompt_tokens: int,
         c.execute('''
             INSERT INTO token_usage (timestamp, provider, model, prompt_tokens, 
                                     completion_tokens, total_tokens, cost_usd)
-            VALUES (datetime('now'), ?, ?, ?, ?, ?, ?)
+            VALUES (NOW(), ?, ?, ?, ?, ?, ?)
         ''', (provider, model, prompt_tokens, completion_tokens, total_tokens, cost_usd))
         conn.commit()
         conn.close()
@@ -362,12 +375,12 @@ def create_project():
 
     # 生成项目编号
     c.execute("SELECT COUNT(*) FROM projects")
-    count = c.fetchone()[0] + 1
+    count = list(c.fetchone().values())[0] + 1
     number = f"P{count:03d}"
 
     c.execute('''
         INSERT INTO projects (number, name, description, goal, priority, status, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+        VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW())
     ''', (number, name, description, goal, priority, status))
 
     project_id = c.lastrowid
@@ -391,25 +404,37 @@ def update_project(project_id):
     c = conn.cursor()
 
     set_clause = ', '.join([f"{k} = ?" for k in updates.keys()])
-    set_clause += ", updated_at = datetime('now')"
+    set_clause += ", updated_at = NOW()"
     values = list(updates.values()) + [project_id]
 
-    c.execute(f'UPDATE projects SET {set_clause} WHERE id = ?', values)
+    c.execute(f'UPDATE projects SET {set_clause} WHERE id = %s', values)
     conn.commit()
     conn.close()
 
     return jsonify({'success': True})
+
+@app.route('/api/projects/<int:project_id>', methods=['GET'])
+def get_project(project_id):
+    """获取项目详情"""
+    conn = get_db()
+    c = conn.cursor()
+    c.execute('SELECT * FROM projects WHERE id = %s AND status != "deleted"', (project_id,))
+    project = c.fetchone()
+    conn.close()
+    if not project:
+        return jsonify({'error': 'Not found', 'success': False}), 404
+    return jsonify({'success': True, 'project': project})
+
 
 @app.route('/api/projects/<int:project_id>', methods=['DELETE'])
 def delete_project(project_id):
     """删除项目"""
     conn = get_db()
     c = conn.cursor()
-    c.execute('UPDATE projects SET status = ? WHERE id = ?', ('deleted', project_id))
+    c.execute('UPDATE projects SET status = %s WHERE id = %s', ('deleted', project_id))
     conn.commit()
     conn.close()
     return jsonify({'success': True})
-
 # ============================================
 # 项目文档管理 API
 # ============================================
@@ -438,13 +463,14 @@ def get_project_upload_path(project_id):
     return upload_path
 
 @app.route('/api/projects/<int:project_id>/documents', methods=['GET'])
+@app.route('/api/projects/<int:project_id>/document', methods=['GET'])
 def get_project_documents(project_id):
     """获取项目文档列表"""
     try:
         # 检查项目是否存在
         conn = get_db()
         c = conn.cursor()
-        c.execute('SELECT id FROM projects WHERE id = ? AND status != "deleted"', (project_id,))
+        c.execute('SELECT id FROM projects WHERE id = %s AND status != "deleted"', (project_id,))
         if not c.fetchone():
             conn.close()
             return jsonify({'success': False, 'error': '项目不存在'}), 404
@@ -454,7 +480,7 @@ def get_project_documents(project_id):
             SELECT id, project_id, file_name, original_name, file_path, 
                    file_size, mime_type, description, uploaded_by, uploaded_at
             FROM project_documents
-            WHERE project_id = ?
+            WHERE project_id = %s
             ORDER BY uploaded_at DESC
         ''', (project_id,))
     
@@ -481,8 +507,8 @@ def get_project_documents(project_id):
     except Exception as e:
         logger.error(f"获取项目文档列表失败: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
-
 @app.route('/api/projects/<int:project_id>/documents', methods=['POST'])
+@app.route('/api/projects/<int:project_id>/document', methods=['POST'])
 def upload_project_document(project_id):
     """上传项目文档"""
     try:
@@ -493,7 +519,7 @@ def upload_project_document(project_id):
         # 检查项目是否存在
         conn = get_db()
         c = conn.cursor()
-        c.execute('SELECT id FROM projects WHERE id = ? AND status != "deleted"', (project_id,))
+        c.execute('SELECT id FROM projects WHERE id = %s AND status != "deleted"', (project_id,))
         if not c.fetchone():
             conn.close()
             return jsonify({'success': False, 'error': '项目不存在'}), 404
@@ -547,7 +573,7 @@ def upload_project_document(project_id):
                 INSERT INTO project_documents 
                 (project_id, file_name, original_name, file_path, file_size, 
                  mime_type, description, uploaded_by, uploaded_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
             ''', (project_id, safe_filename, original_filename, relative_path, 
                   file_size, mime_type, description, uploaded_by))
         
@@ -581,14 +607,14 @@ def upload_project_document(project_id):
         logger.error(f"上传项目文档失败: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
-@app.route('/api/projects/<int:project_id>/documents/<int:doc_id>/download', methods=['GET'])
+@app.route('/api/projects/<int:project_id>/document/<int:doc_id>/download', methods=['GET'])
 def download_project_document(project_id, doc_id):
     """下载项目文档"""
     try:
         # 检查项目是否存在
         conn = get_db()
         c = conn.cursor()
-        c.execute('SELECT id FROM projects WHERE id = ? AND status != "deleted"', (project_id,))
+        c.execute('SELECT id FROM projects WHERE id = %s AND status != "deleted"', (project_id,))
         if not c.fetchone():
             conn.close()
             return jsonify({'success': False, 'error': '项目不存在'}), 404
@@ -597,7 +623,7 @@ def download_project_document(project_id, doc_id):
         c.execute('''
             SELECT file_name, original_name, file_path, mime_type
             FROM project_documents
-            WHERE id = ? AND project_id = ?
+            WHERE id = %s AND project_id = %s
         ''', (doc_id, project_id))
     
         row = c.fetchone()
@@ -626,13 +652,14 @@ def download_project_document(project_id, doc_id):
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/projects/<int:project_id>/documents/<int:doc_id>', methods=['DELETE'])
+@app.route('/api/projects/<int:project_id>/document/<int:doc_id>', methods=['DELETE'])
 def delete_project_document(project_id, doc_id):
     """删除项目文档"""
     try:
         # 检查项目是否存在
         conn = get_db()
         c = conn.cursor()
-        c.execute('SELECT id FROM projects WHERE id = ? AND status != "deleted"', (project_id,))
+        c.execute('SELECT id FROM projects WHERE id = %s AND status != "deleted"', (project_id,))
         if not c.fetchone():
             conn.close()
             return jsonify({'success': False, 'error': '项目不存在'}), 404
@@ -640,7 +667,7 @@ def delete_project_document(project_id, doc_id):
         # 获取文档信息
         c.execute('''
             SELECT file_path FROM project_documents
-            WHERE id = ? AND project_id = ?
+            WHERE id = %s AND project_id = %s
         ''', (doc_id, project_id))
     
         row = c.fetchone()
@@ -654,7 +681,7 @@ def delete_project_document(project_id, doc_id):
             os.remove(file_path)
     
         # 删除数据库记录
-        c.execute('DELETE FROM project_documents WHERE id = ?', (doc_id,))
+        c.execute('DELETE FROM project_documents WHERE id = %s', (doc_id,))
         conn.commit()
         conn.close()
     
@@ -667,6 +694,7 @@ def delete_project_document(project_id, doc_id):
         logger.error(f"删除项目文档失败: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
+@app.route('/api/projects/<int:project_id>/document/<int:doc_id>', methods=['PUT'])
 @app.route('/api/projects/<int:project_id>/documents/<int:doc_id>', methods=['PUT'])
 def update_project_document(project_id, doc_id):
     """更新项目文档信息（仅元数据，不包括文件本身）"""
@@ -676,13 +704,13 @@ def update_project_document(project_id, doc_id):
         # 检查项目是否存在
         conn = get_db()
         c = conn.cursor()
-        c.execute('SELECT id FROM projects WHERE id = ? AND status != "deleted"', (project_id,))
+        c.execute('SELECT id FROM projects WHERE id = %s AND status != "deleted"', (project_id,))
         if not c.fetchone():
             conn.close()
             return jsonify({'success': False, 'error': '项目不存在'}), 404
     
         # 检查文档是否存在
-        c.execute('SELECT id FROM project_documents WHERE id = ? AND project_id = ?', (doc_id, project_id))
+        c.execute('SELECT id FROM project_documents WHERE id = %s AND project_id = %s', (doc_id, project_id))
         if not c.fetchone():
             conn.close()
             return jsonify({'success': False, 'error': '文档不存在'}), 404
@@ -697,10 +725,10 @@ def update_project_document(project_id, doc_id):
     
         # 构建更新语句
         set_clause = ', '.join([f"{k} = ?" for k in updates.keys()])
-        set_clause += ", updated_at = datetime('now')"
+        set_clause += ", updated_at = NOW()"
         values = list(updates.values()) + [doc_id]
     
-        c.execute(f'UPDATE project_documents SET {set_clause} WHERE id = ?', values)
+        c.execute(f'UPDATE project_documents SET {set_clause} WHERE id = %s', values)
         conn.commit()
         conn.close()
     
@@ -720,6 +748,7 @@ def update_project_document(project_id, doc_id):
 @app.route('/api/tasks/', methods=['GET'])
 @app.route('/api/tasks', methods=['GET'])
 def get_tasks():
+    # 添加分页支持
     """获取任务列表"""
     status = request.args.get('status', '')
     project_id = request.args.get('project_id', '')
@@ -740,10 +769,16 @@ def get_tasks():
         params.append(status)
 
     if project_id:
-        query += ' AND t.project_id = ?'
+        query += ' AND t.project_id = %s'
         params.append(project_id)
 
-    query += ' ORDER BY t.created_at DESC'
+    # 添加分页支持
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 50, type=int)
+    per_page = min(per_page, 500)  # 最大500条
+    offset = (page - 1) * per_page
+    
+    query += f" ORDER BY t.created_at DESC LIMIT {per_page} OFFSET {offset}"
 
     c.execute(query, params)
     tasks = [row_to_dict(row, c) for row in c.fetchall()]
@@ -768,12 +803,12 @@ def create_task():
 
     # 生成任务编号
     c.execute("SELECT COUNT(*) FROM tasks")
-    count = c.fetchone()[0] + 1
+    count = list(c.fetchone().values())[0] + 1
     number = f"T{count:03d}"
 
     c.execute('''
         INSERT INTO tasks (number, title, description, project_id, status, priority, created_at, updated_at)
-        VALUES (?, ?, ?, ?, 'todo', ?, datetime('now'), datetime('now'))
+        VALUES (?, ?, ?, ?, 'todo', ?, NOW(), NOW())
     ''', (number, title, description, project_id, priority))
 
     task_id = c.lastrowid
@@ -798,10 +833,10 @@ def update_task(task_id):
     c = conn.cursor()
 
     set_clause = ', '.join([f"{k} = ?" for k in updates.keys()])
-    set_clause += ", updated_at = datetime('now')"
+    set_clause += ", updated_at = NOW()"
     values = list(updates.values()) + [task_id]
 
-    c.execute(f'UPDATE tasks SET {set_clause} WHERE id = ?', values)
+    c.execute(f'UPDATE tasks SET {set_clause} WHERE id = %s', values)
     conn.commit()
     conn.close()
 
@@ -812,7 +847,7 @@ def delete_task(task_id):
     """删除任务"""
     conn = get_db()
     c = conn.cursor()
-    c.execute('UPDATE tasks SET status = ? WHERE id = ?', ('deleted', task_id))
+    c.execute('UPDATE tasks SET status = %s WHERE id = %s', ('deleted', task_id))
     conn.commit()
     conn.close()
     return jsonify({'success': True})
@@ -824,7 +859,7 @@ def get_task_history(task_id):
     c = conn.cursor()
 
     # 检查任务是否存在
-    c.execute('SELECT id FROM tasks WHERE id = ? AND status != "deleted"', (task_id,))
+    c.execute('SELECT id FROM tasks WHERE id = %s AND status != "deleted"', (task_id,))
     if not c.fetchone():
         conn.close()
         return jsonify({'success': False, 'error': '任务不存在'}), 404
@@ -886,34 +921,33 @@ def get_task_history(task_id):
     })
 
 @app.route('/api/projects/<int:project_id>/tasks', methods=['GET'])
+@app.route('/api/projects/<int:project_id>/task', methods=['GET'])
 def get_project_tasks(project_id):
     """获取项目关联的任务列表"""
-    conn = get_db()
-    c = conn.cursor()
+    with get_db() as conn:
+        c = conn.cursor()
 
-    # 检查项目是否存在
-    c.execute('SELECT id FROM projects WHERE id = ? AND status != "deleted"', (project_id,))
-    if not c.fetchone():
-        conn.close()
-        return jsonify({'success': False, 'error': '项目不存在'}), 404
+        # 检查项目是否存在
+        c.execute('SELECT id FROM projects WHERE id = %s AND status != "deleted"', (project_id,))
+        if not c.fetchone():
+            return jsonify({'success': False, 'error': '项目不存在'}), 404
 
-    # 获取项目任务
-    c.execute('''
-        SELECT id, title, status, priority, created_at, updated_at
-        FROM tasks
-        WHERE project_id = ? AND status != 'deleted'
-        ORDER BY 
-            CASE status
-                WHEN 'progress' THEN 1
-                WHEN 'todo' THEN 2
-                WHEN 'done' THEN 3
-                ELSE 4
-            END,
-            created_at DESC
-    ''', (project_id,))
+        # 获取项目任务
+        c.execute('''
+            SELECT id, title, status, priority, created_at, updated_at
+            FROM tasks
+            WHERE project_id = %s AND status != 'deleted'
+            ORDER BY 
+                CASE status
+                    WHEN 'progress' THEN 1
+                    WHEN 'todo' THEN 2
+                    WHEN 'done' THEN 3
+                    ELSE 4
+                END,
+                created_at DESC
+        ''', (project_id,))
 
-    tasks = [row_to_dict(row, c) for row in c.fetchall()]
-    conn.close()
+        tasks = [row_to_dict(row, c) for row in c.fetchall()]
 
     return jsonify({
         'success': True,
@@ -934,21 +968,21 @@ def get_stats():
 
     # 项目统计
     c.execute('SELECT COUNT(*) FROM projects WHERE status != "deleted"')
-    project_count = c.fetchone()[0]
+    project_count = list(c.fetchone().values())[0]
 
     # 任务统计
     c.execute('SELECT COUNT(*) FROM tasks WHERE status != "deleted"')
-    task_count = c.fetchone()[0]
+    task_count = list(c.fetchone().values())[0]
 
     c.execute("SELECT COUNT(*) FROM tasks WHERE status = 'done'")
-    completed_count = c.fetchone()[0]
+    completed_count = list(c.fetchone().values())[0]
 
     c.execute("SELECT COUNT(*) FROM tasks WHERE status = 'progress'")
-    in_progress_count = c.fetchone()[0]
+    in_progress_count = list(c.fetchone().values())[0]
 
     # 股票统计
     c.execute('SELECT COUNT(*) FROM stocks')
-    stock_count = c.fetchone()[0]
+    stock_count = list(c.fetchone().values())[0]
 
     conn.close()
 
@@ -1216,7 +1250,7 @@ def get_company_detail(company_id):
         conn = get_db()
         c = conn.cursor()
         c.execute('''
-            SELECT * FROM company_info WHERE id = ?
+            SELECT * FROM company_info WHERE id = %s
         ''', (company_id,))
         company = c.fetchone()
         conn.close()
@@ -1259,13 +1293,13 @@ def get_cron_stats():
         c = conn.cursor()
     
         c.execute('SELECT COUNT(*) FROM cron_tasks')
-        total = c.fetchone()[0]
+        total = list(c.fetchone().values())[0]
     
         c.execute("SELECT COUNT(*) FROM cron_tasks WHERE status = 'active'")
-        active = c.fetchone()[0]
+        active = list(c.fetchone().values())[0]
     
         c.execute('SELECT SUM(fail_count) FROM cron_tasks')
-        failed = c.fetchone()[0] or 0
+        failed = list(c.fetchone().values())[0] or 0
     
         conn.close()
     
@@ -1290,7 +1324,7 @@ def add_cron_task():
         c = conn.cursor()
         c.execute('''
             INSERT INTO cron_tasks (name, description, schedule, command, status, created_at)
-            VALUES (?, ?, ?, ?, 'active', datetime('now'))
+            VALUES (?, ?, ?, ?, 'active', NOW())
         ''', (data.get('name'), data.get('description'), data.get('schedule'), data.get('command')))
         conn.commit()
         conn.close()
@@ -1304,7 +1338,7 @@ def delete_cron_task(task_id):
     try:
         conn = get_db()
         c = conn.cursor()
-        c.execute('DELETE FROM cron_tasks WHERE id = ?', (task_id,))
+        c.execute('DELETE FROM cron_tasks WHERE id = %s', (task_id,))
         conn.commit()
         conn.close()
         return jsonify({'success': True})
@@ -1321,7 +1355,7 @@ def update_cron_task(task_id):
         c = conn.cursor()
     
         # 检查任务是否存在
-        c.execute('SELECT id FROM cron_tasks WHERE id = ?', (task_id,))
+        c.execute('SELECT id FROM cron_tasks WHERE id = %s', (task_id,))
         if not c.fetchone():
             conn.close()
             return jsonify({'success': False, 'error': '任务不存在'})
@@ -1338,7 +1372,7 @@ def update_cron_task(task_id):
         set_clause = ', '.join([f"{k} = ?" for k in updates.keys()])
         values = list(updates.values()) + [task_id]
     
-        c.execute(f'UPDATE cron_tasks SET {set_clause} WHERE id = ?', values)
+        c.execute(f'UPDATE cron_tasks SET {set_clause} WHERE id = %s', values)
         conn.commit()
         conn.close()
     
@@ -1413,7 +1447,7 @@ def get_stock_detail(symbol):
     try:
         conn = get_db()
         c = conn.cursor()
-        c.execute('SELECT * FROM stocks WHERE symbol = ?', (symbol,))
+        c.execute('SELECT * FROM stocks WHERE symbol = %s', (symbol,))
         stock = c.fetchone()
     
         # 获取历史价格（使用total_value代替close_price）
@@ -1444,10 +1478,10 @@ def get_stock_stats():
         c = conn.cursor()
     
         c.execute('SELECT SUM(shares * avg_cost) FROM stocks')
-        total_cost = c.fetchone()[0] or 0
+        total_cost = list(c.fetchone().values())[0] or 0
     
         c.execute('SELECT SUM(shares * current_price) FROM stocks')
-        total_value = c.fetchone()[0] or 0
+        total_value = list(c.fetchone().values())[0] or 0
     
         total_profit = total_value - total_cost
         total_return = (total_profit / total_cost * 100) if total_cost > 0 else 0
@@ -1485,10 +1519,10 @@ def get_stock_portfolio():
     
         # 计算统计
         c.execute('SELECT SUM(shares * avg_cost) FROM stocks')
-        total_cost = c.fetchone()[0] or 0
+        total_cost = list(c.fetchone().values())[0] or 0
     
         c.execute('SELECT SUM(shares * current_price) FROM stocks')
-        total_value = c.fetchone()[0] or 0
+        total_value = list(c.fetchone().values())[0] or 0
     
         total_profit = total_value - total_cost
         total_return = (total_profit / total_cost * 100) if total_cost > 0 else 0
@@ -1543,15 +1577,15 @@ def complete_manual_review_task(task_id):
         c = conn.cursor()
     
         # 1. 获取关联的原始任务ID
-        c.execute('SELECT original_task_id FROM manual_review_tasks WHERE id = ?', (task_id,))
+        c.execute('SELECT original_task_id FROM manual_review_tasks WHERE id = %s', (task_id,))
         row = c.fetchone()
         original_task_id = row[0] if row else None
     
         # 2. 更新审核任务状态
         c.execute('''
             UPDATE manual_review_tasks 
-            SET status = ?, completion_notes = ?, completed_at = datetime('now')
-            WHERE id = ?
+            SET status = ?, completion_notes = ?, completed_at = NOW()
+            WHERE id = %s
         ''', ('approved' if approved else 'rejected', notes, task_id))
     
         # 3. 如果有关联的原始任务，更新其audit_status
@@ -1560,8 +1594,8 @@ def complete_manual_review_task(task_id):
             task_status = 'todo' if approved else 'cancelled'
             c.execute('''
                 UPDATE tasks 
-                SET audit_status = ?, status = ?, updated_at = datetime('now')
-                WHERE id = ?
+                SET audit_status = ?, status = ?, updated_at = NOW()
+                WHERE id = %s
             ''', (audit_status, task_status, original_task_id))
     
         conn.commit()
@@ -1605,7 +1639,7 @@ def check_pending_long_think(original_task_id: int, long_think_id: str = None) -
                 AND status = 'pending'
             ''', (original_task_id,))
     
-        count = c.fetchone()[0]
+        count = list(c.fetchone().values())[0]
         conn.close()
     
         return count > 0
@@ -1670,7 +1704,7 @@ def create_manual_review_task_with_check(original_task_id: int, title: str, desc
             INSERT INTO manual_review_tasks 
             (original_task_id, title, description, status, priority, source, 
              suggested_action, is_from_long_think, long_think_id, created_at)
-            VALUES (?, ?, ?, 'pending', ?, ?, ?, ?, ?, datetime('now'))
+            VALUES (?, ?, ?, 'pending', ?, ?, ?, ?, ?, NOW())
         ''', (original_task_id, title, description, priority, source, 
               suggested_action, 1 if long_think_id else 0, long_think_id))
     
@@ -1730,56 +1764,6 @@ def get_skills():
 # 邮件 API
 # ============================================
 
-@app.route('/api/emails/', methods=['GET'])  # 支持尾部斜杠
-@app.route('/api/emails/', methods=['GET'])
-@app.route('/api/emails', methods=['GET'])
-def get_emails():
-    """获取邮件列表"""
-    try:
-        conn = get_db()
-        c = conn.cursor()
-        c.execute('''
-            SELECT id, message_id, subject, sender, sender_name, recipient,
-                   folder, is_read, is_important, received_at as date,
-                   substr(body, 1, 200) as preview
-            FROM emails
-            ORDER BY received_at DESC
-            LIMIT 100
-        ''')
-        emails = [row_to_dict(row, c) for row in c.fetchall()]
-        conn.close()
-        return jsonify({'success': True, 'emails': emails})
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})
-
-@app.route('/api/emails/stats/', methods=['GET'])  # 支持尾部斜杠
-@app.route('/api/emails/stats', methods=['GET'])
-def get_email_stats():
-    """获取邮件统计"""
-    try:
-        conn = get_db()
-        c = conn.cursor()
-    
-        c.execute('SELECT COUNT(*) FROM emails')
-        total = c.fetchone()[0]
-    
-        c.execute('SELECT COUNT(*) FROM emails WHERE is_read = 0')
-        unread = c.fetchone()[0]
-    
-        c.execute('SELECT COUNT(*) FROM emails WHERE is_important = 1')
-        important = c.fetchone()[0]
-    
-        conn.close()
-    
-        return jsonify({
-            'success': True,
-            'stats': {
-                'total': total,
-                'unread': unread,
-                'important': important
-            }
-        })
-    except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
 
 @app.route('/api/emails/<int:email_id>/read', methods=['POST'])
@@ -1788,7 +1772,7 @@ def mark_email_as_read(email_id):
     try:
         conn = get_db()
         c = conn.cursor()
-        c.execute('UPDATE emails SET is_read = 1 WHERE id = ?', (email_id,))
+        c.execute('UPDATE emails SET is_read = 1 WHERE id = %s', (email_id,))
         conn.commit()
         conn.close()
         return jsonify({'success': True, 'message': '邮件已标记为已读'})
@@ -1801,7 +1785,7 @@ def get_email_detail(email_id):
     try:
         conn = get_db()
         c = conn.cursor()
-        c.execute('SELECT * FROM emails WHERE id = ?', (email_id,))
+        c.execute('SELECT * FROM emails WHERE id = %s', (email_id,))
         email = c.fetchone()
         conn.close()
         if email:
@@ -1816,7 +1800,7 @@ def delete_email(email_id):
     try:
         conn = get_db()
         c = conn.cursor()
-        c.execute('DELETE FROM emails WHERE id = ?', (email_id,))
+        c.execute('DELETE FROM emails WHERE id = %s', (email_id,))
         conn.commit()
         conn.close()
         return jsonify({'success': True, 'message': '邮件已删除'})
@@ -1864,11 +1848,11 @@ def get_brain_stats():
     
         # 实体统计
         c.execute('SELECT COUNT(*) FROM entities')
-        entity_count = c.fetchone()[0]
+        entity_count = list(c.fetchone().values())[0]
     
         # 关系统计
         c.execute('SELECT COUNT(*) FROM entity_relationships')
-        relation_count = c.fetchone()[0]
+        relation_count = list(c.fetchone().values())[0]
     
         # 实体类型分布
         c.execute('SELECT entity_type, COUNT(*) FROM entities GROUP BY entity_type')
@@ -2124,7 +2108,7 @@ def ask_dudu():
         c = conn.cursor()
         c.execute('''
             INSERT INTO chat_messages (user_message, bot_reply, message_type, created_at)
-            VALUES (?, ?, 'text', datetime('now'))
+            VALUES (?, ?, 'text', NOW())
         ''', (message, response))
         conn.commit()
         conn.close()
@@ -2148,7 +2132,7 @@ def api_login():
         # 从数据库验证用户
         conn = get_db()
         c = conn.cursor()
-        c.execute('SELECT id, username, password_hash, is_admin, is_active FROM users WHERE username = ?', (username,))
+        c.execute('SELECT id, username, password_hash, is_admin, is_active FROM users WHERE username = %s', (username,))
         user = c.fetchone()
         conn.close()
     
@@ -2340,16 +2324,16 @@ def get_access_stats():
     
         # 总访问量
         c.execute('SELECT COUNT(*) FROM page_views')
-        total_views = c.fetchone()[0]
+        total_views = list(c.fetchone().values())[0]
     
         # 独立访客
         c.execute('SELECT COUNT(DISTINCT ip_address) FROM page_views')
-        unique_visitors = c.fetchone()[0]
+        unique_visitors = list(c.fetchone().values())[0]
     
         # 今日访问
         today = datetime.now().strftime('%Y-%m-%d')
-        c.execute("SELECT COUNT(*) FROM page_views WHERE date(created_at) = ?", (today,))
-        today_views = c.fetchone()[0]
+        c.execute("SELECT COUNT(*) FROM page_views WHERE date(created_at) = %s", (today,))
+        today_views = list(c.fetchone().values())[0]
     
         # 热门页面统计
         c.execute('''
@@ -2598,7 +2582,7 @@ def create_goal():
     
         c.execute('''
             INSERT INTO goals (title, description, category, deadline, created_at, updated_at)
-            VALUES (?, ?, ?, ?, datetime('now'), datetime('now'))
+            VALUES (?, ?, ?, ?, NOW(), NOW())
         ''', (
             data.get('title'),
             data.get('description'),
@@ -2693,7 +2677,7 @@ def activate_llm_config(config_id):
         conn = get_db()
         c = conn.cursor()
         c.execute('UPDATE llm_configs SET is_active = 0')
-        c.execute('UPDATE llm_configs SET is_active = 1 WHERE id = ?', (config_id,))
+        c.execute('UPDATE llm_configs SET is_active = 1 WHERE id = %s', (config_id,))
         conn.commit()
         conn.close()
         return jsonify({'success': True, 'message': '配置已激活'})
@@ -2706,7 +2690,7 @@ def delete_llm_config(config_id):
     try:
         conn = get_db()
         c = conn.cursor()
-        c.execute('DELETE FROM llm_configs WHERE id = ?', (config_id,))
+        c.execute('DELETE FROM llm_configs WHERE id = %s', (config_id,))
         conn.commit()
         conn.close()
         return jsonify({'success': True, 'message': '配置已删除'})
@@ -2722,25 +2706,25 @@ def get_llm_stats():
     
         # 基础统计
         c.execute('SELECT COUNT(*) FROM llm_configs')
-        total = c.fetchone()[0]
+        total = list(c.fetchone().values())[0]
         c.execute('SELECT COUNT(*) FROM llm_configs WHERE is_active = 1')
-        active = c.fetchone()[0]
+        active = list(c.fetchone().values())[0]
     
         # Tokens统计
         c.execute('SELECT SUM(tokens_used) FROM llm_configs')
-        tokens_used = c.fetchone()[0] or 0
+        tokens_used = list(c.fetchone().values())[0] or 0
     
         # 费用统计 (统一从 token_usage 表获取)
         c.execute('SELECT SUM(cost_usd) FROM token_usage')
-        total_cost = c.fetchone()[0] or 0
+        total_cost = list(c.fetchone().values())[0] or 0
     
         # 今日费用 (token_usage表使用timestamp字段和cost_usd)
         c.execute("SELECT SUM(cost_usd) FROM token_usage WHERE date(timestamp) = date('now')")
-        today_cost = c.fetchone()[0] or 0
+        today_cost = list(c.fetchone().values())[0] or 0
     
         # 本月费用
         c.execute("SELECT SUM(cost_usd) FROM token_usage WHERE strftime('%Y-%m', timestamp) = strftime('%Y-%m', 'now')")
-        month_cost = c.fetchone()[0] or 0
+        month_cost = list(c.fetchone().values())[0] or 0
     
         # 按模型统计
         c.execute('''
@@ -2864,13 +2848,13 @@ def get_calc_stats():
         conn = get_db()
         c = conn.cursor()
         c.execute('SELECT COUNT(*) FROM calc_tasks')
-        total = c.fetchone()[0]
+        total = list(c.fetchone().values())[0]
         c.execute("SELECT COUNT(*) FROM calc_tasks WHERE status = 'running'")
-        running = c.fetchone()[0]
+        running = list(c.fetchone().values())[0]
         c.execute("SELECT COUNT(*) FROM calc_tasks WHERE status = 'completed'")
-        completed = c.fetchone()[0]
+        completed = list(c.fetchone().values())[0]
         c.execute("SELECT COUNT(*) FROM calc_tasks WHERE status = 'failed'")
-        failed = c.fetchone()[0]
+        failed = list(c.fetchone().values())[0]
         conn.close()
         return jsonify({
             'success': True,
@@ -3032,7 +3016,7 @@ def submit_calc_task():
                 status,
                 result_data,
                 created_at
-            ) VALUES (?, ?, ?, ?, 'queued', ?, datetime('now'))
+            ) VALUES (?, ?, ?, ?, 'queued', ?, NOW())
         ''', (
             reaction_id,
             task_type,
@@ -3048,7 +3032,7 @@ def submit_calc_task():
         c.execute('''
             SELECT id, reaction_id, task_type, software, status, created_at
             FROM calc_tasks
-            WHERE id = ?
+            WHERE id = %s
         ''', (task_id,))
     
         task_row = c.fetchone()
@@ -3094,7 +3078,7 @@ def get_calc_task(task_id):
         c = conn.cursor()
     
         c.execute('''
-            SELECT * FROM calc_tasks WHERE id = ?
+            SELECT * FROM calc_tasks WHERE id = %s
         ''', (task_id,))
     
         task = c.fetchone()
@@ -3187,7 +3171,7 @@ def update_calc_tasks():
             count_params.append(reaction_id)
     
         c.execute(count_query, count_params)
-        total = c.fetchone()[0]
+        total = list(c.fetchone().values())[0]
     
         conn.close()
     
@@ -3250,7 +3234,7 @@ def create_research_note():
         c = conn.cursor()
         c.execute('''
             INSERT INTO research_notes (title, content, category, source, tags, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+            VALUES (?, ?, ?, ?, ?, NOW(), NOW())
         ''', (title, content, category, source, tags))
     
         note_id = c.lastrowid
@@ -3366,7 +3350,7 @@ def get_table_counts():
         for table in tables:
             try:
                 c.execute(f'SELECT COUNT(*) FROM {table}')
-                counts[table] = c.fetchone()[0]
+                counts[table] = list(c.fetchone().values())[0]
             except:
                 counts[table] = 0
     
@@ -3630,7 +3614,7 @@ def update_calendar_event(event_id):
         c = conn.cursor()
     
         # 获取现有数据
-        c.execute('SELECT * FROM calendar_events WHERE id = ?', (event_id,))
+        c.execute('SELECT * FROM calendar_events WHERE id = %s', (event_id,))
         existing = c.fetchone()
         if not existing:
             return jsonify({'success': False, 'error': '事件不存在'})
@@ -3649,7 +3633,7 @@ def update_calendar_event(event_id):
                 reminder_minutes = ?,
                 status = ?,
                 updated_at = CURRENT_TIMESTAMP
-            WHERE id = ?
+            WHERE id = %s
         ''', (
             data.get('title', existing['title']),
             data.get('description', existing['description']),
@@ -3689,7 +3673,7 @@ def delete_calendar_event(event_id):
         # 硬删除（因为表中没有status字段）
         c.execute('''
             DELETE FROM calendar_events 
-            WHERE id = ?
+            WHERE id = %s
         ''', (event_id,))
     
         conn.commit()
@@ -3711,7 +3695,7 @@ def get_calendar_stats():
             SELECT COUNT(*) FROM calendar_events
             WHERE date(start_time) = date('now')
         ''')
-        today_count = c.fetchone()[0]
+        today_count = list(c.fetchone().values())[0]
     
         # 本周事件数
         c.execute('''
@@ -3719,21 +3703,21 @@ def get_calendar_stats():
             WHERE start_time >= date('now', 'weekday 0', '-7 days')
             AND start_time < date('now', 'weekday 0', '0 days')
         ''')
-        week_count = c.fetchone()[0]
+        week_count = list(c.fetchone().values())[0]
     
         # 本月事件数
         c.execute('''
             SELECT COUNT(*) FROM calendar_events
             WHERE strftime('%Y-%m', start_time) = strftime('%Y-%m', 'now')
         ''')
-        month_count = c.fetchone()[0]
+        month_count = list(c.fetchone().values())[0]
     
         # 待处理事件（未来）
         c.execute('''
             SELECT COUNT(*) FROM calendar_events
-            WHERE start_time > datetime('now')
+            WHERE start_time > NOW()
         ''')
-        upcoming_count = c.fetchone()[0]
+        upcoming_count = list(c.fetchone().values())[0]
     
         conn.close()
     
@@ -3840,7 +3824,7 @@ def update_calendar_settings():
     
         if update_fields:
             params.append(1)  # id = 1
-            query = f"UPDATE calendar_settings SET {', '.join(update_fields)}, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
+            query = f"UPDATE calendar_settings SET {', '.join(update_fields)}, updated_at = CURRENT_TIMESTAMP WHERE id = %s"
             c.execute(query, params)
     
         conn.commit()
@@ -3869,21 +3853,21 @@ def get_meetings():
             SELECT id, title, date, time, participants, summary, content, action_items, created_at
             FROM meetings
             ORDER BY date DESC, time DESC
-            LIMIT ?
+            LIMIT %s
         ''', (limit,))
     
         meetings = []
         for row in c.fetchall():
             meetings.append({
-                'id': row[0],
-                'title': row[1],
-                'date': row[2],
-                'time': row[3],
-                'participants': row[4],
-                'summary': row[5],
-                'content': row[6],
-                'action_items': parse_action_items(row[7]),
-                'created_at': row[8]
+                'id': row['id'],
+                'title': row['title'],
+                'date': row['date'],
+                'time': row['time'],
+                'participants': row['participants'],
+                'summary': row['summary'],
+                'content': row['content'],
+                'action_items': parse_action_items(row['action_items']),
+                'created_at': row['created_at']
             })
     
         conn.close()
@@ -3906,7 +3890,7 @@ def get_meeting(meeting_id):
         c.execute('''
             SELECT id, title, date, time, participants, summary, content, action_items, created_at
             FROM meetings
-            WHERE id = ?
+            WHERE id = %s
         ''', (meeting_id,))
     
         row = c.fetchone()
@@ -3916,15 +3900,15 @@ def get_meeting(meeting_id):
             return jsonify({'success': False, 'error': '会议纪要不存在'}), 404
     
         meeting = {
-            'id': row[0],
-            'title': row[1],
-            'date': row[2],
-            'time': row[3],
-            'participants': row[4],
-            'summary': row[5],
-            'content': row[6],
-            'action_items': parse_action_items(row[7]),
-            'created_at': row[8]
+            'id': row['id'],
+            'title': row['title'],
+            'date': row['date'],
+            'time': row['time'],
+            'participants': row['participants'],
+            'summary': row['summary'],
+            'content': row['content'],
+            'action_items': parse_action_items(row['action_items']),
+            'created_at': row['created_at']
         }
 
         return jsonify({'success': True, 'meeting': meeting})
@@ -3945,7 +3929,7 @@ def create_meeting():
     
         c.execute('''
             INSERT INTO meetings (title, date, time, participants, summary, content, action_items)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
         ''', (
             data.get('title'),
             data.get('date'),
@@ -3978,22 +3962,22 @@ def update_meeting(meeting_id):
         c = conn.cursor()
     
         # 检查是否存在
-        c.execute('SELECT id FROM meetings WHERE id = ?', (meeting_id,))
+        c.execute('SELECT id FROM meetings WHERE id = %s', (meeting_id,))
         if not c.fetchone():
             conn.close()
             return jsonify({'success': False, 'error': '会议纪要不存在'}), 404
     
         c.execute('''
             UPDATE meetings SET
-                title = COALESCE(?, title),
-                date = COALESCE(?, date),
-                time = COALESCE(?, time),
-                participants = COALESCE(?, participants),
-                summary = COALESCE(?, summary),
-                content = COALESCE(?, content),
-                action_items = COALESCE(?, action_items),
+                title = COALESCE(%s, title),
+                date = COALESCE(%s, date),
+                time = COALESCE(%s, time),
+                participants = COALESCE(%s, participants),
+                summary = COALESCE(%s, summary),
+                content = COALESCE(%s, content),
+                action_items = COALESCE(%s, action_items),
                 updated_at = CURRENT_TIMESTAMP
-            WHERE id = ?
+            WHERE id = %s
         ''', (
             data.get('title'),
             data.get('date'),
@@ -4019,7 +4003,7 @@ def delete_meeting(meeting_id):
         conn = get_db()
         c = conn.cursor()
     
-        c.execute('DELETE FROM meetings WHERE id = ?', (meeting_id,))
+        c.execute('DELETE FROM meetings WHERE id = %s', (meeting_id,))
     
         if c.rowcount == 0:
             conn.close()
@@ -4318,8 +4302,8 @@ def save_reflection():
         if task_id:
             c.execute('''
                 UPDATE tasks 
-                SET result_summary = ?, updated_at = datetime('now')
-                WHERE id = ?
+                SET result_summary = ?, updated_at = NOW()
+                WHERE id = %s
             ''', (reflection_json, task_id))
             conn.commit()
     
@@ -4642,10 +4626,27 @@ def perception_status():
             'running': False
         })
 
+    status = agent.get_status()
+    # Convert listeners object to array for frontend compatibility
+    if 'listeners' in status and isinstance(status['listeners'], dict):
+        listeners_list = []
+        for name, listener_info in status['listeners'].items():
+            listener_info_copy = listener_info.copy()
+            listener_info_copy['name'] = name
+            listeners_list.append(listener_info_copy)
+        status['listeners'] = listeners_list
+    
+    # Convert rules object to array for frontend compatibility
+    if 'rules' in status and isinstance(status['rules'], dict):
+        rules_list = []
+        for name, value in status['rules'].items():
+            rules_list.append({'name': name, 'value': value})
+        status['rules'] = rules_list
+    
     return jsonify({
         'success': True,
         'available': True,
-        'status': agent.get_status()
+        'status': status
     })
 
 @app.route('/api/perception/events', methods=['GET'])
@@ -5079,7 +5080,7 @@ class PerceptionAgent:
             conn = get_db()
             c = conn.cursor()
             c.execute('SELECT COUNT(*) FROM perception_events')
-            return c.fetchone()[0]
+            return list(c.fetchone().values())[0]
         except:
             return len(self.events)
 
@@ -5222,11 +5223,28 @@ def get_perception_status():
     """获取感知Agent状态"""
     global perception_agent, PERCEPTION_AGENT_AVAILABLE
     if perception_agent and PERCEPTION_AGENT_AVAILABLE:
+        status = perception_agent.get_status()
+        # Convert listeners object to array for frontend compatibility
+        if 'listeners' in status and isinstance(status['listeners'], dict):
+            listeners_list = []
+            for name, listener_info in status['listeners'].items():
+                listener_info_copy = listener_info.copy()
+                listener_info_copy['name'] = name
+                listeners_list.append(listener_info_copy)
+            status['listeners'] = listeners_list
+        
+        # Convert rules object to array for frontend compatibility
+        if 'rules' in status and isinstance(status['rules'], dict):
+            rules_list = []
+            for name, value in status['rules'].items():
+                rules_list.append({'name': name, 'value': value})
+            status['rules'] = rules_list
+        
         return jsonify({
             'success': True,
             'available': True,
             'running': perception_agent.running,
-            'status': perception_agent.get_status()
+            'status': status
         })
     return jsonify({
         'success': True,
@@ -5262,10 +5280,15 @@ def perception_config():
     global perception_agent, PERCEPTION_AGENT_AVAILABLE
     if request.method == 'GET':
         if perception_agent and PERCEPTION_AGENT_AVAILABLE:
+            # Convert monitoring_rules dict to array for frontend
+            rules_list = []
+            for key, value in perception_agent.monitoring_rules.items():
+                rules_list.append({'name': key, 'value': value})
+            
             return jsonify({
                 'success': True,
                 'available': True,
-                'config': perception_agent.monitoring_rules,
+                'config': rules_list,
                 'check_interval': perception_agent.check_interval
             })
         return jsonify({
@@ -5460,7 +5483,7 @@ def get_pepi_work_detail(record_id):
     
         c = conn.cursor()
     
-        c.execute('SELECT * FROM pepi_work_gifs WHERE id = ?', (record_id,))
+        c.execute('SELECT * FROM pepi_work_gifs WHERE id = %s', (record_id,))
         row = c.fetchone()
         conn.close()
     
@@ -5845,29 +5868,28 @@ def get_api_performance():
 def get_people():
     """获取联系人列表（个人信息）"""
     try:
-        conn = get_db_connection()
+        with get_db_connection() as conn:
     
-        c = conn.cursor()
+            c = conn.cursor()
     
-        c.execute('''
-            SELECT id, name, email, department, phone, company, created_at
-            FROM contacts
-            ORDER BY name ASC
-        ''')
+            c.execute('''
+                SELECT id, name, email, title as department, phone, location as company, created_at
+                FROM persons
+                ORDER BY name ASC
+            ''')
     
-        people = []
-        for row in c.fetchall():
-            people.append({
-                'id': row['id'],
-                'name': row['name'],
-                'email': row['email'],
-                'department': row['department'],
-                'phone': row['phone'],
-                'company': row['company'],
-                'created_at': row['created_at']
-            })
+            people = []
+            for row in c.fetchall():
+                people.append({
+                    'id': row['id'],
+                    'name': row['name'],
+                    'email': row['email'],
+                    'department': row['department'],
+                    'phone': row['phone'],
+                    'company': row['company'],
+                    'created_at': row['created_at']
+                })
     
-        conn.close()
     
         return jsonify({
             'success': True,
@@ -5883,18 +5905,17 @@ def get_people():
 def get_person(person_id):
     """获取单个联系人详情"""
     try:
-        conn = get_db_connection()
+        with get_db_connection() as conn:
     
-        c = conn.cursor()
+            c = conn.cursor()
     
-        c.execute('''
-            SELECT id, name, email, department, phone, company, created_at
-            FROM contacts
-            WHERE id = ?
-        ''', (person_id,))
+            c.execute('''
+                SELECT id, name, email, title as department, phone, location as company, created_at
+                FROM persons
+                WHERE id = %s
+            ''', (person_id,))
     
-        row = c.fetchone()
-        conn.close()
+            row = c.fetchone()
     
         if not row:
             return jsonify({'success': False, 'error': '联系人不存在'}), 404
@@ -5930,17 +5951,16 @@ def create_person():
         if not name:
             return jsonify({'success': False, 'error': '姓名不能为空'}), 400
     
-        conn = get_db_connection()
-        c = conn.cursor()
+        with get_db_connection() as conn:
+            c = conn.cursor()
     
-        c.execute('''
-            INSERT INTO contacts (name, email, department, phone, company)
-            VALUES (?, ?, ?, ?, ?)
-        ''', (name, email, department, phone, company))
+            c.execute('''
+                INSERT INTO contacts (name, email, department, phone, company)
+                VALUES (?, ?, ?, ?, ?)
+            ''', (name, email, department, phone, company))
     
-        person_id = c.lastrowid
-        conn.commit()
-        conn.close()
+            person_id = c.lastrowid
+            conn.commit()
     
         return jsonify({
             'success': True,
@@ -5958,42 +5978,41 @@ def update_person(person_id):
     try:
         data = request.get_json()
     
-        conn = get_db_connection()
-        c = conn.cursor()
+        with get_db_connection() as conn:
+            c = conn.cursor()
     
-        # 检查联系人是否存在
-        c.execute('SELECT id FROM contacts WHERE id = ?', (person_id,))
-        if not c.fetchone():
-            conn.close()
-            return jsonify({'success': False, 'error': '联系人不存在'}), 404
+            # 检查联系人是否存在
+            c.execute('SELECT id FROM persons WHERE id = %s', (person_id,))
+            if not c.fetchone():
+                conn.close()
+                return jsonify({'success': False, 'error': '联系人不存在'}), 404
     
-        # 构建更新语句
-        update_fields = []
-        values = []
+            # 构建更新语句
+            update_fields = []
+            values = []
     
-        if 'name' in data:
-            update_fields.append('name = ?')
-            values.append(data['name'])
-        if 'email' in data:
-            update_fields.append('email = ?')
-            values.append(data['email'])
-        if 'department' in data:
-            update_fields.append('department = ?')
-            values.append(data['department'])
-        if 'phone' in data:
-            update_fields.append('phone = ?')
-            values.append(data['phone'])
-        if 'company' in data:
-            update_fields.append('company = ?')
-            values.append(data['company'])
+            if 'name' in data:
+                update_fields.append('name = ?')
+                values.append(data['name'])
+            if 'email' in data:
+                update_fields.append('email = ?')
+                values.append(data['email'])
+            if 'department' in data:
+                update_fields.append('department = ?')
+                values.append(data['department'])
+            if 'phone' in data:
+                update_fields.append('phone = ?')
+                values.append(data['phone'])
+            if 'company' in data:
+                update_fields.append('company = ?')
+                values.append(data['company'])
     
-        if update_fields:
-            values.append(person_id)
-            sql = f"UPDATE contacts SET {', '.join(update_fields)} WHERE id = ?"
-            c.execute(sql, values)
-            conn.commit()
+            if update_fields:
+                values.append(person_id)
+                sql = f"UPDATE contacts SET {', '.join(update_fields)} WHERE id = %s"
+                c.execute(sql, values)
+                conn.commit()
     
-        conn.close()
     
         return jsonify({'success': True, 'message': '联系人更新成功'})
     except Exception as e:
@@ -6005,17 +6024,16 @@ def update_person(person_id):
 def delete_person(person_id):
     """删除联系人"""
     try:
-        conn = get_db_connection()
-        c = conn.cursor()
+        with get_db_connection() as conn:
+            c = conn.cursor()
     
-        c.execute('DELETE FROM contacts WHERE id = ?', (person_id,))
+            c.execute('DELETE FROM persons WHERE id = %s', (person_id,))
     
-        if c.rowcount == 0:
-            conn.close()
-            return jsonify({'success': False, 'error': '联系人不存在'}), 404
+            if c.rowcount == 0:
+                conn.close()
+                return jsonify({'success': False, 'error': '联系人不存在'}), 404
     
-        conn.commit()
-        conn.close()
+            conn.commit()
     
         return jsonify({'success': True, 'message': '联系人删除成功'})
     except Exception as e:
@@ -6152,6 +6170,100 @@ def get_liuyuzhou_info():
         })
     except Exception as e:
         logger.error(f"获取刘宇宙信息失败: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ============================================
+# 夏博士信息 API
+# ============================================
+
+@app.route('/api/personal-info/xiaboshi', methods=['GET'])
+def get_xiaboshi_info():
+    """获取夏博士详细信息"""
+    try:
+        detail = {
+            "id": "xiaboshi",
+            "name": "夏博士（工信部）",
+            "birthDate": "",
+            "gender": "",
+            "currentPosition": "处长",
+            "department": "工业和信息化部 一处",
+            "contact": {
+                "phone": "",
+                "email": ""
+            },
+            "education": [],
+            "researchAreas": [
+                "产业政策制定",
+                "行业发展规划",
+                "信息化发展"
+            ],
+            "contract": {
+                "contractNo": "",
+                "position": "处长",
+                "positionType": "公务员",
+                "department": "工业和信息化部 一处",
+                "startDate": "",
+                "endDate": "",
+                "duration": "",
+                "requirements": [],
+                "fileName": ""
+            }
+        }
+    
+        return jsonify({
+            'success': True,
+            'detail': detail
+        })
+    except Exception as e:
+        logger.error(f"获取夏博士信息失败: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ============================================
+# 段博士信息 API
+# ============================================
+
+@app.route('/api/personal-info/duanboshi', methods=['GET'])
+def get_duanboshi_info():
+    """获取段博士详细信息"""
+    try:
+        detail = {
+            "id": "duanboshi",
+            "name": "段博士（信通院）",
+            "birthDate": "",
+            "gender": "",
+            "currentPosition": "研究员",
+            "department": "中国信息通信研究院",
+            "contact": {
+                "phone": "",
+                "email": ""
+            },
+            "education": [],
+            "researchAreas": [
+                "信息通信研究",
+                "行业政策研究",
+                "标准制定"
+            ],
+            "contract": {
+                "contractNo": "",
+                "position": "研究员",
+                "positionType": "科研岗位",
+                "department": "中国信息通信研究院",
+                "startDate": "",
+                "endDate": "",
+                "duration": "",
+                "requirements": [],
+                "fileName": ""
+            }
+        }
+    
+        return jsonify({
+            'success': True,
+            'detail': detail
+        })
+    except Exception as e:
+        logger.error(f"获取段博士信息失败: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
@@ -6375,23 +6487,23 @@ def approve_audit_task(audit_id):
         c = conn.cursor()
     
         # 获取关联的任务ID
-        c.execute('SELECT original_task_id FROM manual_review_tasks WHERE id = ?', (audit_id,))
+        c.execute('SELECT original_task_id FROM manual_review_tasks WHERE id = %s', (audit_id,))
         row = c.fetchone()
         original_task_id = row[0] if row else None
     
         # 更新审核任务状态
         c.execute('''
             UPDATE manual_review_tasks 
-            SET status = 'approved', completed_by = ?, completion_notes = ?, completed_at = datetime('now')
-            WHERE id = ?
+            SET status = 'approved', completed_by = ?, completion_notes = ?, completed_at = NOW()
+            WHERE id = %s
         ''', (reviewer, notes, audit_id))
     
         # 更新原始任务状态
         if original_task_id:
             c.execute('''
                 UPDATE tasks 
-                SET audit_status = 'approved', updated_at = datetime('now')
-                WHERE id = ?
+                SET audit_status = 'approved', updated_at = NOW()
+                WHERE id = %s
             ''', (original_task_id,))
     
         conn.commit()
@@ -6420,23 +6532,23 @@ def reject_audit_task(audit_id):
         c = conn.cursor()
     
         # 获取关联的任务ID
-        c.execute('SELECT original_task_id FROM manual_review_tasks WHERE id = ?', (audit_id,))
+        c.execute('SELECT original_task_id FROM manual_review_tasks WHERE id = %s', (audit_id,))
         row = c.fetchone()
         original_task_id = row[0] if row else None
     
         # 更新审核任务状态
         c.execute('''
             UPDATE manual_review_tasks 
-            SET status = 'rejected', completed_by = ?, completion_notes = ?, completed_at = datetime('now')
-            WHERE id = ?
+            SET status = 'rejected', completed_by = ?, completion_notes = ?, completed_at = NOW()
+            WHERE id = %s
         ''', (reviewer, reason, audit_id))
     
         # 更新原始任务状态
         if original_task_id:
             c.execute('''
                 UPDATE tasks 
-                SET audit_status = 'rejected', status = 'cancelled', updated_at = datetime('now')
-                WHERE id = ?
+                SET audit_status = 'rejected', status = 'cancelled', updated_at = NOW()
+                WHERE id = %s
             ''', (original_task_id,))
     
         conn.commit()
@@ -6463,7 +6575,7 @@ def check_task_audit_status(task_id):
         c.execute('''
             SELECT id, title, requires_audit, audit_status, status
             FROM tasks 
-            WHERE id = ?
+            WHERE id = %s
         ''', (task_id,))
     
         row = c.fetchone()
@@ -6670,3 +6782,207 @@ if __name__ == '__main__':
         if alert_manager:
             stop_monitoring()
             print("✅ P049-T041 监控告警系统已停止")
+
+
+# ============================================
+# Gunicorn startup initialization
+# ============================================
+
+try:
+    import threading
+    def start_perception_on_startup():
+        try:
+            result = init_perception_agent()
+            if result:
+                logger.info("PerceptionAgent started (Gunicorn)")
+        except Exception as e:
+            logger.warning(f"PerceptionAgent startup failed: {e}")
+    
+    threading.Thread(target=start_perception_on_startup, daemon=True).start()
+except Exception as e:
+    logger.warning(f"PerceptionAgent thread creation failed: {e}")
+
+# ============================================
+# 保存视图 API
+# ============================================
+
+@app.route('/api/saved-views', methods=['GET'])
+def get_saved_views():
+    """获取所有保存的视图"""
+    import json
+    
+    conn = get_db()
+    c = conn.cursor()
+    
+    c.execute('''
+        SELECT id, name, filters, is_default, created_at, updated_at
+        FROM saved_views
+        ORDER BY is_default DESC, created_at ASC
+    ''')
+    
+    views = []
+    for row in c.fetchall():
+        view_dict = row_to_dict(row, c)
+        # 解析 JSON 字段
+        if isinstance(view_dict.get('filters'), str):
+            view_dict['filters'] = json.loads(view_dict['filters'])
+        views.append(view_dict)
+    
+    conn.close()
+    return jsonify({'success': True, 'views': views})
+
+@app.route('/api/saved-views', methods=['POST'])
+def create_saved_view():
+    """创建保存的视图"""
+    import json
+    
+    data = request.get_json()
+    name = data.get('name', '').strip()
+    filters = data.get('filters', {})
+    
+    if not name:
+        return jsonify({'success': False, 'error': '视图名称不能为空'}), 400
+    
+    conn = get_db()
+    c = conn.cursor()
+    
+    filters_json = json.dumps(filters, ensure_ascii=False)
+    
+    c.execute('''
+        INSERT INTO saved_views (name, filters, is_default)
+        VALUES (?, ?, 0)
+    ''', (name, filters_json))
+    
+    view_id = c.lastrowid
+    conn.commit()
+    conn.close()
+    
+    return jsonify({
+        'success': True,
+        'view_id': view_id,
+        'message': '视图已保存'
+    })
+
+@app.route('/api/saved-views/<int:view_id>', methods=['PUT'])
+def update_saved_view(view_id):
+    """更新保存的视图"""
+    import json
+    
+    data = request.get_json()
+    
+    conn = get_db()
+    c = conn.cursor()
+    
+    # 检查视图是否存在
+    c.execute('SELECT id FROM saved_views WHERE id = ?', (view_id,))
+    if not c.fetchone():
+        conn.close()
+        return jsonify({'success': False, 'error': '视图不存在'}), 404
+    
+    updates = {}
+    if 'name' in data:
+        updates['name'] = data['name']
+    if 'filters' in data:
+        updates['filters'] = json.dumps(data['filters'], ensure_ascii=False)
+    
+    if not updates:
+        conn.close()
+        return jsonify({'success': False, 'error': '没有要更新的字段'}), 400
+    
+    set_clause = ', '.join([f"{k} = ?" for k in updates.keys()])
+    values = list(updates.values()) + [view_id]
+    
+    c.execute(f'UPDATE saved_views SET {set_clause} WHERE id = ?', values)
+    conn.commit()
+    conn.close()
+    
+    return jsonify({
+        'success': True,
+        'message': '视图已更新'
+    })
+
+@app.route('/api/saved-views/<int:view_id>', methods=['DELETE'])
+def delete_saved_view(view_id):
+    """删除保存的视图"""
+    conn = get_db()
+    c = conn.cursor()
+    
+    # 检查是否为默认视图
+    c.execute('SELECT is_default FROM saved_views WHERE id = ?', (view_id,))
+    row = c.fetchone()
+    if row and row[0]:
+        conn.close()
+        return jsonify({'success': False, 'error': '不能删除默认视图'}), 400
+    
+    c.execute('DELETE FROM saved_views WHERE id = ?', (view_id,))
+    conn.commit()
+    conn.close()
+    
+    return jsonify({
+        'success': True,
+        'message': '视图已删除'
+    })
+
+@app.route('/api/emails/', methods=['GET'])  # 支持尾部斜杠
+@app.route('/api/emails/', methods=['GET'])
+@app.route('/api/emails', methods=['GET'])
+def get_emails():
+    """获取邮件列表"""
+    try:
+        conn = get_db()
+        c = conn.cursor()
+        c.execute('''
+            SELECT id, message_id, subject, sender, sender_name, recipient,
+                   folder, is_read, is_important, received_at as date,
+                   SUBSTRING(body, 1, 200) as preview
+            FROM emails
+            ORDER BY received_at DESC
+            LIMIT 100
+        ''')
+        emails = [row_to_dict(row, c) for row in c.fetchall()]
+        conn.close()
+        return jsonify({'success': True, 'emails': emails})
+    except Exception as e:
+        print(f"[ERROR] get_emails: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/emails/stats/', methods=['GET'])  # 支持尾部斜杠
+@app.route('/api/emails/stats', methods=['GET'])
+def get_email_stats():
+    """获取邮件统计"""
+    try:
+        conn = get_db()
+        c = conn.cursor()
+    
+        c.execute('SELECT COUNT(*) as total FROM emails')
+        result = c.fetchone()
+        total = result['total']
+    
+        c.execute('SELECT COUNT(*) as unread FROM emails WHERE is_read = 0')
+        result = c.fetchone()
+        unread = result['unread']
+    
+        c.execute('SELECT COUNT(*) as important FROM emails WHERE is_important = 1')
+        result = c.fetchone()
+        important = result['important']
+    
+        # 按文件夹统计数量（前端需要这个显示各文件夹）
+        c.execute('SELECT folder, COUNT(*) as count FROM emails GROUP BY folder')
+        folder_stats = {}
+        for row in c.fetchall():
+            folder_stats[row['folder']] = row['count']
+    
+        conn.close()
+    
+        return jsonify({
+            'success': True,
+            'stats': {
+                'total': total,
+                'unread': unread,
+                'important': important,
+                'folders': folder_stats
+            }
+        })
+    except Exception as e:
+        print(f"[ERROR] get_email_stats: {e}")
+        return jsonify({'success': False, 'error': str(e)})
