@@ -321,7 +321,7 @@ def record_token_usage(provider: str, model: str, prompt_tokens: int,
         c.execute('''
             INSERT INTO token_usage (timestamp, provider, model, prompt_tokens, 
                                     completion_tokens, total_tokens, cost_usd)
-            VALUES (NOW(), ?, ?, ?, ?, ?, ?)
+            VALUES (NOW(), %s, %s, %s, %s, %s, %s)
         ''', (provider, model, prompt_tokens, completion_tokens, total_tokens, cost_usd))
         conn.commit()
         conn.close()
@@ -380,7 +380,7 @@ def create_project():
 
     c.execute('''
         INSERT INTO projects (number, name, description, goal, priority, status, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW())
+        VALUES (%s, %s, %s, %s, %s, %s, NOW(), NOW())
     ''', (number, name, description, goal, priority, status))
 
     project_id = c.lastrowid
@@ -403,7 +403,7 @@ def update_project(project_id):
     conn = get_db()
     c = conn.cursor()
 
-    set_clause = ', '.join([f"{k} = ?" for k in updates.keys()])
+    set_clause = ', '.join([f"{k} = %s" for k in updates.keys()])
     set_clause += ", updated_at = NOW()"
     values = list(updates.values()) + [project_id]
 
@@ -573,7 +573,7 @@ def upload_project_document(project_id):
                 INSERT INTO project_documents 
                 (project_id, file_name, original_name, file_path, file_size, 
                  mime_type, description, uploaded_by, uploaded_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW())
             ''', (project_id, safe_filename, original_filename, relative_path, 
                   file_size, mime_type, description, uploaded_by))
         
@@ -724,7 +724,7 @@ def update_project_document(project_id, doc_id):
             return jsonify({'success': False, 'error': '没有要更新的字段'}), 400
     
         # 构建更新语句
-        set_clause = ', '.join([f"{k} = ?" for k in updates.keys()])
+        set_clause = ', '.join([f"{k} = %s" for k in updates.keys()])
         set_clause += ", updated_at = NOW()"
         values = list(updates.values()) + [doc_id]
     
@@ -765,7 +765,7 @@ def get_tasks():
     params = []
 
     if status:
-        query += ' AND t.status = ?'
+        query += ' AND t.status = %s'
         params.append(status)
 
     if project_id:
@@ -780,7 +780,7 @@ def get_tasks():
     
     query += f" ORDER BY t.created_at DESC LIMIT {per_page} OFFSET {offset}"
 
-    c.execute(query, params)
+    c.execute(query, tuple(params))
     tasks = [row_to_dict(row, c) for row in c.fetchall()]
     conn.close()
 
@@ -808,7 +808,7 @@ def create_task():
 
     c.execute('''
         INSERT INTO tasks (number, title, description, project_id, status, priority, created_at, updated_at)
-        VALUES (?, ?, ?, ?, 'todo', ?, NOW(), NOW())
+        VALUES (%s, %s, %s, %s, 'todo', %s, NOW(), NOW())
     ''', (number, title, description, project_id, priority))
 
     task_id = c.lastrowid
@@ -832,7 +832,7 @@ def update_task(task_id):
     conn = get_db()
     c = conn.cursor()
 
-    set_clause = ', '.join([f"{k} = ?" for k in updates.keys()])
+    set_clause = ', '.join([f"{k} = %s" for k in updates.keys()])
     set_clause += ", updated_at = NOW()"
     values = list(updates.values()) + [task_id]
 
@@ -870,7 +870,7 @@ def get_task_history(task_id):
         c.execute('''
             SELECT id, task_id, action, details, created_at, performed_by
             FROM task_history
-            WHERE task_id = ?
+            WHERE task_id = %s
             ORDER BY created_at DESC
         ''', (task_id,))
         history = [row_to_dict(row, c) for row in c.fetchall()]
@@ -882,7 +882,7 @@ def get_task_history(task_id):
         c.execute('''
             SELECT id, task_id, gear_name, status, output, started_at, completed_at
             FROM gear_executions
-            WHERE task_id = ?
+            WHERE task_id = %s
             ORDER BY started_at DESC
         ''', (task_id,))
         gear_executions = [row_to_dict(row, c) for row in c.fetchall()]
@@ -1206,7 +1206,7 @@ def add_health_checkup():
         c = conn.cursor()
         c.execute('''
             INSERT INTO health_checkups (checkup_date, hospital, checkup_items, notes)
-            VALUES (?, ?, ?, ?)
+            VALUES (%s, %s, %s, %s)
         ''', (
             data.get('checkup_date'),
             data.get('hospital'),
@@ -1323,7 +1323,7 @@ def add_cron_task():
         c = conn.cursor()
         c.execute('''
             INSERT INTO cron_tasks (name, description, schedule, command, status, created_at)
-            VALUES (?, ?, ?, ?, 'active', NOW())
+            VALUES (%s, %s, %s, %s, 'active', NOW())
         ''', (data.get('name'), data.get('description'), data.get('schedule'), data.get('command')))
         conn.commit()
         conn.close()
@@ -1368,7 +1368,7 @@ def update_cron_task(task_id):
             return jsonify({'success': False, 'error': '没有要更新的字段'})
     
         # 构建SQL
-        set_clause = ', '.join([f"{k} = ?" for k in updates.keys()])
+        set_clause = ', '.join([f"{k} = %s" for k in updates.keys()])
         values = list(updates.values()) + [task_id]
     
         c.execute(f'UPDATE cron_tasks SET {set_clause} WHERE id = %s', values)
@@ -1583,7 +1583,7 @@ def complete_manual_review_task(task_id):
         # 2. 更新审核任务状态
         c.execute('''
             UPDATE manual_review_tasks 
-            SET status = ?, completion_notes = ?, completed_at = NOW()
+            SET status = %s, completion_notes = %s, completed_at = NOW()
             WHERE id = %s
         ''', ('approved' if approved else 'rejected', notes, task_id))
     
@@ -1593,7 +1593,7 @@ def complete_manual_review_task(task_id):
             task_status = 'todo' if approved else 'cancelled'
             c.execute('''
                 UPDATE tasks 
-                SET audit_status = ?, status = ?, updated_at = NOW()
+                SET audit_status = %s, status = %s, updated_at = NOW()
                 WHERE id = %s
             ''', (audit_status, task_status, original_task_id))
     
@@ -1625,15 +1625,15 @@ def check_pending_long_think(original_task_id: int, long_think_id: str = None) -
         if long_think_id:
             c.execute('''
                 SELECT COUNT(*) FROM manual_review_tasks 
-                WHERE original_task_id = ? 
+                WHERE original_task_id = %s 
                 AND is_from_long_think = 1 
-                AND long_think_id = ?
+                AND long_think_id = %s
                 AND status = 'pending'
             ''', (original_task_id, long_think_id))
         else:
             c.execute('''
                 SELECT COUNT(*) FROM manual_review_tasks 
-                WHERE original_task_id = ? 
+                WHERE original_task_id = %s 
                 AND is_from_long_think = 1 
                 AND status = 'pending'
             ''', (original_task_id,))
@@ -1682,7 +1682,7 @@ def create_manual_review_task_with_check(original_task_id: int, title: str, desc
             # 检查是否有相同 original_task_id 且 status='pending' 的长思考任务
             c.execute('''
                 SELECT id, status FROM manual_review_tasks 
-                WHERE original_task_id = ? 
+                WHERE original_task_id = %s 
                 AND is_from_long_think = 1 
                 AND status = 'pending'
                 LIMIT 1
@@ -1703,7 +1703,7 @@ def create_manual_review_task_with_check(original_task_id: int, title: str, desc
             INSERT INTO manual_review_tasks 
             (original_task_id, title, description, status, priority, source, 
              suggested_action, is_from_long_think, long_think_id, created_at)
-            VALUES (?, ?, ?, 'pending', ?, ?, ?, ?, ?, NOW())
+            VALUES (%s, %s, %s, 'pending', %s, %s, %s, %s, %s, NOW())
         ''', (original_task_id, title, description, priority, source, 
               suggested_action, 1 if long_think_id else 0, long_think_id))
     
@@ -1889,16 +1889,16 @@ def get_brain_entities():
         params = []
     
         if entity_type:
-            query += ' AND entity_type = ?'
+            query += ' AND entity_type = %s'
             params.append(entity_type)
     
         if search:
-            query += ' AND name LIKE ?'
+            query += ' AND name LIKE %s'
             params.append(f'%{search}%')
     
         query += ' ORDER BY created_at DESC LIMIT 2000'
     
-        c.execute(query, params)
+        c.execute(query, tuple(params))
         entities = [row_to_dict(row, c) for row in c.fetchall()]
         conn.close()
     
@@ -1916,7 +1916,7 @@ def get_brain_entity(name):
         # 获取实体信息
         c.execute('''
             SELECT id, name, entity_type, description, metadata, created_at
-            FROM entities WHERE name = ?
+            FROM entities WHERE name = %s
         ''', (name,))
         entity = c.fetchone()
     
@@ -1929,7 +1929,7 @@ def get_brain_entity(name):
         c.execute('''
             SELECT source_entity, target_entity, relation_type, description
             FROM entity_relationships
-            WHERE source_entity = ? OR target_entity = ?
+            WHERE source_entity = %s OR target_entity = %s
         ''', (name, name))
         relationships = [row_to_dict(row, c) for row in c.fetchall()]
     
@@ -2107,7 +2107,7 @@ def ask_dudu():
         c = conn.cursor()
         c.execute('''
             INSERT INTO chat_messages (user_message, bot_reply, message_type, created_at)
-            VALUES (?, ?, 'text', NOW())
+            VALUES (%s, %s, 'text', NOW())
         ''', (message, response))
         conn.commit()
         conn.close()
@@ -2563,12 +2563,12 @@ def get_goals():
         params = []
     
         if category:
-            query += ' AND category = ?'
+            query += ' AND category = %s'
             params.append(category)
     
         query += ' ORDER BY progress DESC, created_at DESC'
     
-        c.execute(query, params)
+        c.execute(query, tuple(params))
         goals = [row_to_dict(row, c) for row in c.fetchall()]
     
         # 为每个目标加载关键结果
@@ -2577,7 +2577,7 @@ def get_goals():
                 c.execute('''
                     SELECT id, description, target_value, current_value, unit, status
                     FROM key_results
-                    WHERE goal_id = ?
+                    WHERE goal_id = %s
                 ''', (goal['id'],))
                 goal['key_results'] = [row_to_dict(row, c) for row in c.fetchall()]
             except:
@@ -2598,7 +2598,7 @@ def create_goal():
     
         c.execute('''
             INSERT INTO goals (title, description, category, deadline, created_at, updated_at)
-            VALUES (?, ?, ?, ?, NOW(), NOW())
+            VALUES (%s, %s, %s, %s, NOW(), NOW())
         ''', (
             data.get('title'),
             data.get('description'),
@@ -2613,7 +2613,7 @@ def create_goal():
             for kr in data['key_results']:
                 c.execute('''
                     INSERT INTO key_results (goal_id, description, target_value, unit)
-                    VALUES (?, ?, ?, ?)
+                    VALUES (%s, %s, %s, %s)
                 ''', (goal_id, kr.get('description'), kr.get('target_value', 100), kr.get('unit', '%')))
     
         conn.commit()
@@ -2676,7 +2676,7 @@ def add_llm_config():
         c = conn.cursor()
         c.execute('''
             INSERT INTO llm_configs (name, provider, model, api_key, base_url, max_tokens, temperature, is_active)
-            VALUES (?, ?, ?, ?, ?, ?, ?, 0)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, 0)
         ''', (data.get('name'), data.get('provider'), data.get('model'),
               data.get('api_key'), data.get('base_url'), 
               data.get('max_tokens', 4096), data.get('temperature', 0.7)))
@@ -3032,7 +3032,7 @@ def submit_calc_task():
                 status,
                 result_data,
                 created_at
-            ) VALUES (?, ?, ?, ?, 'queued', ?, NOW())
+            ) VALUES (%s, %s, %s, %s, 'queued', %s, NOW())
         ''', (
             reaction_id,
             task_type,
@@ -3159,31 +3159,31 @@ def update_calc_tasks():
         params = []
     
         if status:
-            query += ' AND status = ?'
+            query += ' AND status = %s'
             params.append(status)
     
         if reaction_id:
-            query += ' AND reaction_id = ?'
+            query += ' AND reaction_id = %s'
             params.append(reaction_id)
     
         query += ' ORDER BY created_at DESC'
     
         # 分页
         offset = (page - 1) * per_page
-        query += ' LIMIT %s OFFSET ?'
+        query += ' LIMIT %s OFFSET %s'
         params.extend([per_page, offset])
     
-        c.execute(query, params)
+        c.execute(query, tuple(params))
         tasks = [row_to_dict(row, c) for row in c.fetchall()]
     
         # 获取总数
         count_query = 'SELECT COUNT(*) FROM chemistry_calculations WHERE 1=1'
         count_params = []
         if status:
-            count_query += ' AND status = ?'
+            count_query += ' AND status = %s'
             count_params.append(status)
         if reaction_id:
-            count_query += ' AND reaction_id = ?'
+            count_query += ' AND reaction_id = %s'
             count_params.append(reaction_id)
     
         c.execute(count_query, count_params)
@@ -3250,7 +3250,7 @@ def create_research_note():
         c = conn.cursor()
         c.execute('''
             INSERT INTO research_notes (title, content, category, source, tags, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, NOW(), NOW())
+            VALUES (%s, %s, %s, %s, %s, NOW(), NOW())
         ''', (title, content, category, source, tags))
     
         note_id = c.lastrowid
@@ -3513,7 +3513,7 @@ def create_calendar_account():
         c.execute('''
             INSERT INTO calendar_accounts
             (name, account_type, server_url, username, password, calendar_path, calendar_name, sync_enabled)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
         ''', (
             data.get('name'),
             data.get('account_type', 'caldav'),
@@ -3562,15 +3562,15 @@ def get_calendar_events():
         params = []
     
         if start:
-            query += ' AND end_time >= ?'
+            query += ' AND end_time >= %s'
             params.append(start)
         if end:
-            query += ' AND start_time <= ?'
+            query += ' AND start_time <= %s'
             params.append(end)
         
         query += ' ORDER BY start_time'
     
-        c.execute(query, params)
+        c.execute(query, tuple(params))
         events = [row_to_dict(row, c) for row in c.fetchall()]
         conn.close()
     
@@ -3593,7 +3593,7 @@ def create_calendar_event():
             (id, title, description, start_time, end_time, is_all_day, location, 
              category, color, reminder_minutes, participants, meeting_minutes_id, 
              recurrence, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         ''', (
             data.get('id', 'evt_' + datetime.now().strftime('%Y%m%d%H%M%S')),
             data.get('title'),
@@ -3638,16 +3638,16 @@ def update_calendar_event(event_id):
         # 更新字段
         c.execute('''
             UPDATE calendar_events SET
-                title = ?,
-                description = ?,
-                start_time = ?,
-                end_time = ?,
-                all_day = ?,
-                location = ?,
-                category = ?,
-                color = ?,
-                reminder_minutes = ?,
-                status = ?,
+                title = %s,
+                description = %s,
+                start_time = %s,
+                end_time = %s,
+                all_day = %s,
+                location = %s,
+                category = %s,
+                color = %s,
+                reminder_minutes = %s,
+                status = %s,
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = %s
         ''', (
@@ -3831,7 +3831,7 @@ def update_calendar_settings():
     
         for api_field, db_field in field_mapping.items():
             if api_field in data:
-                update_fields.append(f"{db_field} = ?")
+                update_fields.append(f"{db_field} = %s")
                 value = data[api_field]
                 # 转换布尔值为整数
                 if isinstance(value, bool):
@@ -3841,7 +3841,7 @@ def update_calendar_settings():
         if update_fields:
             params.append(1)  # id = 1
             query = f"UPDATE calendar_settings SET {', '.join(update_fields)}, updated_at = CURRENT_TIMESTAMP WHERE id = %s"
-            c.execute(query, params)
+            c.execute(query, tuple(params))
     
         conn.commit()
         conn.close()
@@ -4318,7 +4318,7 @@ def save_reflection():
         if task_id:
             c.execute('''
                 UPDATE tasks 
-                SET result_summary = ?, updated_at = NOW()
+                SET result_summary = %s, updated_at = NOW()
                 WHERE id = %s
             ''', (reflection_json, task_id))
             conn.commit()
@@ -5458,7 +5458,7 @@ def get_pepi_work_history():
         if work_type:
             c.execute('''
                 SELECT * FROM pepi_work_gifs 
-                WHERE work_type = ?
+                WHERE work_type = %s
                 ORDER BY created_at DESC 
                 LIMIT %s
             ''', (work_type, limit))
@@ -5533,7 +5533,7 @@ def add_pepi_work_record():
             INSERT INTO pepi_work_gifs 
             (task_name, task_description, gif_path, gif_size, 
              duration_seconds, frame_count, fps, work_type, metadata, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         ''', (
             data['task_name'],
             data.get('task_description', ''),
@@ -5972,7 +5972,7 @@ def create_person():
     
             c.execute('''
                 INSERT INTO contacts (name, email, department, phone, company)
-                VALUES (?, ?, ?, ?, ?)
+                VALUES (%s, %s, %s, %s, %s)
             ''', (name, email, department, phone, company))
     
             person_id = c.lastrowid
@@ -6008,19 +6008,19 @@ def update_person(person_id):
             values = []
     
             if 'name' in data:
-                update_fields.append('name = ?')
+                update_fields.append('name = %s')
                 values.append(data['name'])
             if 'email' in data:
-                update_fields.append('email = ?')
+                update_fields.append('email = %s')
                 values.append(data['email'])
             if 'department' in data:
-                update_fields.append('department = ?')
+                update_fields.append('department = %s')
                 values.append(data['department'])
             if 'phone' in data:
-                update_fields.append('phone = ?')
+                update_fields.append('phone = %s')
                 values.append(data['phone'])
             if 'company' in data:
-                update_fields.append('company = ?')
+                update_fields.append('company = %s')
                 values.append(data['company'])
     
             if update_fields:
@@ -6442,7 +6442,7 @@ def get_pending_audit_tasks():
                     m.is_from_long_think,
                     m.original_task_id as source_id
                 FROM manual_review_tasks m
-                WHERE m.status = 'pending' AND m.task_type = ?
+                WHERE m.status = 'pending' AND m.task_type = %s
                 ORDER BY 
                     CASE m.priority 
                         WHEN 'high' THEN 1 
@@ -6510,7 +6510,7 @@ def approve_audit_task(audit_id):
         # 更新审核任务状态
         c.execute('''
             UPDATE manual_review_tasks 
-            SET status = 'approved', completed_by = ?, completion_notes = ?, completed_at = NOW()
+            SET status = 'approved', completed_by = %s, completion_notes = %s, completed_at = NOW()
             WHERE id = %s
         ''', (reviewer, notes, audit_id))
     
@@ -6555,7 +6555,7 @@ def reject_audit_task(audit_id):
         # 更新审核任务状态
         c.execute('''
             UPDATE manual_review_tasks 
-            SET status = 'rejected', completed_by = ?, completion_notes = ?, completed_at = NOW()
+            SET status = 'rejected', completed_by = %s, completion_notes = %s, completed_at = NOW()
             WHERE id = %s
         ''', (reviewer, reason, audit_id))
     
@@ -6866,7 +6866,7 @@ def create_saved_view():
     
     c.execute('''
         INSERT INTO saved_views (name, filters, is_default)
-        VALUES (?, ?, 0)
+        VALUES (%s, %s, 0)
     ''', (name, filters_json))
     
     view_id = c.lastrowid
@@ -6890,7 +6890,7 @@ def update_saved_view(view_id):
     c = conn.cursor()
     
     # 检查视图是否存在
-    c.execute('SELECT id FROM saved_views WHERE id = ?', (view_id,))
+    c.execute('SELECT id FROM saved_views WHERE id = %s', (view_id,))
     if not c.fetchone():
         conn.close()
         return jsonify({'success': False, 'error': '视图不存在'}), 404
@@ -6905,10 +6905,10 @@ def update_saved_view(view_id):
         conn.close()
         return jsonify({'success': False, 'error': '没有要更新的字段'}), 400
     
-    set_clause = ', '.join([f"{k} = ?" for k in updates.keys()])
+    set_clause = ', '.join([f"{k} = %s" for k in updates.keys()])
     values = list(updates.values()) + [view_id]
     
-    c.execute(f'UPDATE saved_views SET {set_clause} WHERE id = ?', values)
+    c.execute(f'UPDATE saved_views SET {set_clause} WHERE id = %s', values)
     conn.commit()
     conn.close()
     
@@ -6924,13 +6924,13 @@ def delete_saved_view(view_id):
     c = conn.cursor()
     
     # 检查是否为默认视图
-    c.execute('SELECT is_default FROM saved_views WHERE id = ?', (view_id,))
+    c.execute('SELECT is_default FROM saved_views WHERE id = %s', (view_id,))
     row = c.fetchone()
     if row and row[0]:
         conn.close()
         return jsonify({'success': False, 'error': '不能删除默认视图'}), 400
     
-    c.execute('DELETE FROM saved_views WHERE id = ?', (view_id,))
+    c.execute('DELETE FROM saved_views WHERE id = %s', (view_id,))
     conn.commit()
     conn.close()
     
@@ -7481,3 +7481,192 @@ def get_wechat_accounts():
     except Exception as e:
         print(f"[ERROR] get_wechat_accounts: {e}")
         return jsonify({'success': False, 'error': str(e)})
+
+
+
+# ============================================
+# 人生目标 API (my-goals page)
+# ============================================
+
+@app.route('/api/life-goals/', methods=['GET'])
+@app.route('/api/life-goals', methods=['GET'])
+def get_life_goals():
+    """获取人生目标列表"""
+    try:
+        category = request.args.get('category', '')
+        conn = get_db()
+        c = conn.cursor()
+    
+        # 检查是否存在life_goals表 - should already exist
+        if not table_exists("life_goals"):
+            c.execute('''
+                CREATE TABLE IF NOT EXISTS life_goals (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    title TEXT NOT NULL,
+                    description TEXT,
+                    category TEXT DEFAULT 'personal',
+                    progress INTEGER DEFAULT 0,
+                    status TEXT DEFAULT 'todo',
+                    target_date DATE,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+            c.execute('''
+                CREATE TABLE IF NOT EXISTS life_key_results (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    life_goal_id INTEGER,
+                    description TEXT NOT NULL,
+                    target_value REAL DEFAULT 100,
+                    current_value REAL DEFAULT 0,
+                    unit TEXT DEFAULT '%',
+                    status TEXT DEFAULT 'todo',
+                    FOREIGN KEY (life_goal_id) REFERENCES life_goals (id)
+                )
+            ''')
+            conn.commit()
+    
+        # 查询目标
+        query = 'SELECT * FROM life_goals WHERE 1=1'
+        params = []
+    
+        if category:
+            query += ' AND category = ?'
+            params.append(category)
+    
+        query += ' ORDER BY progress DESC, created_at DESC'
+    
+        c.execute(query, params)
+        goals = [row_to_dict(row, c) for row in c.fetchall()]
+    
+        # 为每个目标加载关键结果
+        for goal in goals:
+            try:
+                c.execute('''
+                    SELECT id, description, target_value, current_value, unit, status
+                    FROM life_key_results
+                    WHERE life_goal_id = ?
+                ''', (goal['id'],))
+                goal['key_results'] = [row_to_dict(row, c) for row in c.fetchall()]
+            except:
+                goal['key_results'] = []
+    
+        conn.close()
+        return jsonify({'success': True, 'goals': goals})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/life-goals', methods=['POST'])
+def create_life_goal():
+    """创建人生目标"""
+    try:
+        data = request.get_json()
+        conn = get_db()
+        c = conn.cursor()
+    
+        c.execute('''
+            INSERT INTO life_goals (title, description, category, target_date, created_at, updated_at)
+            VALUES (?, ?, ?, ?, NOW(), NOW())
+        ''', (
+            data.get('title'),
+            data.get('description'),
+            data.get('category', 'personal'),
+            data.get('target_date')
+        ))
+    
+        goal_id = c.lastrowid
+    
+        # 添加关键结果
+        if data.get('key_results'):
+            for kr in data.get('key_results'):
+                c.execute('''
+                    INSERT INTO life_key_results (life_goal_id, description, target_value, unit)
+                    VALUES (?, ?, ?, ?)
+                ''', (goal_id, kr.get('description'), kr.get('target_value', 100), kr.get('unit', '%')))
+    
+        conn.commit()
+        conn.close()
+        return jsonify({'success': True, 'goal_id': goal_id})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/life-goals/<goal_id>', methods=['PUT'])
+def update_life_goal(goal_id):
+    """更新人生目标"""
+    try:
+        data = request.get_json()
+        conn = get_db()
+        c = conn.cursor()
+    
+        update_fields = []
+        params = []
+        if 'title' in data:
+            update_fields.append('title = %s')
+            params.append(data['title'])
+        if 'description' in data:
+            update_fields.append('description = %s')
+            params.append(data['description'])
+        if 'category' in data:
+            update_fields.append('category = %s')
+            params.append(data['category'])
+        if 'progress' in data:
+            update_fields.append('progress = %s')
+            params.append(data['progress'])
+        if 'status' in data:
+            update_fields.append('status = %s')
+            params.append(data['status'])
+        if 'target_date' in data:
+            update_fields.append('target_date = %s')
+            params.append(data['target_date'])
+        update_fields.append('updated_at = NOW()')
+    
+        params.append(goal_id)
+    
+        if update_fields:
+            c.execute(f'''
+                UPDATE life_goals 
+                SET {', '.join(update_fields)}
+                WHERE id = %s
+            ''', params)
+            conn.commit()
+    
+        # 更新关键结果
+        if 'key_results' in data:
+            # 删除旧的关键结果
+            c.execute('DELETE FROM life_key_results WHERE life_goal_id = %s', (goal_id,))
+            # 添加新的
+            for kr in data['key_results']:
+                c.execute('''
+                    INSERT INTO life_key_results (life_goal_id, description, target_value, unit)
+                    VALUES (?, ?, ?, ?)
+                ''', (goal_id, kr.get('description'), kr.get('target_value', 100), kr.get('unit', '%')))
+            conn.commit()
+    
+        conn.close()
+        return jsonify({
+            'success': True,
+            'message': '更新成功'
+        })
+    except Exception as e:
+        logger.error(f"Error updating life goal: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/life-goals/<goal_id>', methods=['DELETE'])
+def delete_life_goal(goal_id):
+    """删除人生目标"""
+    try:
+        conn = get_db()
+        c = conn.cursor()
+        # 删除关键结果先
+        c.execute('DELETE FROM life_key_results WHERE life_goal_id = %s', (goal_id,))
+        c.execute('DELETE FROM life_goals WHERE id = %s', (goal_id,))
+        conn.commit()
+        conn.close()
+        return jsonify({
+            'success': True,
+            'message': '删除成功'
+        })
+    except Exception as e:
+        logger.error(f"Error deleting life goal: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
