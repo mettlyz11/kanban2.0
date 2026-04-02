@@ -164,7 +164,7 @@ class PerceptionRecorder:
                 c.execute('''
                     INSERT INTO perception_events 
                     (event_type, severity, source, message, metadata, timestamp, hash)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
                 ''', (
                     event_type, severity, source, message,
                     json.dumps(metadata) if metadata else '{}',
@@ -1180,7 +1180,7 @@ def add_health_record():
         c.execute('''
             INSERT INTO health_records (record_date, weight, sleep_hours, exercise_minutes,
                                       water_intake, mood, notes)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
         ''', (
             data.get('record_date'),
             data.get('weight'),
@@ -2397,7 +2397,7 @@ def get_system_history():
         conn = get_db()
         c = conn.cursor()
         c.execute('''
-            SELECT id, cpu_percent, memory_percent, disk_percent, status, timestamp as created_at
+            SELECT id, cpu_percent, memory_percent, disk_percent, timestamp as created_at
             FROM system_metrics
             ORDER BY timestamp DESC
             LIMIT 50
@@ -2416,15 +2416,16 @@ def get_metrics_history():
         conn = get_db()
         c = conn.cursor()
     
-        # 根据时间范围确定查询条件
+        # 根据时间范围确定查询条件 (MySQL语法)
         time_condition = {
-            '1h': "datetime('now', '-1 hour')",
-            '6h': "datetime('now', '-6 hours')",
-            '24h': "datetime('now', '-24 hours')",
-            '7d': "datetime('now', '-7 days')"
-        }.get(time_range, "datetime('now', '-24 hours')")
+            '1h': "DATE_SUB(NOW(), INTERVAL 1 HOUR)",
+            '6h': "DATE_SUB(NOW(), INTERVAL 6 HOUR)",
+            '24h': "DATE_SUB(NOW(), INTERVAL 24 HOUR)",
+            '7d': "DATE_SUB(NOW(), INTERVAL 7 DAY)"
+        }.get(time_range, "DATE_SUB(NOW(), INTERVAL 24 HOUR)")
     
-        # 查询系统指标（使用新表 monitoring_system_metrics）
+        # 查询系统指标（修复：使用正确表 system_metrics，修复MySQL时间语法）
+        # MySQL中timestamp可以直接和datetime字符串比较
         c.execute(f'''
             SELECT 
                 id,
@@ -2432,8 +2433,8 @@ def get_metrics_history():
                 memory_percent as memory,
                 disk_percent as disk,
                 timestamp
-            FROM monitoring_system_metrics
-            WHERE timestamp >= (strftime('%s', {time_condition}))
+            FROM system_metrics
+            WHERE timestamp >= {time_condition}
             ORDER BY timestamp ASC
         ''')
     
@@ -2441,22 +2442,38 @@ def get_metrics_history():
         for row in c.fetchall():
             # 将 Unix 时间戳转换为可读格式
             import datetime
-            ts = row[4] if len(row) > 4 else row[3]
+            # get_db 使用 pymysql with DictCursor → row 是字典
+            if isinstance(row, dict):
+                id_val = row['id']
+                cpu_val = row['cpu']
+                mem_val = row['memory']
+                disk_val = row['disk']
+                ts = row['timestamp']
+            else:
+                # 回退到 tuple 索引
+                id_val = row[0]
+                cpu_val = row[1] if len(row) > 1 else None
+                mem_val = row[2] if len(row) > 2 else None
+                disk_val = row[3] if len(row) > 3 else None
+                ts = row[4] if len(row) > 4 else row[3]
             try:
                 # 如果是 Unix 时间戳（数字）
                 if isinstance(ts, (int, float)):
                     dt = datetime.datetime.fromtimestamp(ts)
                 else:
-                    # 如果已经是字符串
-                    dt = datetime.datetime.fromisoformat(str(ts).replace('Z', '+00:00'))
+                    # 如果已经是 datetime 对象或字符串
+                    if hasattr(ts, 'strftime'):
+                        dt = ts
+                    else:
+                        dt = datetime.datetime.fromisoformat(str(ts).replace('Z', '+00:00'))
             except:
                 dt = datetime.datetime.now()
         
             metrics.append({
-                'id': row[0],
-                'cpu': row[1] if row[1] is not None else 0,
-                'memory': row[2] if row[2] is not None else 0,
-                'disk': row[3] if row[3] is not None else 0,
+                'id': id_val,
+                'cpu': cpu_val if cpu_val is not None else 0,
+                'memory': mem_val if mem_val is not None else 0,
+                'disk': disk_val if disk_val is not None else 0,
                 'timestamp': ts,
                 'timestamp_formatted': dt.strftime('%H:%M')
             })
@@ -2627,24 +2644,24 @@ def get_llm_configs():
         configs = []
         for row in c.fetchall():
             configs.append({
-                'id': row[0],
-                'provider': row[1],
-                'name': row[2],
-                'model_name': row[3],
-                'is_active': row[4],
-                'is_default': row[5],
-                'temperature': row[6],
-                'max_tokens': row[7],
-                'context_window': row[8],
-                'model_type': row[9],
-                'supports_vision': row[10],
-                'supports_reasoning': row[11],
-                'description': row[12],
-                'input_cost': row[13],
-                'output_cost': row[14],
-                'tokens_used': row[15] or 0,
-                'actual_tokens_used': row[16] or 0,
-                'last_used_at': row[17]
+                'id': row['id'],
+                'provider': row['provider'],
+                'name': row['name'],
+                'model_name': row['model_name'],
+                'is_active': row['is_active'],
+                'is_default': row['is_default'],
+                'temperature': row['temperature'],
+                'max_tokens': row['max_tokens'],
+                'context_window': row['context_window'],
+                'model_type': row['model_type'],
+                'supports_vision': row['supports_vision'],
+                'supports_reasoning': row['supports_reasoning'],
+                'description': row['description'],
+                'input_cost': row['input_cost'],
+                'output_cost': row['output_cost'],
+                'tokens_used': row['tokens_used'] or 0,
+                'actual_tokens_used': row['actual_tokens_used'] or 0,
+                'last_used_at': row['last_used_at'].isoformat() if row['last_used_at'] else None
             })
         conn.close()
         return jsonify({'success': True, 'configs': configs})
@@ -2764,7 +2781,7 @@ def get_token_usage():
                    total_tokens, cost_usd, timestamp
             FROM token_usage
             ORDER BY timestamp DESC
-            LIMIT ?
+            LIMIT %s
         ''', (limit,))
     
         usage = []
@@ -2831,7 +2848,7 @@ def get_calc_tasks():
         conn = get_db()
         c = conn.cursor()
         c.execute('''
-            SELECT * FROM calc_tasks
+            SELECT * FROM chemistry_calculations
             ORDER BY created_at DESC
             LIMIT 50
         ''')
@@ -2847,13 +2864,13 @@ def get_calc_stats():
     try:
         conn = get_db()
         c = conn.cursor()
-        c.execute('SELECT COUNT(*) FROM calc_tasks')
+        c.execute('SELECT COUNT(*) FROM chemistry_calculations')
         total = list(c.fetchone().values())[0]
-        c.execute("SELECT COUNT(*) FROM calc_tasks WHERE status = 'running'")
+        c.execute("SELECT COUNT(*) FROM chemistry_calculations WHERE status = 'running'")
         running = list(c.fetchone().values())[0]
-        c.execute("SELECT COUNT(*) FROM calc_tasks WHERE status = 'completed'")
+        c.execute("SELECT COUNT(*) FROM chemistry_calculations WHERE status = 'completed'")
         completed = list(c.fetchone().values())[0]
-        c.execute("SELECT COUNT(*) FROM calc_tasks WHERE status = 'failed'")
+        c.execute("SELECT COUNT(*) FROM chemistry_calculations WHERE status = 'failed'")
         failed = list(c.fetchone().values())[0]
         conn.close()
         return jsonify({
@@ -3031,7 +3048,7 @@ def submit_calc_task():
         # 获取创建的任务信息
         c.execute('''
             SELECT id, reaction_id, task_type, software, status, created_at
-            FROM calc_tasks
+            FROM chemistry_calculations
             WHERE id = %s
         ''', (task_id,))
     
@@ -3078,7 +3095,7 @@ def get_calc_task(task_id):
         c = conn.cursor()
     
         c.execute('''
-            SELECT * FROM calc_tasks WHERE id = %s
+            SELECT * FROM chemistry_calculations WHERE id = %s
         ''', (task_id,))
     
         task = c.fetchone()
@@ -3139,7 +3156,7 @@ def update_calc_tasks():
         reaction_id = request.args.get('reaction_id')
     
         # 构建查询
-        query = 'SELECT * FROM calc_tasks WHERE 1=1'
+        query = 'SELECT * FROM chemistry_calculations WHERE 1=1'
         params = []
     
         if status:
@@ -3154,14 +3171,14 @@ def update_calc_tasks():
     
         # 分页
         offset = (page - 1) * per_page
-        query += ' LIMIT ? OFFSET ?'
+        query += ' LIMIT %s OFFSET ?'
         params.extend([per_page, offset])
     
         c.execute(query, params)
         tasks = [row_to_dict(row, c) for row in c.fetchall()]
     
         # 获取总数
-        count_query = 'SELECT COUNT(*) FROM calc_tasks WHERE 1=1'
+        count_query = 'SELECT COUNT(*) FROM chemistry_calculations WHERE 1=1'
         count_params = []
         if status:
             count_query += ' AND status = ?'
@@ -4663,16 +4680,16 @@ def perception_events():
             c.execute('''
                 SELECT id, event_type, severity, source, message, metadata, timestamp, hash
                 FROM perception_events
-                WHERE event_type = ?
+                WHERE event_type = %s
                 ORDER BY timestamp DESC
-                LIMIT ?
+                LIMIT %s
             ''', (event_type, limit))
         else:
             c.execute('''
                 SELECT id, event_type, severity, source, message, metadata, timestamp, hash
                 FROM perception_events
                 ORDER BY timestamp DESC
-                LIMIT ?
+                LIMIT %s
             ''', (limit,))
     
         rows = c.fetchall()
@@ -4720,7 +4737,7 @@ def perception_test():
     
         c.execute('''
             INSERT INTO perception_events (event_type, severity, source, message, metadata, timestamp, hash)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
         ''', (event_type, severity, source, message, metadata, timestamp, event_hash))
     
         conn.commit()
@@ -5035,7 +5052,7 @@ class PerceptionAgent:
         
             c.execute('''
                 INSERT INTO perception_events (event_type, severity, source, message, metadata, timestamp, hash)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
             ''', (event_type, severity, source, message, metadata_json, timestamp, event_hash))
         
             conn.commit()
@@ -5094,16 +5111,16 @@ class PerceptionAgent:
                 c.execute('''
                     SELECT id, event_type, severity, source, message, metadata, timestamp, hash
                     FROM perception_events
-                    WHERE event_type = ?
+                    WHERE event_type = %s
                     ORDER BY timestamp DESC
-                    LIMIT ?
+                    LIMIT %s
                 ''', (event_type, limit))
             else:
                 c.execute('''
                     SELECT id, event_type, severity, source, message, metadata, timestamp, hash
                     FROM perception_events
                     ORDER BY timestamp DESC
-                    LIMIT ?
+                    LIMIT %s
                 ''', (limit,))
         
             rows = c.fetchall()
@@ -5444,13 +5461,13 @@ def get_pepi_work_history():
                 SELECT * FROM pepi_work_gifs 
                 WHERE work_type = ?
                 ORDER BY created_at DESC 
-                LIMIT ?
+                LIMIT %s
             ''', (work_type, limit))
         else:
             c.execute('''
                 SELECT * FROM pepi_work_gifs 
                 ORDER BY created_at DESC 
-                LIMIT ?
+                LIMIT %s
             ''', (limit,))
     
         records = []
@@ -7215,4 +7232,253 @@ def delete_wiki_entry(entry_id):
         return jsonify({'success': True})
     except Exception as e:
         print(f"[ERROR] delete_wiki_entry: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+
+# ============ Gantt 甘特图 API ============
+@app.route('/api/projects/gantt', methods=['GET'])
+def get_projects_gantt():
+    """获取项目甘特图数据"""
+    try:
+        conn = get_db()
+        c = conn.cursor(pymysql.cursors.DictCursor)
+        c.execute('''
+            SELECT id, number, chinese_name as title, status, priority, 
+                   start_date, end_date, deadline
+            FROM projects 
+            WHERE status != 'deleted'
+            ORDER BY priority DESC, created_at DESC
+        ''')
+        projects = c.fetchall()
+        conn.close()
+        
+        # 转换为甘特图格式
+        gantt_data = []
+        for p in projects:
+            gantt_data.append({
+                'id': p['id'],
+                'name': p['title'] or p['number'],
+                'start': p['start_date'].isoformat() if p['start_date'] else None,
+                'end': p['end_date'].isoformat() if p['end_date'] else None,
+                'progress': 0,
+                'status': p['status'],
+                'priority': p['priority']
+            })
+        
+        return jsonify({'success': True, 'data': gantt_data})
+    except Exception as e:
+        print(f"[ERROR] get_projects_gantt: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+
+
+# ============ Activity Log API ============
+@app.route('/api/activity-log', methods=['GET'])
+def get_activity_log():
+    """Get activity log"""
+    try:
+        conn = get_db()
+        c = conn.cursor(pymysql.cursors.DictCursor)
+        limit = request.args.get('limit', '50')
+        try:
+            limit = int(limit)
+        except:
+            limit = 50
+        
+        c.execute('''
+            SELECT * FROM activity_log
+            ORDER BY created_at DESC
+            LIMIT %s
+        ''', (limit,))
+        logs = c.fetchall()
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'logs': logs,
+            'total': len(logs)
+        })
+    except Exception as e:
+        print(f"[ERROR] get_activity_log: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+
+@app.route('/api/activity-log', methods=['POST'])
+def create_activity_log():
+    """Create activity log entry"""
+    try:
+        data = request.get_json()
+        conn = get_db()
+        c = conn.cursor()
+        
+        c.execute('''
+            INSERT INTO activity_log 
+            (user_id, username, action, entity_type, entity_id, description, ip_address, user_agent)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+        ''', (
+            data.get('user_id'),
+            data.get('username'),
+            data.get('action'),
+            data.get('entity_type'),
+            data.get('entity_id'),
+            data.get('description'),
+            request.remote_addr,
+            request.headers.get('User-Agent')
+        ))
+        conn.commit()
+        new_id = c.lastrowid
+        conn.close()
+        
+        return jsonify({'success': True, 'id': new_id})
+    except Exception as e:
+        print(f"[ERROR] create_activity_log: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+
+
+# ============ WeChat Contacts API ============
+@app.route('/api/wechat/contacts', methods=['GET'])
+def get_wechat_contacts():
+    """Get WeChat contacts"""
+    try:
+        search = request.args.get('search', '')
+        limit = request.args.get('limit', '200')
+        try:
+            limit = int(limit)
+        except:
+            limit = 200
+        
+        conn = get_db()
+        c = conn.cursor(pymysql.cursors.DictCursor)
+        
+        if search:
+            search = f"%{search}%"
+            c.execute('''
+                SELECT * FROM wechat_contacts 
+                WHERE display_name LIKE %s OR tags LIKE %s OR company LIKE %s
+                ORDER BY relation_score DESC, display_name ASC
+                LIMIT %s
+            ''', (search, search, search, limit))
+        else:
+            c.execute('''
+                SELECT * FROM wechat_contacts 
+                ORDER BY relation_score DESC, display_name ASC
+                LIMIT %s
+            ''', (limit,))
+        
+        contacts = c.fetchall()
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'contacts': contacts,
+            'total': len(contacts)
+        })
+    except Exception as e:
+        print(f"[ERROR] get_wechat_contacts: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+
+@app.route('/api/wechat/contacts/<int:contact_id>', methods=['PUT'])
+def update_wechat_contact(contact_id):
+    """Update WeChat contact"""
+    try:
+        data = request.get_json()
+        conn = get_db()
+        c = conn.cursor()
+        
+        allowed_fields = [
+            'display_name', 'wechat_id', 'phone', 'email', 'company', 'position',
+            'industry', 'relation_type', 'relation_score', 'how_met',
+            'first_contact_date', 'last_contact_date', 'tags', 'notes',
+            'source_account_id', 'source_chat_count'
+        ]
+        
+        updates = {k: v for k, v in data.items() if k in allowed_fields}
+        
+        if not updates:
+            return jsonify({'success': False, 'error': '没有要更新的字段'}), 400
+        
+        set_clause = ', '.join([f"{k} = %s" for k in updates.keys()])
+        values = list(updates.values()) + [contact_id]
+        
+        c.execute(f"UPDATE wechat_contacts SET {set_clause}, updated_at = NOW() WHERE id = %s", values)
+        conn.commit()
+        conn.close()
+        
+        return jsonify({'success': True})
+    except Exception as e:
+        print(f"[ERROR] update_wechat_contact: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+
+@app.route('/api/wechat/contacts', methods=['POST'])
+def create_wechat_contact():
+    """Create WeChat contact"""
+    try:
+        data = request.get_json()
+        conn = get_db()
+        c = conn.cursor()
+        
+        c.execute('''
+            INSERT INTO wechat_contacts 
+            (display_name, wechat_id, phone, email, company, position, industry, 
+             relation_type, relation_score, how_met, first_contact_date, 
+             last_contact_date, tags, notes, source_account_id, source_chat_count)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        ''', (
+            data.get('display_name'),
+            data.get('wechat_id'),
+            data.get('phone'),
+            data.get('email'),
+            data.get('company'),
+            data.get('position'),
+            data.get('industry'),
+            data.get('relation_type'),
+            data.get('relation_score', 50),
+            data.get('how_met'),
+            data.get('first_contact_date'),
+            data.get('last_contact_date'),
+            data.get('tags'),
+            data.get('notes'),
+            data.get('source_account_id'),
+            data.get('source_chat_count', 0),
+        ))
+        conn.commit()
+        new_id = c.lastrowid
+        conn.close()
+        
+        return jsonify({'success': True, 'id': new_id})
+    except Exception as e:
+        print(f"[ERROR] create_wechat_contact: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+
+@app.route('/api/wechat/contacts/<int:contact_id>', methods=['DELETE'])
+def delete_wechat_contact(contact_id):
+    """Delete WeChat contact (soft delete handled in frontend)"""
+    try:
+        conn = get_db()
+        c = conn.cursor()
+        c.execute("DELETE FROM wechat_contacts WHERE id = %s", (contact_id,))
+        conn.commit()
+        conn.close()
+        return jsonify({'success': True})
+    except Exception as e:
+        print(f"[ERROR] delete_wechat_contact: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+
+@app.route('/api/wechat/accounts', methods=['GET'])
+def get_wechat_accounts():
+    """Get WeChat accounts"""
+    try:
+        conn = get_db()
+        c = conn.cursor(pymysql.cursors.DictCursor)
+        c.execute('''SELECT * FROM wechat_accounts ORDER BY account_name ASC''')
+        accounts = c.fetchall()
+        conn.close()
+        return jsonify({'success': True, 'accounts': accounts})
+    except Exception as e:
+        print(f"[ERROR] get_wechat_accounts: {e}")
         return jsonify({'success': False, 'error': str(e)})
