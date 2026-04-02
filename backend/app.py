@@ -1060,9 +1060,8 @@ def serve_vite_svg():
     return send_from_directory(app.static_folder, 'vite.svg')
 
 @app.route('/api/communication/hub')
-@app.route('/communication')
-def serve_communication():
-    """Dudu对接中心API"""
+def serve_communication_hub():
+    """Dudu对接中心API信息"""
     return jsonify({
         'success': True,
         'message': 'Dudu对接中心',
