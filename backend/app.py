@@ -3024,7 +3024,7 @@ def submit_calc_task():
         c = conn.cursor()
     
         c.execute('''
-            INSERT INTO calc_tasks (
+            INSERT INTO chemistry_calculations (
                 reaction_id, 
                 task_type, 
                 software, 
