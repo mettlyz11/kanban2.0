@@ -47,6 +47,8 @@ const Tasks: React.FC = () => {
   const [pageSize] = useState(50);
   const [showSaveViewModal, setShowSaveViewModal] = useState(false);
   const [viewName, setViewName] = useState('');
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
   
   // 防抖搜索
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -499,8 +501,35 @@ const Tasks: React.FC = () => {
                       {new Date(task.created_at).toLocaleDateString('zh-CN')}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <button className="text-blue-600 hover:text-blue-900 mr-3">编辑</button>
-                      <button className="text-red-600 hover:text-red-900">删除</button>
+                      <button 
+                        onClick={() => {
+                          setEditingTask(task);
+                          setShowEditModal(true);
+                        }}
+                        className="text-blue-600 hover:text-blue-900 mr-3"
+                      >
+                        编辑
+                      </button>
+                      <button 
+                        onClick={async () => {
+                          if (!confirm('确定要删除这个任务吗？')) return;
+                          try {
+                            const res = await fetch(`/api/tasks/${task.id}`, { method: 'DELETE' });
+                            const data = await res.json();
+                            if (data.success) {
+                              fetchTasks();
+                            } else {
+                              alert(data.error || '删除失败');
+                            }
+                          } catch (error) {
+                            console.error('Failed to delete task:', error);
+                            alert('删除失败');
+                          }
+                        }}
+                        className="text-red-600 hover:text-red-900"
+                      >
+                        删除
+                      </button>
                     </td>
                   </tr>
                 ))
@@ -509,6 +538,254 @@ const Tasks: React.FC = () => {
           </table>
         </div>
       </div>
+
+      {/* 添加任务弹窗 */}
+      {showAddModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-2xl">
+            <h3 className="text-lg font-bold mb-4">新建任务</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">任务标题</label>
+                <input
+                  type="text"
+                  id="newTaskTitle"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  placeholder="输入任务标题"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">任务描述</label>
+                <textarea
+                  id="newTaskDescription"
+                  rows={3}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  placeholder="输入任务描述"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">所属项目</label>
+                <select
+                  id="newTaskProject"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">请选择项目</option>
+                  {projects.map(p => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">状态</label>
+                <select
+                  id="newTaskStatus"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="todo">待办</option>
+                  <option value="in_progress">进行中</option>
+                  <option value="completed">已完成</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">优先级</label>
+                <select
+                  id="newTaskPriority"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="low">低</option>
+                  <option value="medium">中</option>
+                  <option value="high">高</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">标签</label>
+                <input
+                  type="text"
+                  id="newTaskTags"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  placeholder="多个标签用逗号分隔"
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 mt-6">
+              <button
+                onClick={() => setShowAddModal(false)}
+                className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
+              >
+                取消
+              </button>
+              <button
+                onClick={async () => {
+                  const title = (document.getElementById('newTaskTitle') as HTMLInputElement).value;
+                  const description = (document.getElementById('newTaskDescription') as HTMLTextAreaElement).value;
+                  const project_id = parseInt((document.getElementById('newTaskProject') as HTMLSelectElement).value);
+                  const status = (document.getElementById('newTaskStatus') as HTMLSelectElement).value;
+                  const priority = (document.getElementById('newTaskPriority') as HTMLSelectElement).value;
+                  const tags = (document.getElementById('newTaskTags') as HTMLInputElement).value;
+                  
+                  if (!title.trim()) {
+                    alert('请输入任务标题');
+                    return;
+                  }
+                  if (!project_id) {
+                    alert('请选择所属项目');
+                    return;
+                  }
+                  
+                  try {
+                    const res = await fetch('/api/tasks', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ title, description, project_id, status, priority, tags })
+                    });
+                    const data = await res.json();
+                    if (data.success) {
+                      alert('任务创建成功');
+                      setShowAddModal(false);
+                      fetchTasks();
+                    } else {
+                      alert(data.error || '创建失败');
+                    }
+                  } catch (error) {
+                    console.error('Failed to create task:', error);
+                    alert('创建失败');
+                  }
+                }}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              >
+                创建
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 编辑任务弹窗 */}
+      {showEditModal && editingTask && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-2xl">
+            <h3 className="text-lg font-bold mb-4">编辑任务</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">任务标题</label>
+                <input
+                  type="text"
+                  id="editTaskTitle"
+                  defaultValue={editingTask.title}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  placeholder="输入任务标题"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">任务描述</label>
+                <textarea
+                  id="editTaskDescription"
+                  rows={3}
+                  defaultValue={editingTask.description || ''}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  placeholder="输入任务描述"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">所属项目</label>
+                <select
+                  id="editTaskProject"
+                  defaultValue={editingTask.project_id || ''}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">请选择项目</option>
+                  {projects.map(p => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">状态</label>
+                <select
+                  id="editTaskStatus"
+                  defaultValue={editingTask.status === 'completed' ? 'completed' : editingTask.status === 'in_progress' ? 'in_progress' : 'todo'}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="todo">待办</option>
+                  <option value="in_progress">进行中</option>
+                  <option value="completed">已完成</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">优先级</label>
+                <select
+                  id="editTaskPriority"
+                  defaultValue={editingTask.priority || 'medium'}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="low">低</option>
+                  <option value="medium">中</option>
+                  <option value="high">高</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">标签</label>
+                <input
+                  type="text"
+                  id="editTaskTags"
+                  defaultValue={editingTask.tags || ''}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  placeholder="多个标签用逗号分隔"
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 mt-6">
+              <button
+                onClick={() => {
+                  setShowEditModal(false);
+                  setEditingTask(null);
+                }}
+                className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
+              >
+                取消
+              </button>
+              <button
+                onClick={async () => {
+                  const title = (document.getElementById('editTaskTitle') as HTMLInputElement).value;
+                  const description = (document.getElementById('editTaskDescription') as HTMLTextAreaElement).value;
+                  const project_id = parseInt((document.getElementById('editTaskProject') as HTMLSelectElement).value);
+                  const status = (document.getElementById('editTaskStatus') as HTMLSelectElement).value;
+                  const priority = (document.getElementById('editTaskPriority') as HTMLSelectElement).value;
+                  const tags = (document.getElementById('editTaskTags') as HTMLInputElement).value;
+                  
+                  if (!title.trim()) {
+                    alert('请输入任务标题');
+                    return;
+                  }
+                  
+                  try {
+                    const res = await fetch(`/api/tasks/${editingTask.id}`, {
+                      method: 'PUT',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ title, description, project_id, status, priority, tags })
+                    });
+                    const data = await res.json();
+                    if (data.success) {
+                      alert('任务更新成功');
+                      setShowEditModal(false);
+                      setEditingTask(null);
+                      fetchTasks();
+                    } else {
+                      alert(data.error || '更新失败');
+                    }
+                  } catch (error) {
+                    console.error('Failed to update task:', error);
+                    alert('更新失败');
+                  }
+                }}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              >
+                保存修改
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 保存视图弹窗 */}
       {showSaveViewModal && (
@@ -535,34 +812,6 @@ const Tasks: React.FC = () => {
               </button>
               <button
                 onClick={handleSaveView}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-              >
-                保存
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 添加任务弹窗 - 保留原有实现 */}
-      {showAddModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-2xl">
-            <h3 className="text-lg font-bold mb-4">新建任务</h3>
-            {/* 保留原有的表单内容 */}
-            <div className="flex justify-end gap-3 mt-4">
-              <button
-                onClick={() => setShowAddModal(false)}
-                className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
-              >
-                取消
-              </button>
-              <button
-                onClick={() => {
-                  // 保留原有的保存逻辑
-                  setShowAddModal(false);
-                  fetchTasks();
-                }}
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
               >
                 保存
