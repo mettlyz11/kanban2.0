@@ -123,7 +123,11 @@ except ImportError as e:
 # ============================================
 try:
     from person_company_routes import person_company_bp
+    from person_tabs_routes import person_tabs_bp
+    from company_tabs_routes import company_tabs_bp
+    app.register_blueprint(person_tabs_bp)
     app.register_blueprint(person_company_bp)
+    app.register_blueprint(company_tabs_bp)
     # init_person_company_tables()  # Disabled - using database_config functions
     logger.info("✅ 人员和公司动态Tab路由已注册")
 except ImportError as e:
@@ -1019,7 +1023,7 @@ def get_file_index():
 def get_file_content(filepath):
     """获取文件内容"""
     try:
-        workspace_path = os.path.expanduser('~/.openclaw/workspace')
+        workspace_path = '/opt/kanban-react/Files'
         full_path = os.path.join(workspace_path, filepath)
     
         # 安全检查：确保文件在workspace内
@@ -1058,6 +1062,11 @@ def serve_assets(filename):
 def serve_vite_svg():
     """提供vite图标"""
     return send_from_directory(app.static_folder, 'vite.svg')
+
+@app.route('/files/<path:filename>')
+def serve_files(filename):
+    """提供人员文件下载"""
+    return send_from_directory(os.path.join(app.static_folder, 'files'), filename)
 
 @app.route('/api/communication/hub')
 def serve_communication_hub():
@@ -2139,24 +2148,24 @@ def api_login():
             return jsonify({'success': False, 'error': '用户名或密码错误'})
     
         from werkzeug.security import check_password_hash
-        if not check_password_hash(user[2], password):
+        if not check_password_hash(user["password_hash"], password):
             return jsonify({'success': False, 'error': '用户名或密码错误'})
     
-        if not user[4]:
+        if not user["is_active"]:
             return jsonify({'success': False, 'error': '账户已被禁用'})
     
         import jwt
         token = jwt.encode({
-            'user_id': user[0],
-            'username': user[1],
-            'is_admin': bool(user[3]),
+            'user_id': user["id"],
+            'username': user["username"],
+            'is_admin': bool(user["is_admin"]),
             'exp': datetime.utcnow() + timedelta(days=30)
         }, app.config['JWT_SECRET_KEY'], algorithm='HS256')
     
         return jsonify({
             'success': True,
             'token': token,
-            'user': {'id': user[0], 'username': user[1], 'role': 'admin' if user[3] else 'user'}
+            'user': {'id': user["id"], 'username': user["username"], 'role': 'admin' if user["is_admin"] else 'user'}
         })
     except Exception as e:
         import traceback
@@ -3281,6 +3290,38 @@ def get_daily_reviews():
         return jsonify({'success': True, 'reviews': reviews})
     except Exception as e:
         return jsonify({'success': True, 'reviews': []})
+
+
+
+@app.route('/api/daily-reviews', methods=['POST'])
+def create_daily_review():
+    """创建每日复盘"""
+    try:
+        data = request.get_json()
+        review_date = data.get('review_date')
+        mood = data.get('mood', '')
+        summary = data.get('summary', '')
+        
+        if not review_date or not summary:
+            return jsonify({'success': False, 'error': '日期和总结内容不能为空'})
+        
+        conn = get_db()
+        c = conn.cursor()
+        
+        # 检查是否已存在该日期的复盘
+        c.execute('SELECT id FROM daily_reviews WHERE review_date = %s', (review_date,))
+        if c.fetchone():
+            conn.close()
+            return jsonify({'success': False, 'error': '该日期已有复盘记录'})
+        
+        c.execute('INSERT INTO daily_reviews (review_date, mood, summary, created_at) VALUES (%s, %s, %s, NOW())', (review_date, mood, summary))
+        
+        conn.commit()
+        conn.close()
+        
+        return jsonify({'success': True, 'message': '复盘创建成功'})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
 
 # ============================================
 # 化学模块 API
@@ -5589,7 +5630,198 @@ def get_pepi_work_types():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+
 # ============================================
+# 保存视图 API
+# ============================================
+
+@app.route('/api/saved-views', methods=['GET'])
+def get_saved_views():
+    """获取所有保存的视图"""
+    import json
+    
+    conn = get_db()
+    c = conn.cursor()
+    
+    c.execute('''
+        SELECT id, name, filters, is_default, created_at, updated_at
+        FROM saved_views
+        ORDER BY is_default DESC, created_at ASC
+    ''')
+    
+    views = []
+    for row in c.fetchall():
+        view_dict = row_to_dict(row, c)
+        # 解析 JSON 字段
+        if isinstance(view_dict.get('filters'), str):
+            view_dict['filters'] = json.loads(view_dict['filters'])
+        views.append(view_dict)
+    
+    conn.close()
+    return jsonify({'success': True, 'views': views})
+
+@app.route('/api/saved-views', methods=['POST'])
+def create_saved_view():
+    """创建保存的视图"""
+    import json
+    
+    data = request.get_json()
+    name = data.get('name', '').strip()
+    filters = data.get('filters', {})
+    
+    if not name:
+        return jsonify({'success': False, 'error': '视图名称不能为空'}), 400
+    
+    conn = get_db()
+    c = conn.cursor()
+    
+    filters_json = json.dumps(filters, ensure_ascii=False)
+    
+    c.execute('''
+        INSERT INTO saved_views (name, filters, is_default)
+        VALUES (%s, %s, 0)
+    ''', (name, filters_json))
+    
+    view_id = c.lastrowid
+    conn.commit()
+    conn.close()
+    
+    return jsonify({
+        'success': True,
+        'view_id': view_id,
+        'message': '视图已保存'
+    })
+
+@app.route('/api/saved-views/<int:view_id>', methods=['PUT'])
+def update_saved_view(view_id):
+    """更新保存的视图"""
+    import json
+    
+    data = request.get_json()
+    
+    conn = get_db()
+    c = conn.cursor()
+    
+    # 检查视图是否存在
+    c.execute('SELECT id FROM saved_views WHERE id = %s', (view_id,))
+    if not c.fetchone():
+        conn.close()
+        return jsonify({'success': False, 'error': '视图不存在'}), 404
+    
+    updates = {}
+    if 'name' in data:
+        updates['name'] = data['name']
+    if 'filters' in data:
+        updates['filters'] = json.dumps(data['filters'], ensure_ascii=False)
+    
+    if not updates:
+        conn.close()
+        return jsonify({'success': False, 'error': '没有要更新的字段'}), 400
+    
+    set_clause = ', '.join([f"{k} = %s" for k in updates.keys()])
+    values = list(updates.values()) + [view_id]
+    
+    c.execute(f'UPDATE saved_views SET {set_clause} WHERE id = %s', values)
+    conn.commit()
+    conn.close()
+    
+    return jsonify({
+        'success': True,
+        'message': '视图已更新'
+    })
+
+@app.route('/api/saved-views/<int:view_id>', methods=['DELETE'])
+def delete_saved_view(view_id):
+    """删除保存的视图"""
+    conn = get_db()
+    c = conn.cursor()
+    
+    # 检查是否为默认视图
+    c.execute('SELECT is_default FROM saved_views WHERE id = %s', (view_id,))
+    row = c.fetchone()
+    if row and row[0]:
+        conn.close()
+        return jsonify({'success': False, 'error': '不能删除默认视图'}), 400
+    
+    c.execute('DELETE FROM saved_views WHERE id = %s', (view_id,))
+    conn.commit()
+    conn.close()
+    
+    return jsonify({
+        'success': True,
+        'message': '视图已删除'
+    })
+
+
+# ============================================
+
+# ============================================
+# 邮件 API
+# ============================================
+@app.route('/api/emails/', methods=['GET'])  # 支持尾部斜杠
+@app.route('/api/emails/', methods=['GET'])
+@app.route('/api/emails', methods=['GET'])
+def get_emails():
+    """获取邮件列表"""
+    try:
+        conn = get_db()
+        c = conn.cursor()
+        c.execute('''
+            SELECT id, message_id, subject, sender, sender_name, recipient,
+                   folder, is_read, is_important, received_at as date,
+                   SUBSTRING(body, 1, 200) as preview
+            FROM emails
+            ORDER BY received_at DESC
+            LIMIT 100
+        ''')
+        emails = [row_to_dict(row, c) for row in c.fetchall()]
+        conn.close()
+        return jsonify({'success': True, 'emails': emails})
+    except Exception as e:
+        print(f"[ERROR] get_emails: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/api/emails/stats/', methods=['GET'])  # 支持尾部斜杠
+@app.route('/api/emails/stats', methods=['GET'])
+def get_email_stats():
+    """获取邮件统计"""
+    try:
+        conn = get_db()
+        c = conn.cursor()
+    
+        c.execute('SELECT COUNT(*) as total FROM emails')
+        result = c.fetchone()
+        total = result['total']
+    
+        c.execute('SELECT COUNT(*) as unread FROM emails WHERE is_read = 0')
+        result = c.fetchone()
+        unread = result['unread']
+    
+        c.execute('SELECT COUNT(*) as important FROM emails WHERE is_important = 1')
+        result = c.fetchone()
+        important = result['important']
+    
+        # 按文件夹统计数量（前端需要这个显示各文件夹）
+        c.execute('SELECT folder, COUNT(*) as count FROM emails GROUP BY folder')
+        folder_stats = {}
+        for row in c.fetchall():
+            folder_stats[row['folder']] = row['count']
+    
+        conn.close()
+    
+        return jsonify({
+            'success': True,
+            'stats': {
+                'total': total,
+                'unread': unread,
+                'important': important,
+                'folders': folder_stats
+            }
+        })
+    except Exception as e:
+        print(f"[ERROR] get_email_stats: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
 # SPA 前端路由支持 - 所有非API路由返回index.html
 # ============================================
 
@@ -5600,8 +5832,9 @@ def catch_all(path):
     捕获所有非API路由，返回前端index.html
     支持React Router等前端路由
     """
-    # 排除API路由和静态文件
-    if path.startswith('api/') or path.startswith('health'):
+    # 排除API路由和静态文件（不应该在这里返回404，让Flask正常处理）
+    # 如果路径以api/开头，说明前面的API路由没有匹配到，这是正常的404
+    if path.startswith('health'):
         return jsonify({'success': False, 'error': 'Not found'}), 404
 
     # 检查是否是静态文件请求
@@ -5882,36 +6115,46 @@ def get_api_performance():
 
 @app.route('/api/personal-info/people', methods=['GET'])
 def get_people():
-    """获取联系人列表（个人信息）"""
+    """获取联系人列表（个人信息），包含每个人的详细信息"""
     try:
         with get_db_connection() as conn:
-    
             c = conn.cursor()
-    
-            c.execute('''
-                SELECT id, name, email, title as department, phone, location as company, created_at
-                FROM persons
-                ORDER BY name ASC
-            ''')
-    
+            
+            # 获取所有联系人基本信息
+            c.execute('SELECT id, name, email, title as department, phone, location as company, created_at FROM persons ORDER BY name ASC')
+            
             people = []
             for row in c.fetchall():
+                person_id = row['id']
+                
+                # 获取该联系人的标签页信息
+                c.execute('SELECT id, name, type, sort_order FROM person_tabs WHERE person_id = %s ORDER BY sort_order', (person_id,))
+                tabs = c.fetchall()
+                
+                tabs_data = []
+                for tab in tabs:
+                    # 获取标签页内容
+                    c.execute('SELECT title, content, item_date, sort_order, attachments FROM person_tab_items WHERE tab_id = %s ORDER BY sort_order', (tab['id'],))
+                    items = c.fetchall()
+                    
+                    items_data = []
+                    for item in items:
+                        items_data.append({'title': item['title'], 'content': item['content'], 'item_date': item['item_date'], 'attachments': item['attachments']})
+                    
+                    tabs_data.append({'id': tab['id'], 'name': tab['name'], 'type': tab['type'], 'items': items_data})
+                
                 people.append({
-                    'id': row['id'],
+                    'id': person_id,
                     'name': row['name'],
                     'email': row['email'],
                     'department': row['department'],
                     'phone': row['phone'],
                     'company': row['company'],
-                    'created_at': row['created_at']
+                    'created_at': row['created_at'],
+                    'tabs': tabs_data
                 })
-    
-    
-        return jsonify({
-            'success': True,
-            'people': people,
-            'count': len(people)
-        })
+        
+        return jsonify({'success': True, 'people': people, 'count': len(people)})
     except Exception as e:
         logger.error(f"获取联系人列表失败: {e}")
         return jsonify({'success': False, 'error': str(e)})
@@ -5919,36 +6162,68 @@ def get_people():
 
 @app.route('/api/personal-info/people/<int:person_id>', methods=['GET'])
 def get_person(person_id):
-    """获取单个联系人详情"""
+    """获取单个联系人详情 - 从 person_tabs 读取"""
     try:
-        with get_db_connection() as conn:
-    
-            c = conn.cursor()
-    
-            c.execute('''
-                SELECT id, name, email, title as department, phone, location as company, created_at
-                FROM persons
-                WHERE id = %s
-            ''', (person_id,))
-    
-            row = c.fetchone()
-    
-        if not row:
+        conn = get_db()
+        c = conn.cursor()
+        
+        # 获取用户基本信息（从 persons 表）
+        c.execute('SELECT id, name, email, phone, title, location FROM persons WHERE id = %s', (person_id,))
+        user = c.fetchone()
+        
+        if not user:
+            conn.close()
             return jsonify({'success': False, 'error': '联系人不存在'}), 404
-    
+        
+        # 获取标签页
+        c.execute('SELECT id, name, type, sort_order FROM person_tabs WHERE person_id = %s ORDER BY sort_order', (person_id,))
+        tabs = c.fetchall()
+        
+        tabs_data = []
+        for tab in tabs:
+            # 获取标签页内容
+            c.execute('SELECT title, content, item_date, sort_order, attachments FROM person_tab_items WHERE tab_id = %s ORDER BY sort_order', (tab['id'],))
+            items = c.fetchall()
+            
+            items_data = []
+            for item in items:
+                # 解析 attachments JSON
+                attachments = item['attachments']
+                if attachments:
+                    try:
+                        attachments = json.loads(attachments)
+                    except:
+                        attachments = None
+                items_data.append({
+                    'title': item['title'],
+                    'content': item['content'],
+                    'item_date': item['item_date'],
+                    'attachments': attachments
+                })
+            
+            tabs_data.append({
+                'id': tab['id'],
+                'name': tab['name'],
+                'type': tab['type'],
+                'items': items_data
+            })
+        
+        conn.close()
+        
         person = {
-            'id': row['id'],
-            'name': row['name'],
-            'email': row['email'],
-            'department': row['department'],
-            'phone': row['phone'],
-            'company': row['company'],
-            'created_at': row['created_at']
+            'id': user['id'],
+            'name': user['name'],
+            'email': user.get('email', ''),
+            'phone': user.get('phone', ''),
+            'department': user.get('title', ''),
+            'company': user.get('location', ''),
+            'tabs': tabs_data
         }
-    
+        
         return jsonify({'success': True, 'person': person})
     except Exception as e:
         logger.error(f"获取联系人详情失败: {e}")
+        return jsonify({'success': False, 'error': str(e)})
         return jsonify({'success': False, 'error': str(e)})
 
 
@@ -6078,10 +6353,24 @@ def get_liuyuzhou_info():
             },
             "education": [
                 {
-                    "school": "北京大学",
+                    "school": "纽约大学化学系",
                     "degree": "博士",
-                    "major": "物理化学",
-                    "year": "2010"
+                    "major": "氢键在晶体工程里的应用",
+                    "year": "2011",
+                    "advisor": "Michael Ward 教授"
+                },
+                {
+                    "school": "清华大学化学系",
+                    "degree": "硕士",
+                    "major": "Mo(CO)6催化的炔烃合成苯环的反应",
+                    "year": "2006",
+                    "advisor": "席婵娟 教授"
+                },
+                {
+                    "school": "清华大学化学系",
+                    "degree": "学士",
+                    "major": "化学",
+                    "year": "2003"
                 }
             ],
             "researchAreas": [
@@ -6754,6 +7043,76 @@ def get_audit_dashboard():
 # 主程序入口
 # ============================================
 
+
+
+@app.route('/api/file-content', methods=['GET'])
+def get_file_content_by_query():
+    """通过 query 参数获取文件内容"""
+    try:
+        type_param = request.args.get('type', 'personal')
+        name = request.args.get('name', '')
+        format_type = request.args.get('format', 'raw')
+        
+        # 构建文件路径
+        if type_param == 'personal':
+            # 人员档案路径: Files/Personal/刘宇宙.md
+            filepath = f'文档/个人信息/{name}.md'
+        elif type_param == 'company':
+            # 公司档案路径: Files/Companies/和光智成.md
+            filepath = f'文档/公司信息/{name}.md'
+        else:
+            return jsonify({'success': False, 'error': '无效的类型'})
+        
+        workspace_path = '/opt/kanban-react/Files'
+        full_path = os.path.join(workspace_path, filepath)
+        
+        # 安全检查
+        if not full_path.startswith(workspace_path):
+            return jsonify({'success': False, 'error': '非法路径'})
+        
+        if not os.path.exists(full_path):
+            return jsonify({'success': False, 'error': '文件不存在', 'data': ''})
+        
+        # 限制文件大小
+        if os.path.getsize(full_path) > 1024 * 1024:
+            return jsonify({'success': False, 'error': '文件过大'})
+        
+        with open(full_path, 'r', encoding='utf-8', errors='ignore') as f:
+            content = f.read()
+        
+        # 解析内容
+        if format_type == 'parsed':
+            # 简单的解析：提取标题和段落
+            lines = content.split("\n")
+            parsed = {
+                'title': '',
+                'sections': []
+            }
+            current_section = None
+            
+            for line in lines:
+                if line.startswith('# '):
+                    parsed['title'] = line[2:].strip()
+                elif line.startswith('## '):
+                    if current_section:
+                        parsed['sections'].append(current_section)
+                    current_section = {
+                        'title': line[3:].strip(),
+                        'content': []
+                    }
+                elif current_section and line.strip():
+                    current_section['content'].append(line)
+            
+            if current_section:
+                parsed['sections'].append(current_section)
+            
+            return jsonify({'success': True, 'data': parsed})
+        else:
+            return jsonify({'success': True, 'data': content})
+            
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
 if __name__ == '__main__':
     print("=" * 60)
     print("Kanban React - Flask API Server")
@@ -6818,190 +7177,9 @@ try:
 except Exception as e:
     logger.warning(f"PerceptionAgent thread creation failed: {e}")
 
-# ============================================
-# 保存视图 API
-# ============================================
+# (saved-views moved to before catch-all)
 
-@app.route('/api/saved-views', methods=['GET'])
-def get_saved_views():
-    """获取所有保存的视图"""
-    import json
-    
-    conn = get_db()
-    c = conn.cursor()
-    
-    c.execute('''
-        SELECT id, name, filters, is_default, created_at, updated_at
-        FROM saved_views
-        ORDER BY is_default DESC, created_at ASC
-    ''')
-    
-    views = []
-    for row in c.fetchall():
-        view_dict = row_to_dict(row, c)
-        # 解析 JSON 字段
-        if isinstance(view_dict.get('filters'), str):
-            view_dict['filters'] = json.loads(view_dict['filters'])
-        views.append(view_dict)
-    
-    conn.close()
-    return jsonify({'success': True, 'views': views})
-
-@app.route('/api/saved-views', methods=['POST'])
-def create_saved_view():
-    """创建保存的视图"""
-    import json
-    
-    data = request.get_json()
-    name = data.get('name', '').strip()
-    filters = data.get('filters', {})
-    
-    if not name:
-        return jsonify({'success': False, 'error': '视图名称不能为空'}), 400
-    
-    conn = get_db()
-    c = conn.cursor()
-    
-    filters_json = json.dumps(filters, ensure_ascii=False)
-    
-    c.execute('''
-        INSERT INTO saved_views (name, filters, is_default)
-        VALUES (%s, %s, 0)
-    ''', (name, filters_json))
-    
-    view_id = c.lastrowid
-    conn.commit()
-    conn.close()
-    
-    return jsonify({
-        'success': True,
-        'view_id': view_id,
-        'message': '视图已保存'
-    })
-
-@app.route('/api/saved-views/<int:view_id>', methods=['PUT'])
-def update_saved_view(view_id):
-    """更新保存的视图"""
-    import json
-    
-    data = request.get_json()
-    
-    conn = get_db()
-    c = conn.cursor()
-    
-    # 检查视图是否存在
-    c.execute('SELECT id FROM saved_views WHERE id = %s', (view_id,))
-    if not c.fetchone():
-        conn.close()
-        return jsonify({'success': False, 'error': '视图不存在'}), 404
-    
-    updates = {}
-    if 'name' in data:
-        updates['name'] = data['name']
-    if 'filters' in data:
-        updates['filters'] = json.dumps(data['filters'], ensure_ascii=False)
-    
-    if not updates:
-        conn.close()
-        return jsonify({'success': False, 'error': '没有要更新的字段'}), 400
-    
-    set_clause = ', '.join([f"{k} = %s" for k in updates.keys()])
-    values = list(updates.values()) + [view_id]
-    
-    c.execute(f'UPDATE saved_views SET {set_clause} WHERE id = %s', values)
-    conn.commit()
-    conn.close()
-    
-    return jsonify({
-        'success': True,
-        'message': '视图已更新'
-    })
-
-@app.route('/api/saved-views/<int:view_id>', methods=['DELETE'])
-def delete_saved_view(view_id):
-    """删除保存的视图"""
-    conn = get_db()
-    c = conn.cursor()
-    
-    # 检查是否为默认视图
-    c.execute('SELECT is_default FROM saved_views WHERE id = %s', (view_id,))
-    row = c.fetchone()
-    if row and row[0]:
-        conn.close()
-        return jsonify({'success': False, 'error': '不能删除默认视图'}), 400
-    
-    c.execute('DELETE FROM saved_views WHERE id = %s', (view_id,))
-    conn.commit()
-    conn.close()
-    
-    return jsonify({
-        'success': True,
-        'message': '视图已删除'
-    })
-
-@app.route('/api/emails/', methods=['GET'])  # 支持尾部斜杠
-@app.route('/api/emails/', methods=['GET'])
-@app.route('/api/emails', methods=['GET'])
-def get_emails():
-    """获取邮件列表"""
-    try:
-        conn = get_db()
-        c = conn.cursor()
-        c.execute('''
-            SELECT id, message_id, subject, sender, sender_name, recipient,
-                   folder, is_read, is_important, received_at as date,
-                   SUBSTRING(body, 1, 200) as preview
-            FROM emails
-            ORDER BY received_at DESC
-            LIMIT 100
-        ''')
-        emails = [row_to_dict(row, c) for row in c.fetchall()]
-        conn.close()
-        return jsonify({'success': True, 'emails': emails})
-    except Exception as e:
-        print(f"[ERROR] get_emails: {e}")
-        return jsonify({'success': False, 'error': str(e)})
-
-@app.route('/api/emails/stats/', methods=['GET'])  # 支持尾部斜杠
-@app.route('/api/emails/stats', methods=['GET'])
-def get_email_stats():
-    """获取邮件统计"""
-    try:
-        conn = get_db()
-        c = conn.cursor()
-    
-        c.execute('SELECT COUNT(*) as total FROM emails')
-        result = c.fetchone()
-        total = result['total']
-    
-        c.execute('SELECT COUNT(*) as unread FROM emails WHERE is_read = 0')
-        result = c.fetchone()
-        unread = result['unread']
-    
-        c.execute('SELECT COUNT(*) as important FROM emails WHERE is_important = 1')
-        result = c.fetchone()
-        important = result['important']
-    
-        # 按文件夹统计数量（前端需要这个显示各文件夹）
-        c.execute('SELECT folder, COUNT(*) as count FROM emails GROUP BY folder')
-        folder_stats = {}
-        for row in c.fetchall():
-            folder_stats[row['folder']] = row['count']
-    
-        conn.close()
-    
-        return jsonify({
-            'success': True,
-            'stats': {
-                'total': total,
-                'unread': unread,
-                'important': important,
-                'folders': folder_stats
-            }
-        })
-    except Exception as e:
-        print(f"[ERROR] get_email_stats: {e}")
-        return jsonify({'success': False, 'error': str(e)})
+# (emails routes moved to before catch-all)
 
 
 # ============ Backlog 需求池 API ============
@@ -7670,3 +7848,68 @@ def delete_life_goal(goal_id):
         logger.error(f"Error deleting life goal: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
+
+
+# T010 审核管理 API
+# ============================================
+
+@app.route('/api/reviews', methods=['GET'])
+def get_reviews():
+    """获取审核列表"""
+    try:
+        conn = get_db()
+        c = conn.cursor()
+        status_filter = request.args.get('status')
+        query = '''
+            SELECT * FROM reviews
+            ORDER BY created_at DESC
+            LIMIT 100
+        '''
+        if status_filter:
+            query = '''
+                SELECT * FROM reviews
+                WHERE status = %s
+                ORDER BY created_at DESC
+                LIMIT 100
+            '''
+            c.execute(query, (status_filter,))
+        else:
+            c.execute(query)
+        reviews = [row_to_dict(row, c) for row in c.fetchall()]
+        conn.close()
+        return jsonify({'success': True, 'reviews': reviews, 'total': len(reviews)})
+    except Exception as e:
+        logger.error(f"Error getting reviews: {e}")
+        return jsonify({'success': False, 'error': str(e), 'reviews': []})
+
+@app.route('/api/reviews/<int:review_id>', methods=['PUT'])
+def update_review(review_id):
+    """更新审核状态"""
+    try:
+        data = request.get_json()
+        conn = get_db()
+        c = conn.cursor()
+        update_fields = []
+        params = []
+        if 'status' in data:
+            update_fields.append('status = %s')
+            params.append(data['status'])
+        if 'reviewer_id' in data:
+            update_fields.append('reviewer_id = %s')
+            params.append(data['reviewer_id'])
+        update_fields.append('updated_at = NOW()')
+        params.append(review_id)
+        query = f'UPDATE reviews SET ' + ', '.join(update_fields) + ' WHERE id = %s'
+        c.execute(query, params)
+        conn.commit()
+        conn.close()
+        return jsonify({'success': True})
+    except Exception as e:
+        logger.error(f"Error updating review: {e}")
+        return jsonify({'success': False, 'error': str(e)})
+
+# ============================================
+
+# Admin routes
+from admin_routes import admin_bp
+app.register_blueprint(admin_bp, url_prefix="/api/admin")
