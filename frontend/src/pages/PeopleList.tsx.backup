@@ -1,0 +1,119 @@
+import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { User, Search } from 'lucide-react'
+
+interface Person {
+  id: number
+  name: string
+  email: string
+  department: string
+  phone: string
+  company: string
+  created_at: string
+  tabs?: { id: number; name: string; items?: any[] }[]
+}
+
+export function PeopleList() {
+  const navigate = useNavigate()
+  const [people, setPeople] = useState<Person[]>([])
+  const [loading, setLoading] = useState(true)
+  const [searchTerm, setSearchTerm] = useState('')
+
+  useEffect(() => {
+    fetchPeople()
+  }, [])
+
+  const fetchPeople = async () => {
+    try {
+      const res = await fetch('/api/personal-info/people')
+      const data = await res.json()
+      if (data.success) {
+        setPeople(data.people || [])
+      }
+    } catch (e) {
+      console.error('获取人员列表失败:', e)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const filteredPeople = people.filter(person =>
+    person.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    person.department?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    person.company?.toLowerCase().includes(searchTerm.toLowerCase())
+  )
+
+  if (loading) {
+    return (
+      <div className="h-screen flex items-center justify-center">
+        <div className="animate-spin w-10 h-10 border-4 border-[#0071e3] border-t-transparent rounded-full"></div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="min-h-screen bg-[#f5f5f7]">
+      {/* 顶部标题栏 - 玻璃拟态效果 */}
+      <div className="sticky top-0 z-10 backdrop-blur-md bg-[#f5f5f7]/80 border-b border-[rgba(0,0,0,0.1)]/50">
+        <div className="max-w-full px-6 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center text-white">
+                <User className="w-6 h-6" />
+              </div>
+              <div>
+                <h1 className="text-xl font-bold text-[#1d1d1f]">人员列表</h1>
+                <p className="text-sm text-[rgba(0,0,0,0.48)]">共 {people.length} 位人员</p>
+              </div>
+            </div>
+
+            {/* 搜索框 */}
+            <div className="relative w-80">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-[rgba(0,0,0,0.48)] w-5 h-5" />
+              <input
+                type="text"
+                placeholder="搜索姓名或单位..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-10 pr-4 py-2.5 bg-white border-0 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#0071e3] focus:bg-[#f5f5f7] transition-all"
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 人员列表 - 紧凑5列网格 */}
+      <div className="max-w-full px-6 py-6">
+        {filteredPeople.length === 0 ? (
+          <div className="text-center py-12 text-[rgba(0,0,0,0.48)]">
+            <User className="w-16 h-16 mx-auto mb-4 text-gray-300" />
+            <p>未找到匹配的人员</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-5 gap-3">
+            {filteredPeople.map(person => (
+              <div
+                key={person.id}
+                onClick={() => navigate(`/personal/${person.id}`)}
+                className="bg-[#f5f5f7] rounded-lg p-3 border border-gray-100 hover:shadow-[0_4px_16px_rgba(0,0,0,0.12)] hover:border-blue-200 transition-all cursor-pointer group"
+              >
+                
+                {/* 姓名 */}
+                <h3 className="text-sm font-semibold text-[#1d1d1f] text-center group-hover:text-[#0071e3] transition-colors truncate">
+                  {person.name}
+                </h3>
+                
+                {/* 单位 */}
+                <p className="text-xs text-[rgba(0,0,0,0.48)] text-center mt-1 truncate">
+                  {person.department || person.company || '-'}
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+export default PeopleList

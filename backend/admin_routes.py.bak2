@@ -423,6 +423,9 @@ def get_config(key):
 
 @admin_bp.route('/config/<key>', methods=['PUT'])
 @admin_required
+
+@app.route('/api/projects/<int:project_id>', methods=['GET'])\ndef get_project(project_id):
+    """获取项目详情"""\n    conn = get_db()\n    c = conn.cursor()\n    c.execute(SELECT
 def update_config(key):
     """更新配置"""
     try:

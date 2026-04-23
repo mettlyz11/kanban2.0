@@ -31,7 +31,7 @@ export function DocumentManager({ projectId }: DocumentManagerProps) {
   const loadDocuments = async () => {
     setLoading(true)
     try {
-      const response = await fetch(`/api/projects/${projectId}/documents`)
+      const response = await fetch(`/api/projects/${projectId}/document`)
       const data = await response.json()
       if (data.success) {
         setDocuments(data.documents || [])
@@ -65,7 +65,7 @@ export function DocumentManager({ projectId }: DocumentManagerProps) {
     formData.append('file', file)
 
     try {
-      const response = await fetch(`/api/projects/${projectId}/documents`, {
+      const response = await fetch(`/api/projects/${projectId}/document`, {
         method: 'POST',
         body: formData
       })
@@ -93,7 +93,7 @@ export function DocumentManager({ projectId }: DocumentManagerProps) {
     if (!confirm('确定要删除这个文档吗？')) return
 
     try {
-      const response = await fetch(`/api/projects/${projectId}/documents/${docId}`, {
+      const response = await fetch(`/api/projects/${projectId}/document/${docId}`, {
         method: 'DELETE'
       })
 
@@ -106,7 +106,7 @@ export function DocumentManager({ projectId }: DocumentManagerProps) {
   }
 
   const handleDownload = (docId: number, fileName: string) => {
-    window.open(`/api/projects/${projectId}/documents/${docId}/download`, '_blank')
+    window.open(`/api/projects/${projectId}/document/${docId}/download`, '_blank')
   }
 
   const formatFileSize = (bytes: number) => {

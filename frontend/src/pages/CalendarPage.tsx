@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Card, Calendar, Badge, List, Tag, Typography, Spin, Alert, Space } from 'antd';
 import { PhoneOutlined, EnvironmentOutlined } from '@ant-design/icons';
+import dayjs from 'dayjs';
 
 const { Title, Text } = Typography;
 
@@ -17,13 +18,12 @@ const CalendarPage = () => {
 
   const parseTime = (timeStr) => {
     if (!timeStr) return null;
-    // 兼容两种格式：ISO 格式或 RFC2822 格式
     try {
       const date = new Date(timeStr);
       if (isNaN(date.getTime())) return null;
       return {
-        date: date.toISOString().split('T')[0], // YYYY-MM-DD
-        time: date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false }), // HH:MM
+        date: date.toISOString().split('T')[0],
+        time: date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false }),
         dateTime: date
       };
     } catch (e) {
@@ -39,7 +39,6 @@ const CalendarPage = () => {
       const data = await response.json();
       
       if (data.success) {
-        // 兼容两种返回格式：{data: [...]} 或 {events: [...]}
         const events = data.data || data.events || [];
         setEvents(events);
       } else {
@@ -54,7 +53,8 @@ const CalendarPage = () => {
   };
 
   const getListData = (value) => {
-    const targetDateStr = value.format('YYYY-MM-DD');
+    const dayjsValue = dayjs(value);
+    const targetDateStr = dayjsValue.format('YYYY-MM-DD');
     return events
       .map(event => {
         const startTime = parseTime(event.start_time);
@@ -100,9 +100,13 @@ const CalendarPage = () => {
     const listData = getListData(value);
     
     if (listData.length === 0) {
-      return <div style={{ padding: 20, textAlign: 'center', color: '#999' }}>这一天还没有安排哦~</div>;
+      return (
+        <div style={{ padding: 20, textAlign: 'center', color: '#999' }}>
+          这一天还没有安排哦~
+        </div>
+      );
     }
-    
+
     return (
       <List
         style={{ marginTop: 16 }}
@@ -113,16 +117,16 @@ const CalendarPage = () => {
               title={
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   {item.type === 'phone' ? <PhoneOutlined /> : <EnvironmentOutlined />}
-                  <Tag color={item.type === 'phone' ? 'blue' : 'green'}>
-                    {item.time}
-                  </Tag>
+                  <Tag color={item.type === 'phone' ? 'blue' : 'green'}>{item.time}</Tag>
                   <Text strong>{item.title}</Text>
                 </div>
               }
               description={
                 <div>
                   <div>📍 {item.location || '未指定地点'}</div>
-                  {item.description && <div style={{ marginTop: 4, color: '#666' }}>{item.description}</div>}
+                  {item.description && (
+                    <div style={{ marginTop: 4, color: '#666' }}>{item.description}</div>
+                  )}
                 </div>
               }
             />
@@ -158,8 +162,8 @@ const CalendarPage = () => {
         <Card title="即将到来的会议" style={{ marginBottom: 24 }}>
           <List
             dataSource={events
-              .filter(e => {
-                const startTime = parseTime(e.start_time);
+              .filter(event => {
+                const startTime = parseTime(event.start_time);
                 return startTime && startTime.dateTime > new Date();
               })
               .sort((a, b) => {
@@ -167,12 +171,12 @@ const CalendarPage = () => {
                 const timeB = parseTime(b.start_time)?.dateTime?.getTime() || 0;
                 return timeA - timeB;
               })
-              .slice(0, 5)}
-            renderItem={item => {
-              const startTime = parseTime(item.start_time);
-              const endTime = parseTime(item.end_time);
-              const isPhone = item.location?.includes('电话');
-              
+              .slice(0, 5)
+            }
+            renderItem={event => {
+              const startTime = parseTime(event.start_time);
+              const endTime = parseTime(event.end_time);
+              const isPhone = event.location?.includes('电话');
               return (
                 <List.Item>
                   <List.Item.Meta
@@ -182,16 +186,15 @@ const CalendarPage = () => {
                         <Tag color={isPhone ? 'blue' : 'green'}>
                           {isPhone ? '📞 电话会议' : '📍 现场会议'}
                         </Tag>
-                        <Text strong>{item.title}</Text>
+                        <Text strong>{event.title}</Text>
                       </div>
                     }
                     description={
                       <div>
-                        <div>
-                          ⏰ {startTime?.dateTime?.toLocaleString('zh-CN')} 
+                        <div>⏰ {startTime?.dateTime?.toLocaleString('zh-CN')}
                           {endTime && ` - ${endTime.time}`}
                         </div>
-                        <div>📍 {item.location || '未指定地点'}</div>
+                        <div>📍 {event.location || '未指定地点'}</div>
                       </div>
                     }
                   />
@@ -209,7 +212,7 @@ const CalendarPage = () => {
         />
         <div style={{ marginTop: 24 }}>
           <Title level={4}>📋 选中日期详情</Title>
-          {selectedDateRender(new Date())}
+          {selectedDateRender(dayjs())}
         </div>
       </Card>
     </div>

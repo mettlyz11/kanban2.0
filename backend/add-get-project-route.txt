@@ -1,0 +1,13 @@
+
+@app.route('/api/projects/<int:project_id>', methods=['GET'])
+def get_project(project_id):
+    """获取项目详情"""
+    conn = get_db()
+    c = conn.cursor()
+    c.execute('SELECT * FROM projects WHERE id = %s AND status != "deleted"', (project_id,))
+    project = c.fetchone()
+    conn.close()
+    if not project:
+        return jsonify({'error': 'Not found', 'success': False}), 404
+    return jsonify({'success': True, 'project': project})
+

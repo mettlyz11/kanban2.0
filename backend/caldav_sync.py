@@ -232,37 +232,37 @@ class CalendarSyncManager:
     def get_accounts(self) -> List[Dict]:
         """获取所有CalDAV账户"""
         with get_db_connection() as conn:
-        
-        c = conn.cursor()
-        
-        c.execute('SELECT * FROM calendar_accounts WHERE sync_enabled = 1')
-        accounts = [dict(row) for row in c.fetchall()]
-        
-        conn.close()
+                    
+            
+            c = conn.cursor()
+            
+            c.execute('SELECT * FROM calendar_accounts WHERE sync_enabled = 1')
+            accounts = [dict(row) for row in c.fetchall()]
+            
         return accounts
     
     def sync_account(self, account_id: int) -> Dict:
         """同步指定账户"""
         with get_db_connection() as conn:
         
-        c = conn.cursor()
+            c = conn.cursor()
         
         # 获取账户信息
-        c.execute('SELECT * FROM calendar_accounts WHERE id = ?', (account_id,))
-        account = c.fetchone()
+            c.execute('SELECT * FROM calendar_accounts WHERE id = ?', (account_id,))
+            account = c.fetchone()
         
-        if not account:
-            return {'success': False, 'error': '账户不存在'}
+            if not account:
+                return {'success': False, 'error': '账户不存在'}
         
         # 创建CalDAV客户端
-        client = CalDAVClient(
-            account['server_url'],
-            account['username'],
-            account['password']
-        )
+            client = CalDAVClient(
+                account['server_url'],
+                account['username'],
+                account['password']
+            )
         
         # 发现日历
-        calendars = client.discover_calendars()
+            calendars = client.discover_calendars()
         
         if not calendars:
             return {'success': False, 'error': '未发现可用日历'}

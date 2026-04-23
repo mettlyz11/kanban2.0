@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>邮件管理 - 看板2.4</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <div id="app"></div>
+    <script>
+        const EMAIL_API_URL = 'http://47.93.184.128:8089';
+        
+        let emails = [];
+        let folders = [];
+        let currentFilter = 'inbox';
+        let selectedEmail = null;
+        
+        // 加载文件夹
+        async function loadFolders() {
+            try {
+                const res = await fetch(`${EMAIL_API_URL}/api/emails/folders`);
+                const data = await res.json();
+                if (data.success) {
+                    folders = data.folders || [
+                        {id: 'inbox', name: '收件箱', unread: 0},
+                        {id: 'sent', name: '已发送', unread: 0},
+                        {id: 'drafts', name: '草稿箱', unread: 0},
+                        {id: 'trash', name: '垃圾箱', unread: 0}
+                    ];
+                }
+            } catch (e) {
+                console.error('加载文件夹失败:', e);
+            }
+        }
+        
+        // 加载邮件
+        async function loadEmails() {
+            try {
+                const res = await fetch(`${EMAIL_API_URL}/api/emails?folder=${currentFilter}`);
+                const data = await res.json();
+                if (data.success) {
+                    emails = data.emails || [];
+                }
+                render();
+            } catch (e) {
+                console.error('加载邮件失败:', e);
+                render();
+            }
+        }
+        
+        // 同步邮件
+        async function syncEmails() {
+            const btn = document.getElementById('syncBtn');
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>同步中...';
+            btn.disabled = true;
+            
+            try {
+                const res = await fetch(`${EMAIL_API_URL}/api/emails/sync`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({folder: currentFilter})
+                });
+                const data = await res.json();
+                if (data.success) {
+                    alert(`同步完成！共 ${data.count} 封邮件`);
+                    await loadEmails();
+                    await loadFolders();
+                }
+            } catch (e) {
+                alert('同步失败: ' + e.message);
+            } finally {
+                btn.innerHTML = '<i class="fas fa-sync mr-2"></i>同步邮件';
+                btn.disabled = false;
+            }
+        }
+        
+        // 渲染页面
+        function render() {
+            const app = document.getElementById('app');
+            app.innerHTML = `
+                <div class="p-6 max-w-7xl mx-auto">
+                    <!-- 头部 -->
+                    <div class="flex items-center justify-between mb-6">
+                        <div class="flex items-center gap-4">
+                            <a href="/" class="p-2 bg-white rounded-lg shadow hover:shadow-md">
+                                <i class="fas fa-arrow-left text-gray-600"></i>
+                            </a>
+                            <h1 class="text-2xl font-bold text-gray-900">
+                                <i class="fas fa-envelope text-blue-600 mr-2"></i>邮件管理
+                            </h1>
+                        </div>
+                        <button id="syncBtn" onclick="syncEmails()" 
+                            class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center">
+                            <i class="fas fa-sync mr-2"></i>同步邮件
+                        </button>
+                    </div>
+                    
+                    <div class="grid grid-cols-12 gap-6">
+                        <!-- 文件夹列表 -->
+                        <div class="col-span-3">
+                            <div class="bg-white rounded-xl shadow-sm border p-4">
+                                <h2 class="text-lg font-semibold mb-4">文件夹</h2>
+                                <div class="space-y-2">
+                                    ${folders.map(f => `
+                                        <button onclick="setFilter('${f.id}')" 
+                                            class="w-full flex items-center justify-between p-3 rounded-lg text-left transition ${
+                                                currentFilter === f.id 
+                                                    ? 'bg-blue-50 text-blue-700 border-l-4 border-blue-600' 
+                                                    : 'hover:bg-gray-50'
+                                            }">
+                                            <span class="font-medium">${f.name}</span>
+                                            ${f.unread > 0 ? `<span class="bg-red-500 text-white text-xs px-2 py-1 rounded-full">${f.unread}</span>` : ''}
+                                        </button>
+                                    `).join('')}
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 邮件列表 -->
+                        <div class="col-span-4">
+                            <div class="bg-white rounded-xl shadow-sm border">
+                                <div class="p-4 border-b">
+                                    <h2 class="text-lg font-semibold">
+                                        ${folders.find(f => f.id === currentFilter)?.name || '收件箱'}
+                                        <span class="ml-2 text-sm text-gray-500">(${emails.length})</span>
+                                    </h2>
+                                </div>
+                                <div class="divide-y max-h-[calc(100vh-250px)] overflow-y-auto">
+                                    ${emails.length === 0 ? `
+                                        <div class="p-8 text-center text-gray-500">
+                                            <i class="fas fa-envelope text-4xl mb-3 text-gray-300"></i>
+                                            <p>暂无邮件</p>
+                                            <p class="text-sm mt-2">点击"同步邮件"获取最新邮件</p>
+                                        </div>
+                                    ` : emails.map(email => `
+                                        <div onclick="selectEmail('${email.id}')" 
+                                            class="p-4 cursor-pointer hover:bg-gray-50 transition ${
+                                                selectedEmail?.id === email.id ? 'bg-blue-50 border-l-4 border-blue-600' : ''
+                                            } ${!email.read ? 'font-semibold bg-gray-50' : ''}">
+                                            <div class="flex items-start justify-between">
+                                                <div class="flex-1 min-w-0">
+                                                    <p class="text-sm ${!email.read ? 'text-gray-900' : 'text-gray-600'}">
+                                                        ${email.sender_name || email.sender}
+                                                    </p>
+                                                    <p class="text-sm text-gray-800 truncate mt-1">${email.subject}</p>
+                                                    <p class="text-xs text-gray-500 mt-1 truncate">${email.content?.substring(0, 50)}...</p>
+                                                </div>
+                                                <span class="text-xs text-gray-400 whitespace-nowrap ml-2">
+                                                    ${new Date(email.date).toLocaleDateString('zh-CN')}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- 邮件详情 -->
+                        <div class="col-span-5">
+                            ${selectedEmail ? `
+                                <div class="bg-white rounded-xl shadow-sm border">
+                                    <div class="p-4 border-b flex items-center justify-between">
+                                        <div>
+                                            <h2 class="text-lg font-semibold">${selectedEmail.subject}</h2>
+                                            <p class="text-sm text-gray-500 mt-1">来自: ${selectedEmail.sender_name || selectedEmail.sender}</p>
+                                        </div>
+                                        <button onclick="deleteEmail('${selectedEmail.id}')" class="p-2 text-red-600 hover:bg-red-50 rounded-lg">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
+                                    </div>
+                                    <div class="p-4 max-h-[calc(100vh-350px)] overflow-y-auto">
+                                        <div class="whitespace-pre-wrap">${selectedEmail.content}</div>
+                                        ${selectedEmail.attachments?.length > 0 ? `
+                                            <div class="mt-6 pt-4 border-t">
+                                                <h3 class="text-sm font-semibold mb-3">附件</h3>
+                                                ${selectedEmail.attachments.map(att => `
+                                                    <div class="flex items-center p-2 bg-gray-50 rounded-lg mb-2">
+                                                        <span class="text-sm">${att.name}</span>
+                                                        <span class="text-xs text-gray-400 ml-2">(${Math.round(att.size/1024)} KB)</span>
+                                                    </div>
+                                                `).join('')}
+                                            </div>
+                                        ` : ''}
+                                    </div>
+                                </div>
+                            ` : `
+                                <div class="bg-white rounded-xl shadow-sm border p-8 text-center">
+                                    <i class="fas fa-envelope text-6xl text-gray-300 mb-4"></i>
+                                    <p class="text-gray-500">选择一封邮件查看详情</p>
+                                </div>
+                            `}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        function setFilter(filter) {
+            currentFilter = filter;
+            selectedEmail = null;
+            loadEmails();
+        }
+        
+        function selectEmail(id) {
+            selectedEmail = emails.find(e => e.id == id);
+            render();
+        }
+        
+        async function deleteEmail(id) {
+            if (!confirm('确定要删除这封邮件吗？')) return;
+            try {
+                await fetch(`${EMAIL_API_URL}/api/emails/${id}`, {method: 'DELETE'});
+                selectedEmail = null;
+                loadEmails();
+            } catch (e) {
+                alert('删除失败');
+            }
+        }
+        
+        // 初始化
+        async function init() {
+            await loadFolders();
+            await loadEmails();
+        }
+        
+        init();
+    </script>
+</body>
+</html>

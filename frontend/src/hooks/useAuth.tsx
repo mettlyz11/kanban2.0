@@ -5,6 +5,7 @@ const WARNING_TIME = 10 * 60 * 1000 // 提前10分钟警告
 
 interface AuthContextType {
   isAuthenticated: boolean
+  isLoading: boolean
   user: any
   login: (username: string, password: string) => Promise<boolean>
   logout: () => void
@@ -16,6 +17,7 @@ const AuthContext = createContext<AuthContextType | null>(null)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
   const [user, setUser] = useState<any>(null)
   const [remainingTime, setRemainingTime] = useState<number | null>(null)
   const lastActivityRef = useRef(Date.now())
@@ -27,6 +29,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     warningShownRef.current = false
   }
 
+  // 初始化时检查登录状态
   useEffect(() => {
     const token = localStorage.getItem('kanban_token')
     const savedUser = localStorage.getItem('kanban_user')
@@ -36,6 +39,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(JSON.parse(savedUser))
       }
     }
+    setIsLoading(false)
   }, [])
 
   // 监听用户活动
@@ -72,8 +76,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // 提前5分钟警告
       if (remaining <= WARNING_TIME && remaining > 0 && !warningShownRef.current) {
         warningShownRef.current = true
-        // 显示警告（可以通过全局状态管理）
-        console.warn(`会话将在 ${Math.ceil(remaining / 60000)} 分钟后过期`)
+        console.warn()
       }
 
       // 超时登出
@@ -81,7 +84,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         logout()
         alert('由于长时间未操作，您已自动退出登录')
       }
-    }, 10000) // 每10秒检查一次
+    }, 10000)
 
     return () => clearInterval(interval)
   }, [isAuthenticated])
@@ -106,7 +109,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return false
     } catch (e) {
       // 本地验证模式
-      if (username === 'admin' && password === 'kanban2024') {
+      if (username === 'admin' && password === 'dudu2027') {
         localStorage.setItem('kanban_token', 'local_token')
         localStorage.setItem('kanban_user', JSON.stringify({ username: 'admin', role: 'admin' }))
         setIsAuthenticated(true)
@@ -131,15 +134,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const res = await fetch('/api/change-password', {
         method: 'POST',
         headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('kanban_token')}`
+          "Authorization": `Bearer ${localStorage.getItem("kanban_token")}`,
         },
         body: JSON.stringify({ oldPassword, newPassword })
       })
       const data = await res.json()
       return data.success
     } catch (e) {
-      // 本地模式
       return true
     }
   }
@@ -147,6 +148,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   return (
     <AuthContext.Provider value={{ 
       isAuthenticated, 
+      isLoading,
       user, 
       login, 
       logout, 

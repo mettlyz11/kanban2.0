@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Plus, Search, Filter, Save, Star, X, Calendar, Tag } from 'lucide-react';
+import { Plus, Search, Filter, Save, Star, X, Calendar, Tag, Layout, BarChart3, List } from "lucide-react";
+import { TaskAccordion } from '../components/TaskAccordion';
 
 interface Task {
   id: number;
@@ -12,6 +13,7 @@ interface Task {
   project_name: string;
   created_at: string;
   due_date?: string;
+  created_date?: string;
 }
 
 interface SavedView {
@@ -49,9 +51,29 @@ const Tasks: React.FC = () => {
   const [viewName, setViewName] = useState('');
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [viewMode, setViewMode] = useState("list");
+  const [sortField, setSortField] = useState("created_at");
+  const [sortOrder, setSortOrder] = useState("desc");
   
   // 防抖搜索
   const [debouncedSearch, setDebouncedSearch] = useState('');
+
+  // 删除任务
+  const handleDeleteTask = async (taskId: number) => {
+    if (!confirm('确定要删除这个任务吗？')) return;
+    try {
+      const res = await fetch(`/api/tasks/${taskId}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (data.success) {
+        fetchTasks();
+      } else {
+        alert(data.error || '删除失败');
+      }
+    } catch (error) {
+      console.error('Failed to delete task:', error);
+      alert('删除失败');
+    }
+  }
   
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -86,6 +108,8 @@ const Tasks: React.FC = () => {
       if (statusFilter) params.append('status', statusFilter);
       
       params.append('per_page', '2000');
+      params.append('sort_field', sortField);
+      params.append('sort_order', sortOrder);
       const res = await fetch(`/api/tasks?${params}`);
       const data = await res.json();
       if (data.success) {
@@ -113,7 +137,7 @@ const Tasks: React.FC = () => {
     fetchTasks();
     fetchProjects();
     fetchSavedViews();
-  }, [debouncedSearch, tags, dateFrom, dateTo, quickFilter, projectFilter, statusFilter]);
+  }, [debouncedSearch, tags, dateFrom, dateTo, quickFilter, projectFilter, statusFilter, sortField, sortOrder]);
 
   // 保存视图
   const handleSaveView = async () => {
@@ -212,10 +236,10 @@ const Tasks: React.FC = () => {
       {/* 头部 */}
       <div className="mb-6">
         <div className="flex items-center justify-between mb-4">
-          <h1 className="text-3xl font-bold text-gray-900">任务管理</h1>
+          <h1 className="text-3xl font-bold text-[rgba(0,0,0,0.95)]">任务管理</h1>
           <button
             onClick={() => setShowAddModal(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+            className="flex items-center gap-2 px-4 py-2 bg-[#0075de] text-white rounded-lg hover:bg-[#005bab]"
           >
             <Plus size={20} />
             新建任务
@@ -226,18 +250,18 @@ const Tasks: React.FC = () => {
         <div className="flex flex-wrap gap-3 items-center">
           {/* 搜索框 */}
           <div className="relative flex-1 min-w-[300px]">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-[#615d59]" size={20} />
             <input
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="搜索任务标题、描述、标签..."
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full pl-10 pr-4 py-2 border border-white/8 rounded-lg focus:ring-2 focus:ring-[#0075de] focus:border-transparent"
             />
             {search && (
               <button
                 onClick={() => setSearch('')}
-                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-[#615d59] hover:text-[#615d59]"
               >
                 <X size={16} />
               </button>
@@ -247,7 +271,7 @@ const Tasks: React.FC = () => {
           {/* 保存视图按钮 */}
           <button
             onClick={() => setShowSaveViewModal(true)}
-            className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+            className="flex items-center gap-2 px-4 py-2 border border-white/8 rounded-lg hover:bg-[#f6f5f4]"
           >
             <Save size={18} />
             保存视图
@@ -257,7 +281,7 @@ const Tasks: React.FC = () => {
           <button
             onClick={() => setShowFilters(!showFilters)}
             className={`flex items-center gap-2 px-4 py-2 border rounded-lg ${
-              showFilters ? 'bg-blue-50 border-blue-500' : 'border-gray-300 hover:bg-gray-50'
+              showFilters ? 'bg-blue-50 border-blue-500' : 'border-white/8 hover:bg-[#f6f5f4]'
             }`}
           >
             <Filter size={18} />
@@ -271,7 +295,7 @@ const Tasks: React.FC = () => {
             {activeFilters.map((filter, idx) => (
               <span
                 key={idx}
-                className="inline-flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm"
+                className="inline-flex items-center gap-1 px-3 py-1 bg-[#0075de]/15 text-[#0075de] rounded-full text-sm"
               >
                 {filter.label}
                 <button
@@ -281,7 +305,7 @@ const Tasks: React.FC = () => {
                     else if (filter.type === 'quick') setQuickFilter('');
                     else if (filter.type === 'date') { setDateFrom(''); setDateTo(''); }
                   }}
-                  className="hover:text-blue-600"
+                  className="hover:text-[#0075de]"
                 >
                   <X size={14} />
                 </button>
@@ -289,7 +313,7 @@ const Tasks: React.FC = () => {
             ))}
             <button
               onClick={clearFilters}
-              className="text-sm text-gray-500 hover:text-gray-700 underline"
+              className="text-sm text-[#615d59] hover:text-[#31302e] underline"
             >
               清除所有
             </button>
@@ -298,11 +322,11 @@ const Tasks: React.FC = () => {
 
         {/* 高级筛选面板 */}
         {showFilters && (
-          <div className="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
+          <div className="mt-4 p-4 bg-[#f6f5f4] rounded-lg border border-white/8">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {/* 标签筛选 */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-[#31302e] mb-1">
                   <Tag size={16} className="inline mr-1" />
                   标签
                 </label>
@@ -311,13 +335,13 @@ const Tasks: React.FC = () => {
                   value={tags}
                   onChange={(e) => setTags(e.target.value)}
                   placeholder="多个标签用逗号分隔"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-white/8 rounded-lg focus:ring-2 focus:ring-[#0075de]"
                 />
               </div>
 
               {/* 快捷筛选 */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-[#31302e] mb-1">
                   <Calendar size={16} className="inline mr-1" />
                   时间范围
                 </label>
@@ -326,8 +350,8 @@ const Tasks: React.FC = () => {
                     onClick={() => setQuickFilter(quickFilter === 'today' ? '' : 'today')}
                     className={`flex-1 px-3 py-2 rounded-lg border ${
                       quickFilter === 'today'
-                        ? 'bg-blue-600 text-white border-blue-600'
-                        : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                        ? 'bg-[#0075de] text-white border-blue-600'
+                        : 'bg-white text-[#31302e] border-white/8 hover:bg-[#f6f5f4]'
                     }`}
                   >
                     今天
@@ -336,8 +360,8 @@ const Tasks: React.FC = () => {
                     onClick={() => setQuickFilter(quickFilter === 'this_week' ? '' : 'this_week')}
                     className={`flex-1 px-3 py-2 rounded-lg border ${
                       quickFilter === 'this_week'
-                        ? 'bg-blue-600 text-white border-blue-600'
-                        : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                        ? 'bg-[#0075de] text-white border-blue-600'
+                        : 'bg-white text-[#31302e] border-white/8 hover:bg-[#f6f5f4]'
                     }`}
                   >
                     本周
@@ -346,8 +370,8 @@ const Tasks: React.FC = () => {
                     onClick={() => setQuickFilter(quickFilter === 'this_month' ? '' : 'this_month')}
                     className={`flex-1 px-3 py-2 rounded-lg border ${
                       quickFilter === 'this_month'
-                        ? 'bg-blue-600 text-white border-blue-600'
-                        : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                        ? 'bg-[#0075de] text-white border-blue-600'
+                        : 'bg-white text-[#31302e] border-white/8 hover:bg-[#f6f5f4]'
                     }`}
                   >
                     本月
@@ -357,7 +381,7 @@ const Tasks: React.FC = () => {
 
               {/* 自定义日期范围 */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-[#31302e] mb-1">
                   自定义日期范围
                 </label>
                 <div className="flex gap-2">
@@ -365,14 +389,14 @@ const Tasks: React.FC = () => {
                     type="date"
                     value={dateFrom}
                     onChange={(e) => setDateFrom(e.target.value)}
-                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    className="flex-1 px-3 py-2 border border-white/8 rounded-lg focus:ring-2 focus:ring-[#0075de]"
                   />
-                  <span className="text-gray-500">~</span>
+                  <span className="text-[#615d59]">~</span>
                   <input
                     type="date"
                     value={dateTo}
                     onChange={(e) => setDateTo(e.target.value)}
-                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    className="flex-1 px-3 py-2 border border-white/8 rounded-lg focus:ring-2 focus:ring-[#0075de]"
                   />
                 </div>
               </div>
@@ -386,11 +410,11 @@ const Tasks: React.FC = () => {
             {savedViews.map((view) => (
               <div
                 key={view.id}
-                className="inline-flex items-center gap-2 px-3 py-1.5 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 cursor-pointer group"
+                className="inline-flex items-center gap-2 px-3 py-1.5 bg-white border border-white/8 rounded-lg hover:bg-[#f6f5f4] cursor-pointer group"
                 onClick={() => loadView(view)}
               >
                 {view.is_default && <Star size={14} className="text-yellow-500 fill-yellow-500" />}
-                <span className="text-sm text-gray-700">{view.name}</span>
+                <span className="text-sm text-[#31302e]">{view.name}</span>
                 {!view.is_default && (
                   <button
                     onClick={(e) => {
@@ -408,166 +432,47 @@ const Tasks: React.FC = () => {
         )}
       </div>
 
-      {/* 任务列表 */}
-      <div className="bg-white rounded-lg shadow border border-gray-200">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-gray-50 border-b border-gray-200">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  任务
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  项目
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  状态
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  优先级
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  标签
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  创建时间
-                </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  操作
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {tasks.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="px-6 py-12 text-center text-gray-500">
-                    <Search size={48} className="mx-auto mb-4 text-gray-300" />
-                    <p>暂无任务</p>
-                  </td>
-                </tr>
-              ) : (
-                tasks.map((task) => (
-                  <tr key={task.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4">
-                      <div>
-                        <div className="text-sm font-medium text-gray-900">{task.title}</div>
-                        {task.description && (
-                          <div className="text-sm text-gray-500 max-w-md">
-                            {task.description}
-                          </div>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="text-sm text-gray-900">{task.project_name || '-'}</span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-2 py-1 text-xs rounded-full ${
-                        task.status === 'completed' ? 'bg-green-100 text-green-800' :
-                        task.status === 'in_progress' ? 'bg-blue-100 text-blue-800' :
-                        'bg-gray-100 text-gray-800'
-                      }`}>
-                        {task.status === 'completed' ? '已完成' :
-                         task.status === 'in_progress' ? '进行中' : '待处理'}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-2 py-1 text-xs rounded-full ${
-                        task.priority === 'high' ? 'bg-red-100 text-red-800' :
-                        task.priority === 'medium' ? 'bg-yellow-100 text-yellow-800' :
-                        'bg-gray-100 text-gray-800'
-                      }`}>
-                        {task.priority === 'high' ? '高' :
-                         task.priority === 'medium' ? '中' : '低'}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      {task.tags ? (
-                        <div className="flex flex-wrap gap-1">
-                          {task.tags.split(',').map((tag, idx) => (
-                            <span
-                              key={idx}
-                              className="px-2 py-0.5 bg-purple-100 text-purple-800 rounded text-xs"
-                            >
-                              {tag.trim()}
-                            </span>
-                          ))}
-                        </div>
-                      ) : (
-                        <span className="text-gray-400">-</span>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {new Date(task.created_at).toLocaleDateString('zh-CN')}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <button 
-                        onClick={() => {
-                          setEditingTask(task);
-                          setShowEditModal(true);
-                        }}
-                        className="text-blue-600 hover:text-blue-900 mr-3"
-                      >
-                        编辑
-                      </button>
-                      <button 
-                        onClick={async () => {
-                          if (!confirm('确定要删除这个任务吗？')) return;
-                          try {
-                            const res = await fetch(`/api/tasks/${task.id}`, { method: 'DELETE' });
-                            const data = await res.json();
-                            if (data.success) {
-                              fetchTasks();
-                            } else {
-                              alert(data.error || '删除失败');
-                            }
-                          } catch (error) {
-                            console.error('Failed to delete task:', error);
-                            alert('删除失败');
-                          }
-                        }}
-                        className="text-red-600 hover:text-red-900"
-                      >
-                        删除
-                      </button>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+      {/* 任务列表 - 使用折叠面板 */}
+      <div className="bg-white rounded-lg shadow border border-white/8 p-4">
+        {tasks.length === 0 ? (
+          <div className="px-6 py-12 text-center text-[#615d59]">
+            <Search size={48} className="mx-auto mb-4 text-gray-300" />
+            <p>暂无任务</p>
+          </div>
+        ) : (
+          <TaskAccordion tasks={tasks} onDeleteTask={handleDeleteTask} />
+        )}
       </div>
 
       {/* 添加任务弹窗 */}
       {showAddModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-2xl">
+        <div style={{position: "fixed", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "#f6f5f4", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 99999}}>
+          <div className="bg-white rounded-xl p-6 w-[48rem] shadow-2xl">
             <h3 className="text-lg font-bold mb-4">新建任务</h3>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">任务标题</label>
+                <label className="block text-sm font-medium text-[#31302e] mb-1">任务标题</label>
                 <input
                   type="text"
                   id="newTaskTitle"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-white/8 rounded-lg focus:ring-2 focus:ring-[#0075de]"
                   placeholder="输入任务标题"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">任务描述</label>
+                <label className="block text-sm font-medium text-[#31302e] mb-1">任务描述</label>
                 <textarea
                   id="newTaskDescription"
                   rows={3}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-white/8 rounded-lg focus:ring-2 focus:ring-[#0075de]"
                   placeholder="输入任务描述"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">所属项目</label>
+                <label className="block text-sm font-medium text-[#31302e] mb-1">所属项目</label>
                 <select
                   id="newTaskProject"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-white/8 rounded-lg focus:ring-2 focus:ring-[#0075de]"
                 >
                   <option value="">请选择项目</option>
                   {projects.map(p => (
@@ -576,10 +481,10 @@ const Tasks: React.FC = () => {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">状态</label>
+                <label className="block text-sm font-medium text-[#31302e] mb-1">状态</label>
                 <select
                   id="newTaskStatus"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-white/8 rounded-lg focus:ring-2 focus:ring-[#0075de]"
                 >
                   <option value="todo">待办</option>
                   <option value="in_progress">进行中</option>
@@ -587,10 +492,10 @@ const Tasks: React.FC = () => {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">优先级</label>
+                <label className="block text-sm font-medium text-[#31302e] mb-1">优先级</label>
                 <select
                   id="newTaskPriority"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-white/8 rounded-lg focus:ring-2 focus:ring-[#0075de]"
                 >
                   <option value="low">低</option>
                   <option value="medium">中</option>
@@ -598,11 +503,11 @@ const Tasks: React.FC = () => {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">标签</label>
+                <label className="block text-sm font-medium text-[#31302e] mb-1">标签</label>
                 <input
                   type="text"
                   id="newTaskTags"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-white/8 rounded-lg focus:ring-2 focus:ring-[#0075de]"
                   placeholder="多个标签用逗号分隔"
                 />
               </div>
@@ -610,7 +515,7 @@ const Tasks: React.FC = () => {
             <div className="flex justify-end gap-3 mt-6">
               <button
                 onClick={() => setShowAddModal(false)}
-                className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
+                className="px-4 py-2 text-[#31302e] border border-white/8 rounded-lg hover:bg-[#f6f5f4]"
               >
                 取消
               </button>
@@ -651,7 +556,7 @@ const Tasks: React.FC = () => {
                     alert('创建失败');
                   }
                 }}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                className="px-4 py-2 bg-[#0075de] text-white rounded-lg hover:bg-[#005bab]"
               >
                 创建
               </button>
@@ -662,36 +567,36 @@ const Tasks: React.FC = () => {
 
       {/* 编辑任务弹窗 */}
       {showEditModal && editingTask && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-2xl">
+        <div style={{position: "fixed", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "#f6f5f4", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 99999}}>
+          <div className="bg-white rounded-xl p-6 w-[48rem] shadow-2xl">
             <h3 className="text-lg font-bold mb-4">编辑任务</h3>
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">任务标题</label>
+                <label className="block text-sm font-medium text-[#31302e] mb-1">任务标题</label>
                 <input
                   type="text"
                   id="editTaskTitle"
                   defaultValue={editingTask.title}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-white/8 rounded-lg focus:ring-2 focus:ring-[#0075de]"
                   placeholder="输入任务标题"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">任务描述</label>
+                <label className="block text-sm font-medium text-[#31302e] mb-1">任务描述</label>
                 <textarea
                   id="editTaskDescription"
                   rows={3}
                   defaultValue={editingTask.description || ''}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-white/8 rounded-lg focus:ring-2 focus:ring-[#0075de]"
                   placeholder="输入任务描述"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">所属项目</label>
+                <label className="block text-sm font-medium text-[#31302e] mb-1">所属项目</label>
                 <select
                   id="editTaskProject"
                   defaultValue={editingTask.project_id || ''}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-white/8 rounded-lg focus:ring-2 focus:ring-[#0075de]"
                 >
                   <option value="">请选择项目</option>
                   {projects.map(p => (
@@ -700,11 +605,11 @@ const Tasks: React.FC = () => {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">状态</label>
+                <label className="block text-sm font-medium text-[#31302e] mb-1">状态</label>
                 <select
                   id="editTaskStatus"
                   defaultValue={editingTask.status === 'completed' ? 'completed' : editingTask.status === 'in_progress' ? 'in_progress' : 'todo'}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-white/8 rounded-lg focus:ring-2 focus:ring-[#0075de]"
                 >
                   <option value="todo">待办</option>
                   <option value="in_progress">进行中</option>
@@ -712,11 +617,11 @@ const Tasks: React.FC = () => {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">优先级</label>
+                <label className="block text-sm font-medium text-[#31302e] mb-1">优先级</label>
                 <select
                   id="editTaskPriority"
                   defaultValue={editingTask.priority || 'medium'}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-white/8 rounded-lg focus:ring-2 focus:ring-[#0075de]"
                 >
                   <option value="low">低</option>
                   <option value="medium">中</option>
@@ -724,12 +629,12 @@ const Tasks: React.FC = () => {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">标签</label>
+                <label className="block text-sm font-medium text-[#31302e] mb-1">标签</label>
                 <input
                   type="text"
                   id="editTaskTags"
                   defaultValue={editingTask.tags || ''}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-white/8 rounded-lg focus:ring-2 focus:ring-[#0075de]"
                   placeholder="多个标签用逗号分隔"
                 />
               </div>
@@ -740,7 +645,7 @@ const Tasks: React.FC = () => {
                   setShowEditModal(false);
                   setEditingTask(null);
                 }}
-                className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
+                className="px-4 py-2 text-[#31302e] border border-white/8 rounded-lg hover:bg-[#f6f5f4]"
               >
                 取消
               </button>
@@ -752,6 +657,7 @@ const Tasks: React.FC = () => {
                   const status = (document.getElementById('editTaskStatus') as HTMLSelectElement).value;
                   const priority = (document.getElementById('editTaskPriority') as HTMLSelectElement).value;
                   const tags = (document.getElementById('editTaskTags') as HTMLInputElement).value;
+                  const due_date = (document.getElementById('editTaskDueDate') as HTMLInputElement).value;
                   
                   if (!title.trim()) {
                     alert('请输入任务标题');
@@ -778,7 +684,7 @@ const Tasks: React.FC = () => {
                     alert('更新失败');
                   }
                 }}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                className="px-4 py-2 bg-[#0075de] text-white rounded-lg hover:bg-[#005bab]"
               >
                 保存修改
               </button>
@@ -789,15 +695,15 @@ const Tasks: React.FC = () => {
 
       {/* 保存视图弹窗 */}
       {showSaveViewModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+        <div style={{position: "fixed", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "#f6f5f4", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 99999}}>
+          <div className="bg-white rounded-lg p-6 w-[48rem]">
             <h3 className="text-lg font-bold mb-4">保存视图</h3>
             <input
               type="text"
               value={viewName}
               onChange={(e) => setViewName(e.target.value)}
               placeholder="输入视图名称"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg mb-4 focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-white/8 rounded-lg mb-4 focus:ring-2 focus:ring-[#0075de]"
               autoFocus
             />
             <div className="flex justify-end gap-3">
@@ -806,13 +712,13 @@ const Tasks: React.FC = () => {
                   setShowSaveViewModal(false);
                   setViewName('');
                 }}
-                className="px-4 py-2 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
+                className="px-4 py-2 text-[#31302e] border border-white/8 rounded-lg hover:bg-[#f6f5f4]"
               >
                 取消
               </button>
               <button
                 onClick={handleSaveView}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                className="px-4 py-2 bg-[#0075de] text-white rounded-lg hover:bg-[#005bab]"
               >
                 保存
               </button>

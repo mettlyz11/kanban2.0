@@ -59,7 +59,7 @@ const iconMap: Record<string, any> = {
 }
 
 export function Helight() {
-  const { companyId } = useParams<{ companyId: string }>()
+  const companyId = 1
   const navigate = useNavigate()
   const [company, setCompany] = useState<Company | null>(null)
   const [loading, setLoading] = useState(true)

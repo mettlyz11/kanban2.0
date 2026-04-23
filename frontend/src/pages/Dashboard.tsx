@@ -132,7 +132,7 @@ export function Dashboard() {
               ⚡ 快捷操作
             </h3>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              <Link to="/tasks/new" className="quick-action-btn" style={{ 
+              <Link to="/tasks" className="quick-action-btn" style={{ 
                 textDecoration: 'none', 
                 color: 'inherit',
                 padding: '10px 14px',

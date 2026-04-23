@@ -47,7 +47,7 @@ export function ProjectDocuments() {
   const loadDocuments = async (id: number) => {
     setLoading(true)
     try {
-      const response = await fetch(`/api/projects/${id}/documents`)
+      const response = await fetch(`/api/projects/${id}/document`)
       const data = await response.json()
       if (data.success) {
         setDocuments(data.documents || [])
@@ -68,7 +68,7 @@ export function ProjectDocuments() {
     formData.append('file', file)
 
     try {
-      const response = await fetch(`/api/projects/${projectId}/documents`, {
+      const response = await fetch(`/api/projects/${projectId}/document`, {
         method: 'POST',
         body: formData
       })
@@ -88,7 +88,7 @@ export function ProjectDocuments() {
     if (!projectId) return
 
     try {
-      const response = await fetch(`/api/projects/${projectId}/documents/${docId}`, {
+      const response = await fetch(`/api/projects/${projectId}/document/${docId}`, {
         method: 'DELETE'
       })
 
@@ -217,7 +217,7 @@ export function ProjectDocuments() {
                 </div>
                 <div style={{ display: 'flex', gap: '8px' }}>
                   <button
-                    onClick={() => window.open(`/api/projects/${projectId}/documents/${doc.id}/download`, '_blank')}
+                    onClick={() => window.open(`/api/projects/${projectId}/document/${doc.id}/download`, '_blank')}
                     style={{
                       padding: '8px',
                       background: '#f3f4f6',

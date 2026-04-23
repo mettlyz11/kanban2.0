@@ -82,6 +82,12 @@ export const api = {
     const res = await fetch(`${API_BASE}/goals${query ? '?' + query : ''}`)
     return res.json()
   },
+  // 人生目标
+  async getLifeGoals(params = {}) {
+    const query = new URLSearchParams(params).toString()
+    const res = await fetch(`${API_BASE}/life-goals${query ? '?' + query : ''}`)
+    return res.json()
+  },
   async createGoal(data: any) {
     const res = await fetch(`${API_BASE}/goals`, {
       method: 'POST',

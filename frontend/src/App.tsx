@@ -39,6 +39,7 @@ import { CompanyInfo } from './pages/CompanyInfo'
 import { Helight } from './pages/Helight'
 import { ProjectDesign } from './pages/ProjectDesign'
 import { ProjectDocuments } from './pages/ProjectDocuments'
+import SelfDrivingSystem from './pages/SelfDrivingSystem'
 import './components/Layout.css'
 
 // 路由守卫组件
@@ -90,6 +91,7 @@ function AppRoutes() {
       <Route path="/personal/:id" element={<PrivateRoute><Layout><PersonalInfo /></Layout></PrivateRoute>} />
       <Route path="/personal/liuyuzhou" element={<PrivateRoute><Layout><LiuYuzhou /></Layout></PrivateRoute>} />
 
+      <Route path="/self-driving" element={<PrivateRoute><Layout><SelfDrivingSystem /></Layout></PrivateRoute>} />
       <Route path="/company/:companyId" element={<PrivateRoute><Layout><Helight /></Layout></PrivateRoute>} />
       <Route path="/company" element={<PrivateRoute><Layout><CompanyInfo /></Layout></PrivateRoute>} />
 

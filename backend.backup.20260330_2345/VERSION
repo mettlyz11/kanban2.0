@@ -1,0 +1,26 @@
+# 看板2.4系统版本记录
+
+CURRENT_VERSION=v2.4.12
+LAST_UPDATE=20260306_205618
+UPDATE_REASON=看板2.5更新：新增涉诉事项合规声明页面（个人页面+公司页面法律合规板块）
+
+## 版本历史
+- v2.4.12 (20260306_205618) - 当前版本 - 看板2.5更新：新增涉诉事项合规声明页面（个人页面+公司页面法律合规板块）
+
+## 备份位置
+- 本地: ~/.openclaw/workspace/kanban-backups/v2.4.12_*/
+- Git: github.com/mettlyz11/kanban-system
+- 服务器: /opt/kanban-react/backups/v2.4.12_*/
+
+## 回滚命令
+```bash
+# 本地回滚
+cp kanban-backups/v2.4.12_*/kanban_v5.db kanban-react/backend/
+cp -r kanban-backups/v2.4.12_*/backend/* kanban-react/backend/
+cp -r kanban-backups/v2.4.12_*/frontend_dist/* kanban-react/frontend/dist/
+
+# 服务器回滚
+cp /opt/kanban-react/backups/v2.4.12_*/kanban_v5.db /opt/kanban-react/backend/
+tar -xzf /opt/kanban-react/backups/v2.4.12_*/backend.tar.gz -C /opt/kanban-react/backend/
+tar -xzf /opt/kanban-react/backups/v2.4.12_*/frontend.tar.gz -C /opt/kanban-react/frontend/dist/
+```

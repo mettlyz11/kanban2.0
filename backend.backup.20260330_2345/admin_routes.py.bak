@@ -1,0 +1,587 @@
+"""
+管理员后台系统 - API路由
+任务: P049-T8-2 管理员后台
+"""
+
+from flask import Blueprint, request, jsonify, current_app
+from functools import wraps
+import os
+import sys
+import jwt
+from datetime import datetime
+
+# 添加backend目录到路径
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+from admin_services import (
+    UserManagementService, TaskMonitorService, ConfigService,
+    LogService, DashboardService
+)
+from admin_models import AdminUser
+
+# 创建蓝图
+admin_bp = Blueprint('admin', __name__, url_prefix='/api/admin')
+
+# 获取数据库路径
+def get_db_path():
+    return current_app.config.get('DB_PATH', os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), '..', 'backend', 'kanban_v5.db'
+    ))
+
+
+# ============================================
+# 权限检查装饰器
+# ============================================
+
+def admin_required(f):
+    """要求管理员权限"""
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        token = None
+        if 'Authorization' in request.headers:
+            auth_header = request.headers['Authorization']
+            try:
+                token = auth_header.split(" ")[1]
+            except IndexError:
+                return jsonify({'success': False, 'error': '无效的授权头'}), 401
+        
+        if not token:
+            return jsonify({'success': False, 'error': '缺少访问令牌'}), 401
+        
+        try:
+            data = jwt.decode(token, current_app.config['JWT_SECRET_KEY'], algorithms=['HS256'])
+            current_user_id = data['user_id']
+            
+            # 检查用户权限
+            with get_db_connection() as conn:
+                cursor = conn.cursor()
+
+                            cursor.execute("SELECT role FROM users WHERE id = ?", (current_user_id,))
+            row =                 cursor.fetchone()
+            
+            
+            if not row or row[0] not in ['admin', 'super_admin']:
+                return jsonify({'success': False, 'error': '需要管理员权限'}), 403
+            
+            request.current_user_id = current_user_id
+            request.current_user_role = row[0]
+            
+        except jwt.ExpiredSignatureError:
+            return jsonify({'success': False, 'error': '令牌已过期'}), 401
+        except jwt.InvalidTokenError:
+            return jsonify({'success': False, 'error': '无效的令牌'}), 401
+        
+        return f(*args, **kwargs)
+    return decorated
+
+
+def super_admin_required(f):
+    """要求超级管理员权限"""
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        token = None
+        if 'Authorization' in request.headers:
+            auth_header = request.headers['Authorization']
+            try:
+                token = auth_header.split(" ")[1]
+            except IndexError:
+                return jsonify({'success': False, 'error': '无效的授权头'}), 401
+        
+        if not token:
+            return jsonify({'success': False, 'error': '缺少访问令牌'}), 401
+        
+        try:
+            data = jwt.decode(token, current_app.config['JWT_SECRET_KEY'], algorithms=['HS256'])
+            current_user_id = data['user_id']
+            
+            # 检查用户权限
+            with get_db_connection() as conn:
+                cursor = conn.cursor()
+
+                            cursor.execute("SELECT role FROM users WHERE id = ?", (current_user_id,))
+            row =                 cursor.fetchone()
+            
+            
+            if not row or row[0] != 'super_admin':
+                return jsonify({'success': False, 'error': '需要超级管理员权限'}), 403
+            
+            request.current_user_id = current_user_id
+            request.current_user_role = row[0]
+            
+        except jwt.ExpiredSignatureError:
+            return jsonify({'success': False, 'error': '令牌已过期'}), 401
+        except jwt.InvalidTokenError:
+            return jsonify({'success': False, 'error': '无效的令牌'}), 401
+        
+        return f(*args, **kwargs)
+    return decorated
+
+
+# ============================================
+# 仪表盘 API
+# ============================================
+
+@admin_bp.route('/dashboard', methods=['GET'])
+@admin_required
+def get_dashboard():
+    """获取仪表盘数据"""
+    try:
+        service = DashboardService(get_db_path())
+        stats = service.get_dashboard_stats()
+        health = service.get_system_health()
+        
+        return jsonify({
+            'success': True,
+            'data': {
+                'stats': stats,
+                'health': health
+            }
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@admin_bp.route('/dashboard/stats', methods=['GET'])
+@admin_required
+def get_dashboard_stats():
+    """获取仪表盘统计"""
+    try:
+        service = DashboardService(get_db_path())
+        stats = service.get_dashboard_stats()
+        
+        return jsonify({
+            'success': True,
+            'data': stats
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@admin_bp.route('/dashboard/health', methods=['GET'])
+@admin_required
+def get_system_health():
+    """获取系统健康状态"""
+    try:
+        service = DashboardService(get_db_path())
+        health = service.get_system_health()
+        
+        return jsonify({
+            'success': True,
+            'data': health
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ============================================
+# 用户管理 API
+# ============================================
+
+@admin_bp.route('/users', methods=['GET'])
+@admin_required
+def get_users():
+    """获取用户列表"""
+    try:
+        page = request.args.get('page', 1, type=int)
+        per_page = request.args.get('per_page', 20, type=int)
+        status = request.args.get('status')
+        role = request.args.get('role')
+        search = request.args.get('search')
+        
+        service = UserManagementService(get_db_path())
+        result = service.get_users(page, per_page, status, role, search)
+        
+        return jsonify({
+            'success': True,
+            'data': result
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@admin_bp.route('/users/stats', methods=['GET'])
+@admin_required
+def get_user_stats():
+    """获取用户统计"""
+    try:
+        service = UserManagementService(get_db_path())
+        stats = service.get_user_stats()
+        
+        return jsonify({
+            'success': True,
+            'data': stats
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@admin_bp.route('/users/<int:user_id>', methods=['GET'])
+@admin_required
+def get_user(user_id):
+    """获取用户详情"""
+    try:
+        service = UserManagementService(get_db_path())
+        user = service.get_user_by_id(user_id)
+        
+        if not user:
+            return jsonify({'success': False, 'error': '用户不存在'}), 404
+        
+        return jsonify({
+            'success': True,
+            'data': user
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@admin_bp.route('/users/<int:user_id>/status', methods=['PUT'])
+@admin_required
+def update_user_status(user_id):
+    """更新用户状态（禁用/启用）"""
+    try:
+        data = request.get_json()
+        status = data.get('status')
+        
+        if not status:
+            return jsonify({'success': False, 'error': '缺少状态参数'}), 400
+        
+        service = UserManagementService(get_db_path())
+        result = service.update_user_status(user_id, status)
+        
+        # 记录审计日志
+        if result['success']:
+            log_service = LogService(get_db_path())
+            log_service.log_admin_action(
+                admin_id=request.current_user_id,
+                admin_username='',  # 可以从token中获取
+                action='update_user_status',
+                target_type='user',
+                target_id=str(user_id),
+                details={'new_status': status},
+                ip_address=request.remote_addr
+            )
+        
+        if result['success']:
+            return jsonify(result)
+        else:
+            return jsonify(result), 400
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@admin_bp.route('/users/<int:user_id>/role', methods=['PUT'])
+@super_admin_required
+def update_user_role(user_id):
+    """更新用户角色（仅超级管理员）"""
+    try:
+        data = request.get_json()
+        role = data.get('role')
+        
+        if not role:
+            return jsonify({'success': False, 'error': '缺少角色参数'}), 400
+        
+        service = UserManagementService(get_db_path())
+        result = service.update_user_role(user_id, role)
+        
+        # 记录审计日志
+        if result['success']:
+            log_service = LogService(get_db_path())
+            log_service.log_admin_action(
+                admin_id=request.current_user_id,
+                admin_username='',
+                action='update_user_role',
+                target_type='user',
+                target_id=str(user_id),
+                details={'new_role': role},
+                ip_address=request.remote_addr
+            )
+        
+        if result['success']:
+            return jsonify(result)
+        else:
+            return jsonify(result), 400
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@admin_bp.route('/users/<int:user_id>', methods=['DELETE'])
+@super_admin_required
+def delete_user(user_id):
+    """删除用户（仅超级管理员）"""
+    try:
+        service = UserManagementService(get_db_path())
+        result = service.delete_user(user_id)
+        
+        # 记录审计日志
+        if result['success']:
+            log_service = LogService(get_db_path())
+            log_service.log_admin_action(
+                admin_id=request.current_user_id,
+                admin_username='',
+                action='delete_user',
+                target_type='user',
+                target_id=str(user_id),
+                ip_address=request.remote_addr
+            )
+        
+        if result['success']:
+            return jsonify(result)
+        else:
+            return jsonify(result), 400
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ============================================
+# 任务监控 API
+# ============================================
+
+@admin_bp.route('/tasks/queue', methods=['GET'])
+@admin_required
+def get_task_queue():
+    """获取任务队列状态"""
+    try:
+        service = TaskMonitorService(get_db_path())
+        result = service.get_task_queue_status()
+        
+        return jsonify({
+            'success': True,
+            'data': result
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@admin_bp.route('/workers', methods=['GET'])
+@admin_required
+def get_workers():
+    """获取Worker状态"""
+    try:
+        service = TaskMonitorService(get_db_path())
+        result = service.get_worker_status()
+        
+        return jsonify({
+            'success': True,
+            'data': result
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@admin_bp.route('/resources', methods=['GET'])
+@admin_required
+def get_resources():
+    """获取资源使用情况"""
+    try:
+        service = TaskMonitorService(get_db_path())
+        result = service.get_resource_usage()
+        
+        return jsonify({
+            'success': True,
+            'data': result
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ============================================
+# 系统配置 API
+# ============================================
+
+@admin_bp.route('/config', methods=['GET'])
+@admin_required
+def get_configs():
+    """获取所有配置"""
+    try:
+        service = ConfigService(get_db_path())
+        result = service.get_all_configs()
+        
+        return jsonify({
+            'success': True,
+            'data': result
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@admin_bp.route('/config/<key>', methods=['GET'])
+@admin_required
+def get_config(key):
+    """获取单个配置"""
+    try:
+        service = ConfigService(get_db_path())
+        result = service.get_config(key)
+        
+        if not result:
+            return jsonify({'success': False, 'error': '配置不存在'}), 404
+        
+        return jsonify({
+            'success': True,
+            'data': result
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@admin_bp.route('/config/<key>', methods=['PUT'])
+@admin_required
+def update_config(key):
+    """更新配置"""
+    try:
+        data = request.get_json()
+        value = data.get('value')
+        
+        if value is None:
+            return jsonify({'success': False, 'error': '缺少值参数'}), 400
+        
+        service = ConfigService(get_db_path())
+        result = service.update_config(key, value, request.current_user_id)
+        
+        # 记录审计日志
+        if result['success']:
+            log_service = LogService(get_db_path())
+            log_service.log_admin_action(
+                admin_id=request.current_user_id,
+                admin_username='',
+                action='update_config',
+                target_type='config',
+                target_id=key,
+                details={'new_value': value},
+                ip_address=request.remote_addr
+            )
+        
+        if result['success']:
+            return jsonify(result)
+        else:
+            return jsonify(result), 400
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@admin_bp.route('/email-templates', methods=['GET'])
+@admin_required
+def get_email_templates():
+    """获取邮件模板列表"""
+    try:
+        service = ConfigService(get_db_path())
+        result = service.get_email_templates()
+        
+        return jsonify({
+            'success': True,
+            'data': result
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@admin_bp.route('/email-templates/<int:template_id>', methods=['GET'])
+@admin_required
+def get_email_template(template_id):
+    """获取邮件模板详情"""
+    try:
+        service = ConfigService(get_db_path())
+        result = service.get_email_template(template_id)
+        
+        if not result:
+            return jsonify({'success': False, 'error': '模板不存在'}), 404
+        
+        return jsonify({
+            'success': True,
+            'data': result
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@admin_bp.route('/email-templates/<int:template_id>', methods=['PUT'])
+@admin_required
+def update_email_template(template_id):
+    """更新邮件模板"""
+    try:
+        data = request.get_json()
+        subject = data.get('subject')
+        body = data.get('body')
+        
+        if not subject or not body:
+            return jsonify({'success': False, 'error': '缺少主题或内容'}), 400
+        
+        service = ConfigService(get_db_path())
+        result = service.update_email_template(
+            template_id, subject, body, request.current_user_id
+        )
+        
+        # 记录审计日志
+        if result['success']:
+            log_service = LogService(get_db_path())
+            log_service.log_admin_action(
+                admin_id=request.current_user_id,
+                admin_username='',
+                action='update_email_template',
+                target_type='email_template',
+                target_id=str(template_id),
+                ip_address=request.remote_addr
+            )
+        
+        if result['success']:
+            return jsonify(result)
+        else:
+            return jsonify(result), 400
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ============================================
+# 日志审计 API
+# ============================================
+
+@admin_bp.route('/logs', methods=['GET'])
+@admin_required
+def get_system_logs():
+    """获取系统日志"""
+    try:
+        level = request.args.get('level')
+        source = request.args.get('source')
+        start_time = request.args.get('start_time')
+        end_time = request.args.get('end_time')
+        page = request.args.get('page', 1, type=int)
+        per_page = request.args.get('per_page', 50, type=int)
+        
+        service = LogService(get_db_path())
+        result = service.get_system_logs(
+            level, source, start_time, end_time, page, per_page
+        )
+        
+        return jsonify({
+            'success': True,
+            'data': result
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@admin_bp.route('/audit-logs', methods=['GET'])
+@admin_required
+def get_audit_logs():
+    """获取审计日志"""
+    try:
+        admin_id = request.args.get('admin_id', type=int)
+        action = request.args.get('action')
+        target_type = request.args.get('target_type')
+        page = request.args.get('page', 1, type=int)
+        per_page = request.args.get('per_page', 50, type=int)
+        
+        service = LogService(get_db_path())
+        result = service.get_audit_logs(
+            admin_id, action, target_type, page, per_page
+        )
+        
+        return jsonify({
+            'success': True,
+            'data': result
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# 导入sqlite3用于权限检查
+from database_config import get_db_connection

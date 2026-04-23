@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 
 // 生成随机数学验证码
@@ -31,6 +32,7 @@ export function Login() {
   const [isLocked, setIsLocked] = useState(false)
   const [lockTime, setLockTime] = useState(0)
   const { login } = useAuth()
+  const navigate = useNavigate()
 
   // 检查登录锁定
   useEffect(() => {
@@ -100,6 +102,7 @@ export function Login() {
       // 登录成功，清除失败次数
       setAttempts(0)
       localStorage.removeItem('login_attempts')
+      navigate('/dashboard')
     }
 
     setLoading(false)

@@ -1,3 +1,9 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import './App.css';
+
 :root {
   font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;
@@ -65,4 +71,219 @@ button:focus-visible {
   button {
     background-color: #f9f9f9;
   }
+}
+/* 手机端优化样式 */
+@media (max-width: 768px) {
+  /* 整体布局 */
+  body {
+    font-size: 14px;
+  }
+  
+  /* 侧边栏 */
+  .sidebar {
+    width: 100%;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    height: 60px;
+    z-index: 1000;
+    display: flex;
+    flex-direction: row;
+    justify-content: space-around;
+    align-items: center;
+    padding: 0;
+    box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
+  }
+  
+  .sidebar a {
+    flex: 1;
+    text-align: center;
+    padding: 8px 0;
+    font-size: 12px;
+  }
+  
+  .sidebar a span {
+    display: block;
+    font-size: 18px;
+    margin-bottom: 2px;
+  }
+  
+  /* 主内容区 */
+  main {
+    padding-bottom: 80px;
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+  
+  /* 卡片布局 */
+  .card {
+    margin: 8px 0;
+    padding: 12px;
+    border-radius: 12px;
+  }
+  
+  /* 按钮 */
+  button, .btn {
+    min-height: 44px;
+    padding: 12px 20px;
+    font-size: 16px;
+  }
+  
+  /* 输入框 */
+  input, textarea, select {
+    min-height: 44px;
+    font-size: 16px;
+    padding: 12px;
+  }
+  
+  /* 表格 */
+  table {
+    display: block;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+  
+  /* 模态框 */
+  .modal {
+    width: 95%;
+    max-width: none;
+    margin: 10px auto;
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+  
+  .modal-overlay {
+    padding: 10px;
+  }
+  
+  /* 项目卡片 */
+  .project-card {
+    margin: 12px 0;
+  }
+  
+  .project-card h3 {
+    font-size: 16px;
+  }
+  
+  /* 任务列表 */
+  .task-item {
+    padding: 12px;
+    margin: 8px 0;
+  }
+  
+  /* 头部 */
+  header {
+    padding: 12px 16px;
+  }
+  
+  header h1 {
+    font-size: 18px;
+  }
+  
+  /* 搜索框 */
+  .search-box {
+    width: 100%;
+    margin: 8px 0;
+  }
+  
+  /* 筛选按钮 */
+  .filter-buttons {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  
+  .filter-buttons button {
+    flex: 1;
+    min-width: 80px;
+  }
+  
+  /* 底部导航 */
+  .bottom-nav {
+    display: flex;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: white;
+    border-top: 1px solid #e0e0e0;
+    padding: 8px 0;
+    z-index: 1000;
+  }
+  
+  .bottom-nav a {
+    flex: 1;
+    text-align: center;
+    padding: 8px;
+    color: #666;
+    text-decoration: none;
+    font-size: 12px;
+  }
+  
+  .bottom-nav a.active {
+    color: #1890ff;
+  }
+}
+
+/* 触摸优化 */
+@media (hover: none) and (pointer: coarse) {
+  button, .btn, a {
+    touch-action: manipulation;
+  }
+  
+  /* 增大触摸区域 */
+  .clickable {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+
+/* iOS 安全区域 */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  .sidebar, .bottom-nav {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
+/* 修复模态框 z-index */
+@media (max-width: 768px) {
+  .fixed.inset-0 {
+    z-index: 2000 !important;
+  }
+  
+  .modal-overlay {
+    z-index: 2000 !important;
+  }
+  
+  .modal {
+    z-index: 2001 !important;
+  }
+}
+
+/* 强制全宽覆盖 */
+#root,
+.app,
+.app-body,
+.main-content {
+  width: 100% !important;
+  max-width: none !important;
+}
+
+.main-content {
+  margin-left: 240px !important;
+  width: calc(100vw - 240px) !important;
+  min-width: calc(100vw - 240px) !important;
+  max-width: none !important;
+  padding: 20px !important;
+  box-sizing: border-box !important;
+}
+
+/* 覆盖所有可能限制宽度的元素 */
+[class*=max-w-],
+[class*=w-] {
+  max-width: none !important;
+}
+
+.w-full {
+  width: 100% !important;
+  max-width: none !important;
 }

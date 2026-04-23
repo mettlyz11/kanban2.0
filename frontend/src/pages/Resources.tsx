@@ -1,62 +1,35 @@
 import { useState, useEffect } from 'react'
+import { Search, ExternalLink, Database, ChevronRight } from 'lucide-react'
 
-// 资源类型图标
-const resourceIcons: Record<string, string> = {
-  'file': '📄',
-  'link': '🔗',
-  'website': '🌐',
-  'github': '🐙',
-  'chemistry': '🧪',
-  'search': '🔍',
-  'note': '📝',
-  'database': '🗄️',
-  'tool': '🛠️',
-  'document': '📚',
-  'code': '💻',
-  'config': '⚙️',
-  'web': '🌍',
-  'style': '🎨',
-  'script': '📜',
-  'text': '📃'
+// 资源类型配置
+const typeConfig: Record<string, { icon: string; color: string; bg: string }> = {
+  'chemistry': { icon: '🧪', color: 'text-purple-600', bg: 'bg-purple-50' },
+  'search': { icon: '🔍', color: 'text-blue-600', bg: 'bg-blue-50' },
+  'github': { icon: '🐙', color: 'text-gray-800', bg: 'bg-gray-100' },
+  'website': { icon: '🌐', color: 'text-green-600', bg: 'bg-green-50' },
+  'tool': { icon: '🛠️', color: 'text-orange-600', bg: 'bg-orange-50' },
+  'document': { icon: '📚', color: 'text-red-600', bg: 'bg-red-50' },
+  'database': { icon: '🗄️', color: 'text-indigo-600', bg: 'bg-indigo-50' },
+  'file': { icon: '📄', color: 'text-gray-600', bg: 'bg-gray-50' },
+  'link': { icon: '🔗', color: 'text-cyan-600', bg: 'bg-cyan-50' },
 }
-
-// Chevron 图标组件
-const ChevronDown = () => (
-  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <polyline points="6 9 12 15 18 9"></polyline>
-  </svg>
-)
-
-const ChevronUp = () => (
-  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <polyline points="18 15 12 9 6 15"></polyline>
-  </svg>
-)
-
-const ExternalLink = () => (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
-    <polyline points="15 3 21 3 21 9"></polyline>
-    <line x1="10" y1="14" x2="21" y2="3"></line>
-  </svg>
-)
 
 // 预设资源
 const defaultResources = [
-  // 计算化学网站
+  // 计算化学
   { name: 'T109计算平台', type: 'chemistry', url: 'https://t109.mettlyz.com', desc: '过渡态计算平台', category: '计算化学' },
   { name: 'Sobereva', type: 'chemistry', url: 'http://sobereva.com', desc: '量子化学博客', category: '计算化学' },
   { name: 'PubChem', type: 'chemistry', url: 'https://pubchem.ncbi.nlm.nih.gov', desc: '化学分子数据库', category: '计算化学' },
   { name: 'NIST Chemistry', type: 'chemistry', url: 'https://webbook.nist.gov/chemistry', desc: 'NIST化学数据库', category: '计算化学' },
   
-  // 搜索网站
+  // 搜索工具
   { name: 'Google Scholar', type: 'search', url: 'https://scholar.google.com', desc: '学术搜索', category: '搜索工具' },
   { name: 'Google', type: 'search', url: 'https://google.com', desc: '通用搜索', category: '搜索工具' },
   { name: 'Bing', type: 'search', url: 'https://bing.com', desc: '微软搜索', category: '搜索工具' },
   { name: 'Semantic Scholar', type: 'search', url: 'https://semanticscholar.org', desc: 'AI学术搜索', category: '搜索工具' },
   { name: 'arXiv', type: 'search', url: 'https://arxiv.org', desc: '预印本论文', category: '搜索工具' },
   
-  // GitHub资源
+  // GitHub
   { name: '看板系统 v2.0', type: 'github', url: 'https://github.com/mettlyz11/kanban2.0', desc: 'React看板系统', category: 'GitHub' },
   { name: '看板系统 v1.0', type: 'github', url: 'https://github.com/mettlyz11/kanban-system', desc: 'Flask看板系统', category: 'GitHub' },
   { name: 'GitHub主页', type: 'github', url: 'https://github.com/mettlyz11', desc: '我的GitHub主页', category: 'GitHub' },
@@ -71,16 +44,14 @@ const defaultResources = [
   { name: 'OpenAI', type: 'website', url: 'https://openai.com', desc: 'OpenAI官网', category: 'AI工具' },
   { name: 'Claude', type: 'website', url: 'https://claude.ai', desc: 'Anthropic Claude', category: 'AI工具' },
   { name: 'Moonshot AI', type: 'website', url: 'https://moonshot.cn', desc: '月之暗面', category: 'AI工具' },
+  { name: 'DeepSeek', type: 'website', url: 'https://deepseek.com', desc: '深度求索', category: 'AI工具' },
 ]
 
 export function Resources() {
   const [resources, setResources] = useState<any[]>(defaultResources)
-  const [localFiles, setLocalFiles] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
-  const [expandedCategories, setExpandedCategories] = useState<string[]>(['本地文件'])
   const [search, setSearch] = useState('')
-  const [selectedFile, setSelectedFile] = useState<any>(null)
-  const [fileContent, setFileContent] = useState('')
+  const [selectedCategory, setSelectedCategory] = useState<string>('')
 
   useEffect(() => {
     loadResources()
@@ -88,31 +59,18 @@ export function Resources() {
 
   const loadResources = async () => {
     try {
-      // 加载本地文件索引
       const filesRes = await fetch('/api/files/index')
       const filesData = await filesRes.json()
       
       if (filesData.success) {
-        // 转换本地文件为资源格式
-        const localResources = filesData.files.slice(0, 200).map((f: any) => ({
+        const localResources = filesData.files.slice(0, 100).map((f: any) => ({
           name: f.name,
-          type: f.type,
+          type: 'file',
           url: `/api/files/content/${encodeURIComponent(f.path)}`,
-          desc: f.desc || f.path,
-          category: '本地文件',
-          path: f.path,
-          size: f.size,
-          modified: f.modified
+          desc: f.path,
+          category: '本地文件'
         }))
-        setLocalFiles(localResources)
-      }
-      
-      // 加载API资源
-      const res = await fetch('/api/resources')
-      const data = await res.json()
-      
-      if (data.resources) {
-        setResources([...defaultResources, ...data.resources])
+        setResources([...defaultResources, ...localResources])
       }
     } catch (e) {
       console.error(e)
@@ -121,213 +79,144 @@ export function Resources() {
     }
   }
 
-  const handleFileClick = async (resource: any) => {
-    if (resource.category === '本地文件' && resource.path) {
-      try {
-        const res = await fetch(`/api/files/content/${encodeURIComponent(resource.path)}`)
-        const data = await res.json()
-        if (data.success) {
-          setFileContent(data.content)
-          setSelectedFile(resource)
-        }
-      } catch (e) {
-        console.error(e)
-      }
-    } else {
-      window.open(resource.url, '_blank')
-    }
-  }
-
-  // 合并所有资源
-  const allResources = [...localFiles, ...resources]
-
-  // 按分类分组
-  const groupedResources = allResources.reduce((acc: any, r) => {
-    const cat = r.category || '其他'
-    if (!acc[cat]) acc[cat] = []
-    acc[cat].push(r)
-    return acc
-  }, {})
-
-  // 搜索过滤
-  const filteredCategories = Object.entries(groupedResources).filter(([, items]: [string, any]) => {
-    if (!search) return true
-    return (items as any[]).some((r: any) => 
-      r.name?.toLowerCase().includes(search.toLowerCase()) ||
-      r.desc?.toLowerCase().includes(search.toLowerCase())
-    )
+  const filteredResources = resources.filter(r => {
+    return !search || r.name.toLowerCase().includes(search.toLowerCase()) || r.desc.toLowerCase().includes(search.toLowerCase())
   })
 
-  const toggleCategory = (category: string) => {
-    setExpandedCategories(prev => 
-      prev.includes(category) 
-        ? prev.filter(c => c !== category)
-        : [...prev, category]
-    )
+  const groupedResources = filteredResources.reduce((acc, r) => {
+    if (!acc[r.category]) acc[r.category] = []
+    acc[r.category].push(r)
+    return acc
+  }, {} as Record<string, any[]>)
+
+  const categories = Object.keys(groupedResources)
+  
+  useEffect(() => {
+    if (categories.length > 0 && !selectedCategory) {
+      setSelectedCategory(categories[0])
+    }
+  }, [categories])
+
+  const selectedResources = selectedCategory ? groupedResources[selectedCategory] || [] : []
+  const selectedConfig = typeConfig[selectedResources[0]?.type] || typeConfig['link']
+
+  if (loading) {
+    return <div className="min-h-screen flex items-center justify-center"><div className="animate-spin w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full"></div></div>
   }
 
-  if (loading) return <div className="loading">加载中...</div>
-
   return (
-    <div>
-      <div className="page-header">
-        <h2 className="page-title">📚 资源库 (T021)</h2>
+    <div className="w-full">
+      {/* 标题栏 */}
+      <div className="mb-6">
+        <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
+          <Database className="w-7 h-7 text-blue-500" />
+          资源库
+        </h2>
+        <p className="text-gray-500 mt-1">共 {resources.length} 个资源</p>
       </div>
 
       {/* 搜索 */}
-      <div className="card" style={{ marginBottom: '20px' }}>
-        <input
-          type="text"
-          placeholder="搜索资源..."
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          style={{ 
-            padding: '12px 16px', 
-            borderRadius: '8px', 
-            border: '1px solid #ddd',
-            width: '100%',
-            fontSize: '14px'
-          }}
-        />
+      <div className="mb-6">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+          <input
+            type="text"
+            placeholder="搜索资源..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
       </div>
 
-      {/* 资源列表 - 手风琴样式 */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-        {filteredCategories.map(([category, items]: [string, any]) => (
-          <div key={category} className="card" style={{ padding: 0, overflow: 'hidden' }}>
-            {/* 分类标题栏 */}
-            <div 
-              onClick={() => toggleCategory(category)}
-              style={{ 
-                padding: '16px 20px',
-                background: '#f8f9fa',
-                cursor: 'pointer',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                borderLeft: `4px solid ${getCategoryColor(category)}`,
-                transition: 'background 0.2s'
-              }}
-              onMouseEnter={e => e.currentTarget.style.background = '#e9ecef'}
-              onMouseLeave={e => e.currentTarget.style.background = '#f8f9fa'}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <span style={{ fontSize: '1.25rem' }}>{getCategoryIcon(category)}</span>
-                <span style={{ fontWeight: 600, fontSize: '1.1rem' }}>{category}</span>
-                <span className="badge" style={{ background: '#e9ecef', color: '#666' }}>
-                  {(items as any[]).length}
-                </span>
-              </div>
-              <span style={{ fontSize: '1.5rem', color: '#999' }}>
-                {expandedCategories.includes(category) ? <ChevronUp /> : <ChevronDown />}
-              </span>
-            </div>
-
-            {/* 展开的资源列表 */}
-            {expandedCategories.includes(category) && (
-              <div style={{ borderTop: '1px solid #e9ecef' }}>
-                {(items as any[]).map((resource: any, i: number) => (
-                  <div
-                    key={i}
-                    onClick={() => handleFileClick(resource)}
-                    style={{ 
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '16px',
-                      padding: '14px 20px',
-                      textDecoration: 'none',
-                      color: 'inherit',
-                      borderBottom: i < (items as any[]).length - 1 ? '1px solid #f0f0f0' : 'none',
-                      transition: 'background 0.2s',
-                      cursor: 'pointer'
-                    }}
-                    onMouseEnter={e => e.currentTarget.style.background = '#f8f9fa'}
-                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                  >
-                    <span style={{ fontSize: '1.5rem' }}>
-                      {resourceIcons[resource.type] || '📄'}
-                    </span>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontWeight: 500, marginBottom: '2px' }}>{resource.name}</div>
-                      <div style={{ fontSize: '0.85rem', color: '#666' }}>{resource.desc}</div>
+      {/* 左右分栏布局 - 左侧窄，右侧宽 */}
+      <div className="flex gap-6" style={{ minHeight: '600px' }}>
+        {/* 左侧：分类列表 - 固定窄宽度 */}
+        <div className="w-64 flex-shrink-0">
+          <h3 className="text-lg font-semibold text-gray-800 mb-4">资源分类</h3>
+          <div className="space-y-2">
+            {categories.map((category) => {
+              const items = groupedResources[category]
+              const config = typeConfig[items[0]?.type] || typeConfig['link']
+              const isSelected = selectedCategory === category
+              
+              return (
+                <button
+                  key={category}
+                  onClick={() => setSelectedCategory(category)}
+                  className={`w-full px-4 py-3 flex items-center justify-between rounded-xl border transition-all ${
+                    isSelected 
+                      ? 'bg-blue-50 border-blue-200 shadow-sm' 
+                      : 'bg-white border-gray-100 hover:bg-gray-50 hover:border-gray-200'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-xl">{config.icon}</span>
+                    <div className="text-left">
+                      <span className={`font-medium text-sm ${isSelected ? 'text-blue-700' : 'text-gray-800'}`}>
+                        {category}
+                      </span>
+                      <span className="text-xs text-gray-400 ml-1">({items.length})</span>
                     </div>
-                    {resource.modified && (
-                      <span style={{ fontSize: '0.75rem', color: '#999' }}>{resource.modified}</span>
-                    )}
-                    <span style={{ color: '#999' }}>
-                      {resource.category === '本地文件' ? '👁️' : <ExternalLink />}
-                    </span>
                   </div>
+                  <ChevronRight className={`w-4 h-4 transition-colors ${isSelected ? 'text-blue-500' : 'text-gray-300'}`} />
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
+        {/* 右侧：选中分类的资源列表 - 占满剩余空间 */}
+        <div className="flex-1">
+          <h3 className="text-lg font-semibold text-gray-800 mb-4">
+            {selectedCategory ? `${selectedCategory} (${selectedResources.length})` : '请选择分类'}
+          </h3>
+          
+          {selectedCategory ? (
+            <div className="bg-white rounded-xl border border-gray-100 p-4">
+              {/* 横向铺开的资源网格 */}
+              <div className="grid grid-cols-5 gap-4">
+                {selectedResources.map((resource: any, idx: number) => (
+                  <a
+                    key={idx}
+                    href={resource.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-3 p-4 rounded-xl border border-gray-100 hover:border-blue-200 hover:shadow-md transition-all group bg-gray-50 hover:bg-white"
+                  >
+                    <div className={`w-12 h-12 rounded-xl ${selectedConfig.bg} flex items-center justify-center text-2xl flex-shrink-0`}>
+                      {selectedConfig.icon}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h4 className="font-semibold text-gray-800 group-hover:text-blue-600 transition-colors truncate">
+                        {resource.name}
+                      </h4>
+                      <p className="text-sm text-gray-500 truncate mt-1">
+                        {resource.desc || '暂无描述'}
+                      </p>
+                    </div>
+                    <ExternalLink className="w-5 h-5 text-gray-300 group-hover:text-blue-500 transition-colors flex-shrink-0" />
+                  </a>
                 ))}
               </div>
-            )}
-          </div>
-        ))}
+            </div>
+          ) : (
+            <div className="text-center py-16 bg-gray-50 rounded-xl border border-dashed border-gray-200">
+              <Database className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+              <p className="text-gray-500">点击左侧分类查看资源</p>
+            </div>
+          )}
+        </div>
       </div>
 
-      {filteredCategories.length === 0 && (
-        <div className="empty-state">
-          <div className="empty-state-icon">📚</div>
-          <p>暂无资源</p>
-        </div>
-      )}
-
-      {/* 文件内容查看弹窗 */}
-      {selectedFile && (
-        <div className="modal-overlay" onClick={() => setSelectedFile(null)}>
-          <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '900px', maxHeight: '85vh' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-              <div>
-                <h4>{selectedFile.name}</h4>
-                <p style={{ fontSize: '0.85rem', color: '#666', margin: '4px 0 0 0' }}>{selectedFile.path}</p>
-              </div>
-              <button className="btn btn-sm btn-secondary" onClick={() => setSelectedFile(null)}>✕</button>
-            </div>
-            <div style={{ 
-              maxHeight: '60vh', 
-              overflow: 'auto',
-              padding: '16px',
-              background: '#f8f9fa',
-              borderRadius: '8px',
-              fontFamily: 'monospace',
-              fontSize: '13px',
-              lineHeight: '1.6',
-              whiteSpace: 'pre-wrap',
-              wordBreak: 'break-word'
-            }}>
-              {fileContent}
-            </div>
-          </div>
+      {filteredResources.length === 0 && (
+        <div className="text-center py-16">
+          <Database className="w-16 h-16 mx-auto mb-4 text-gray-300" />
+          <p className="text-gray-500">未找到匹配的资源</p>
         </div>
       )}
     </div>
   )
-}
-
-function getCategoryColor(category: string): string {
-  const colors: Record<string, string> = {
-    '本地文件': '#28a745',
-    '计算化学': '#17a2b8',
-    '搜索工具': '#ffc107',
-    'GitHub': '#6f42c1',
-    '开发工具': '#fd7e14',
-    'AI工具': '#dc3545',
-    '其他': '#6c757d'
-  }
-  return colors[category] || '#667eea'
-}
-
-function getCategoryIcon(category: string): string {
-  const icons: Record<string, string> = {
-    '本地文件': '📁',
-    '计算化学': '🧪',
-    '搜索工具': '🔍',
-    'GitHub': '🐙',
-    '开发工具': '🛠️',
-    'AI工具': '🤖',
-    '其他': '📦'
-  }
-  return icons[category] || '📚'
 }
 
 export default Resources

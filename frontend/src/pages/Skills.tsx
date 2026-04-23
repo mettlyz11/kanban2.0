@@ -32,15 +32,20 @@ export function Skills() {
   if (loading) return <div className="loading">加载中...</div>
 
   return (
-    <div>
-      <div className="page-header">
-        <h2 className="page-title">🛠️ 技能库</h2>
+    <div className="w-full">
+      {/* 标题栏 - 全宽 */}
+      <div className="mb-6">
+        <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
+          <span className="text-2xl">🛠️</span>
+          技能库
+        </h2>
+        <p className="text-gray-500 mt-1">共 {skills.length} 个技能</p>
       </div>
 
-      {/* 分类筛选 */}
-      <div className="filter-bar">
+      {/* 分类筛选 - 全宽 */}
+      <div className="flex flex-wrap gap-2 mb-6">
         <button
-          className={`filter-btn ${filter === '' ? 'active' : ''}`}
+          className={`px-4 py-2 rounded-lg transition-all ${filter === '' ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
           onClick={() => setFilter('')}
         >
           全部
@@ -48,7 +53,7 @@ export function Skills() {
         {categories.map(cat => (
           <button
             key={cat}
-            className={`filter-btn ${filter === cat ? 'active' : ''}`}
+            className={`px-4 py-2 rounded-lg transition-all ${filter === cat ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
             onClick={() => setFilter(cat)}
           >
             {cat}
@@ -56,36 +61,30 @@ export function Skills() {
         ))}
       </div>
 
-      {/* 技能网格 */}
-      <div className="grid-3">
+      {/* 技能网格 - 全宽多列布局 */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
         {filteredSkills.map(skill => (
-          <div key={skill.id} className="card" style={{ transition: 'all 0.2s' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
-              <div style={{ fontSize: '2rem' }}>{skill.icon || '🛠️'}</div>
-              <span className="badge badge-blue">{skill.category}</span>
+          <div key={skill.id} className="bg-white rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow border border-gray-100">
+            <div className="flex justify-between items-start mb-3">
+              <div className="text-3xl">{skill.icon || '🛠️'}</div>
+              <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded-full font-medium">
+                {skill.category}
+              </span>
             </div>
-            <h4 style={{ marginBottom: '8px', color: '#333' }}>{skill.name}</h4>
-            <p style={{ color: '#666', fontSize: '0.9rem', marginBottom: '12px', lineHeight: '1.5' }}>
+            <h4 className="font-semibold text-gray-800 mb-2">{skill.name}</h4>
+            <p className="text-gray-500 text-sm mb-3 line-clamp-2">
               {skill.description || '暂无描述'}
             </p>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontSize: '0.85rem', color: '#999' }}>
+            <div className="flex justify-between items-center text-sm">
+              <span className="text-gray-400">
                 版本: {skill.version || '1.0'}
               </span>
-              <span className={`badge ${skill.status === 'active' ? 'badge-green' : 'badge-gray'}`}>
+              <span className={`px-2 py-1 rounded text-xs ${skill.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
                 {skill.status === 'active' ? '可用' : '开发中'}
               </span>
             </div>
             {skill.command && (
-              <div style={{ 
-                marginTop: '12px', 
-                padding: '8px', 
-                background: '#f8f9fa', 
-                borderRadius: '4px',
-                fontFamily: 'monospace',
-                fontSize: '0.85rem',
-                color: '#666'
-              }}>
+              <div className="mt-3 p-2 bg-gray-50 rounded-lg font-mono text-xs text-gray-600 overflow-x-auto">
                 {skill.command}
               </div>
             )}
@@ -94,9 +93,9 @@ export function Skills() {
       </div>
 
       {filteredSkills.length === 0 && (
-        <div className="empty-state">
-          <div className="empty-state-icon">🛠️</div>
-          <p>暂无技能</p>
+        <div className="text-center py-16">
+          <div className="text-6xl mb-4">🛠️</div>
+          <p className="text-gray-500">暂无技能</p>
         </div>
       )}
     </div>

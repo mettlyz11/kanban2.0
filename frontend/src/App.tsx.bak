@@ -1,0 +1,48 @@
+import { useState } from 'react'
+import { Calendar } from './pages/Calendar'
+
+function App() {
+  const [view, setView] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const path = window.location.pathname
+      if (path === '/calendar') return 'calendar'
+      const params = new URLSearchParams(window.location.search)
+      return params.get('view') || 'dashboard'
+    }
+    return 'dashboard'
+  })
+
+  if (view === 'calendar') {
+    return <Calendar />
+  }
+
+  return (
+    <div className=min-h-screen bg-gray-100>
+      <nav className=bg-white shadow>
+        <div className=max-w-7xl mx-auto px-4>
+          <div className=flex justify-between h-16>
+            <div className=flex items-center>
+              <h1 className=text-xl font-bold text-gray-900>Kanban System v5.3.0</h1>
+            </div>
+            <div className=flex items-center gap-4>
+              <button onClick={() => window.location.href = '/'} className=px-3 py-2 text-gray-700 hover:bg-gray-100 rounded>Dashboard</button>
+              <button onClick={() => window.location.href = '/?view=projects'} className=px-3 py-2 text-gray-700 hover:bg-gray-100 rounded>Projects</button>
+              <button onClick={() => window.location.href = '/?view=tasks'} className=px-3 py-2 text-gray-700 hover:bg-gray-100 rounded>Tasks</button>
+              <button onClick={() => window.location.href = '/calendar'} className=px-3 py-2 text-blue-600 hover:bg-blue-50 rounded>Calendar</button>
+            </div>
+          </div>
+        </div>
+      </nav>
+      <main className=max-w-7xl mx-auto py-6>
+        <div className=px-4>
+          {view === 'dashboard' && <div className=text-xl>Welcome to Kanban Dashboard</div>}
+          {view === 'projects' && <div className=text-xl>Projects View</div>}
+          {view === 'tasks' && <div className=text-xl>Tasks View</div>}
+          {view === 'done' && <div className=text-xl>Completed Items</div>}
+        </div>
+      </main>
+    </div>
+  )
+}
+
+export default App

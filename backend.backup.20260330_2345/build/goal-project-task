@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>看板3.0 - 层级视图 (目标-项目-任务)</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            color: white;
+        }
+        
+        .header h1 {
+            font-size: 28px;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+        }
+        
+        .header p {
+            font-size: 16px;
+            opacity: 0.9;
+        }
+        
+        .nav-bar {
+            background: rgba(255,255,255,0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            padding: 15px 30px;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .nav-links {
+            display: flex;
+            gap: 20px;
+        }
+        
+        .nav-link {
+            color: white;
+            text-decoration: none;
+            padding: 8px 16px;
+            border-radius: 8px;
+            transition: all 0.3s;
+            font-size: 14px;
+        }
+        
+        .nav-link:hover {
+            background: rgba(255,255,255,0.2);
+        }
+        
+        .nav-link.active {
+            background: rgba(255,255,255,0.3);
+            font-weight: bold;
+        }
+        
+        .hierarchy-view {
+            background: white;
+            border-radius: 16px;
+            padding: 30px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        
+        .stats-bar {
+            display: flex;
+            justify-content: space-around;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 30px;
+            color: white;
+        }
+        
+        .stat-item {
+            text-align: center;
+        }
+        
+        .stat-value {
+            font-size: 36px;
+            font-weight: bold;
+        }
+        
+        .stat-label {
+            font-size: 14px;
+            opacity: 0.9;
+            margin-top: 5px;
+        }
+        
+        .level {
+            margin-bottom: 40px;
+            position: relative;
+        }
+        
+        .level-title {
+            font-size: 20px;
+            font-weight: bold;
+            margin-bottom: 20px;
+            padding: 12px 24px;
+            border-radius: 8px;
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .level-goals .level-title {
+            background: #E3F2FD;
+            color: #1565C0;
+            border-left: 4px solid #1565C0;
+        }
+        
+        .level-projects .level-title {
+            background: #F3E5F5;
+            color: #7B1FA2;
+            border-left: 4px solid #7B1FA2;
+        }
+        
+        .level-tasks .level-title {
+            background: #E8F5E9;
+            color: #2E7D32;
+            border-left: 4px solid #2E7D32;
+        }
+        
+        .cards-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+            margin-left: 20px;
+        }
+        
+        .card {
+            border-radius: 12px;
+            padding: 20px;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        
+        .card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+        }
+        
+        .card-goal {
+            background: linear-gradient(135deg, #E3F2FD 0%, #BBDEFB 100%);
+            border: 1px solid #90CAF9;
+        }
+        
+        .card-goal::before {
+            background: #1565C0;
+        }
+        
+        .card-project {
+            background: linear-gradient(135deg, #F3E5F5 0%, #E1BEE7 100%);
+            border: 1px solid #CE93D8;
+        }
+        
+        .card-project::before {
+            background: #7B1FA2;
+        }
+        
+        .card-task {
+            background: linear-gradient(135deg, #E8F5E9 0%, #C8E6C9 100%);
+            border: 1px solid #A5D6A7;
+        }
+        
+        .card-task::before {
+            background: #2E7D32;
+        }
+        
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 12px;
+        }
+        
+        .card-icon {
+            font-size: 28px;
+        }
+        
+        .card-menu {
+            cursor: pointer;
+            padding: 4px;
+            border-radius: 4px;
+            transition: background 0.2s;
+        }
+        
+        .card-menu:hover {
+            background: rgba(0,0,0,0.1);
+        }
+        
+        .card-title {
+            font-size: 16px;
+            font-weight: bold;
+            margin-bottom: 8px;
+            color: #333;
+            line-height: 1.4;
+        }
+        
+        .card-desc {
+            font-size: 13px;
+            color: #666;
+            margin-bottom: 12px;
+            line-height: 1.5;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+        
+        .card-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            font-size: 12px;
+        }
+        
+        .badge {
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-weight: 500;
+        }
+        
+        .badge-progress {
+            background: #4CAF50;
+            color: white;
+        }
+        
+        .badge-pending {
+            background: #FF9800;
+            color: white;
+        }
+        
+        .badge-high {
+            background: #F44336;
+            color: white;
+        }
+        
+        .badge-medium {
+            background: #2196F3;
+            color: white;
+        }
+        
+        .badge-low {
+            background: #9E9E9E;
+            color: white;
+        }
+        
+        .connection-line {
+            display: flex;
+            justify-content: center;
+            margin: 30px 0;
+            position: relative;
+        }
+        
+        .connection-line::before {
+            content: '';
+            position: absolute;
+            left: 50%;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background: linear-gradient(to bottom, #667eea, #764ba2);
+            transform: translateX(-50%);
+        }
+        
+        .arrow-down {
+            width: 0;
+            height: 0;
+            border-left: 10px solid transparent;
+            border-right: 10px solid transparent;
+            border-top: 15px solid #764ba2;
+            position: relative;
+            z-index: 1;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+        
+        .error {
+            text-align: center;
+            padding: 40px;
+            color: #F44336;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #999;
+        }
+        
+        .empty-state-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+        }
+        
+        @media (max-width: 768px) {
+            .cards-grid {
+                grid-template-columns: 1fr;
+                margin-left: 0;
+            }
+            
+            .nav-bar {
+                flex-direction: column;
+                gap: 15px;
+            }
+            
+            .nav-links {
+                flex-wrap: wrap;
+                justify-content: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="nav-bar">
+            <div class="nav-links">
+                <a href="/" class="nav-link">🏠 首页</a>
+                <a href="/goals" class="nav-link">🎯 目标</a>
+                <a href="/projects" class="nav-link">📁 项目</a>
+                <a href="/tasks" class="nav-link">☑️ 任务</a>
+                <a href="/goal-project-task" class="nav-link active">📊 层级视图</a>
+            </div>
+            <div class="nav-brand" style="color: white; font-weight: bold;">看板3.0</div>
+        </div>
+        
+        <div class="header">
+            <h1>📊 层级视图</h1>
+            <p>目标 → 项目 → 任务 可视化展示</p>
+        </div>
+        
+        <div class="hierarchy-view">
+            <div class="stats-bar">
+                <div class="stat-item">
+                    <div class="stat-value" id="goals-count">-</div>
+                    <div class="stat-label">目标总数</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="projects-count">-</div>
+                    <div class="stat-label">项目总数</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="tasks-count">-</div>
+                    <div class="stat-label">任务总数</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="progress-avg">-</div>
+                    <div class="stat-label">平均进度</div>
+                </div>
+            </div>
+            
+            <!-- 目标层 -->
+            <div class="level level-goals">
+                <div class="level-title">
+                    <span>🎯</span>
+                    <span>目标 (Goals)</span>
+                </div>
+                <div class="cards-grid" id="goals-container">
+                    <div class="loading">加载中...</div>
+                </div>
+            </div>
+            
+            <div class="connection-line">
+                <div class="arrow-down"></div>
+            </div>
+            
+            <!-- 项目层 -->
+            <div class="level level-projects">
+                <div class="level-title">
+                    <span>📁</span>
+                    <span>项目 (Projects)</span>
+                </div>
+                <div class="cards-grid" id="projects-container">
+                    <div class="loading">加载中...</div>
+                </div>
+            </div>
+            
+            <div class="connection-line">
+                <div class="arrow-down"></div>
+            </div>
+            
+            <!-- 任务层 -->
+            <div class="level level-tasks">
+                <div class="level-title">
+                    <span>☑️</span>
+                    <span>任务 (Tasks)</span>
+                </div>
+                <div class="cards-grid" id="tasks-container">
+                    <div class="loading">加载中...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // API基础URL
+        const API_BASE = '/api';
+        
+        // 加载数据
+        async function loadData() {
+            try {
+                // 加载目标
+                const goalsRes = await fetch(`${API_BASE}/goals`);
+                const goalsData = await goalsRes.json();
+                if (goalsData.success) {
+                    renderGoals(goalsData.goals);
+                    document.getElementById('goals-count').textContent = goalsData.goals.length;
+                    
+                    // 计算平均进度
+                    const avgProgress = goalsData.goals.reduce((sum, g) => sum + (g.progress || 0), 0) / goalsData.goals.length;
+                    document.getElementById('progress-avg').textContent = Math.round(avgProgress) + '%';
+                }
+                
+                // 加载项目
+                const projectsRes = await fetch(`${API_BASE}/projects`);
+                const projectsData = await projectsRes.json();
+                if (projectsData.success) {
+                    renderProjects(projectsData.projects);
+                    document.getElementById('projects-count').textContent = projectsData.projects.length;
+                }
+                
+                // 加载任务
+                const tasksRes = await fetch(`${API_BASE}/tasks`);
+                const tasksData = await tasksRes.json();
+                if (tasksData.success) {
+                    renderTasks(tasksData.tasks);
+                    document.getElementById('tasks-count').textContent = tasksData.tasks.length;
+                }
+            } catch (error) {
+                console.error('加载数据失败:', error);
+                showError();
+            }
+        }
+        
+        // 渲染目标
+        function renderGoals(goals) {
+            const container = document.getElementById('goals-container');
+            if (goals.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">🎯</div>
+                        <div>暂无目标</div>
+                    </div>
+                `;
+                return;
+            }
+            
+            container.innerHTML = goals.map(goal => `
+                <div class="card card-goal" onclick="window.location.href='/goals?id=${goal.id}'">
+                    <div class="card-header">
+                        <div class="card-icon">🎯</div>
+                        <div class="card-menu">⋮</div>
+                    </div>
+                    <div class="card-title">${goal.title}</div>
+                    <div class="card-desc">${goal.description || '暂无描述'}</div>
+                    <div class="card-meta">
+                        <span class="badge badge-progress">进度: ${goal.progress || 0}%</span>
+                        <span class="badge badge-medium">项目: ${goal.project_count || 0}</span>
+                        <span class="badge badge-low">任务: ${goal.task_count || 0}</span>
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+        // 渲染项目
+        function renderProjects(projects) {
+            const container = document.getElementById('projects-container');
+            if (projects.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">📁</div>
+                        <div>暂无项目</div>
+                    </div>
+                `;
+                return;
+            }
+            
+            const activeProjects = projects.filter(p => p.status === 'active' || p.status === 'progress').slice(0, 12);
+            
+            container.innerHTML = activeProjects.map(project => `
+                <div class="card card-project" onclick="window.location.href='/projects?id=${project.id}'">
+                    <div class="card-header">
+                        <div class="card-icon">📁</div>
+                        <div class="card-menu">⋮</div>
+                    </div>
+                    <div class="card-title">${project.name || '未命名项目'}</div>
+                    <div class="card-desc">${project.description ? project.description.substring(0, 60) + '...' : '暂无描述'}</div>
+                    <div class="card-meta">
+                        <span class="badge badge-${project.priority === 'high' ? 'high' : project.priority === 'medium' ? 'medium' : 'low'}">
+                            ${project.priority || 'normal'}
+                        </span>
+                        <span class="badge badge-pending">${project.status || 'active'}</span>
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+        // 渲染任务
+        function renderTasks(tasks) {
+            const container = document.getElementById('tasks-container');
+            if (tasks.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">☑️</div>
+                        <div>暂无任务</div>
+                    </div>
+                `;
+                return;
+            }
+            
+            const activeTasks = tasks.filter(t => t.status !== 'done' && t.status !== 'cancelled').slice(0, 12);
+            
+            container.innerHTML = activeTasks.map(task => `
+                <div class="card card-task" onclick="window.location.href='/tasks?id=${task.id}'">
+                    <div class="card-header">
+                        <div class="card-icon">☑️</div>
+                        <div class="card-menu">⋮</div>
+                    </div>
+                    <div class="card-title">${task.title || '未命名任务'}</div>
+                    <div class="card-desc">${task.description ? task.description.substring(0, 60) + '...' : '暂无描述'}</div>
+                    <div class="card-meta">
+                        <span class="badge badge-${task.priority === 'high' ? 'high' : task.priority === 'medium' ? 'medium' : 'low'}">
+                            ${task.priority || 'normal'}
+                        </span>
+                        <span class="badge badge-${task.status === 'done' ? 'progress' : 'pending'}">
+                            ${task.status || 'pending'}
+                        </span>
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+        // 显示错误
+        function showError() {
+            const errorHtml = `
+                <div class="error">
+                    <div style="font-size: 48px; margin-bottom: 16px;">⚠️</div>
+                    <div>加载数据失败</div>
+                    <div style="font-size: 14px; margin-top: 8px;">请检查网络连接或刷新页面重试</div>
+                </div>
+            `;
+            document.getElementById('goals-container').innerHTML = errorHtml;
+            document.getElementById('projects-container').innerHTML = errorHtml;
+            document.getElementById('tasks-container').innerHTML = errorHtml;
+        }
+        
+        // 页面加载完成后获取数据
+        document.addEventListener('DOMContentLoaded', loadData);
+    </script>
+</body>
+</html>

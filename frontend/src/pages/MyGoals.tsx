@@ -37,7 +37,7 @@ export function Goals() {
 
   const loadGoals = async () => {
     try {
-      const data = await api.getGoals(filter ? { category: filter } : {})
+      const data = await api.getLifeGoals(filter ? { category: filter } : {})
       if (data.success) {
         setGoals(data.goals || [])
       }

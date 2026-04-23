@@ -423,6 +423,9 @@ def get_config(key):
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+
+@app.route('/api/projects/<int:project_id>', methods=['GET'])\ndef get_project(project_id):
+    """获取项目详情"""\n    conn = get_db()\n    c = conn.cursor()\n    c.execute(SELECT
 @admin_bp.route('/config/<key>', methods=['PUT'])
 @admin_required
 def update_config(key):

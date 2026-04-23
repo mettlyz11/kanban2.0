@@ -752,6 +752,17 @@ def update_project_document(project_id, doc_id):
 @app.route('/api/tasks/', methods=['GET'])
 @app.route('/api/tasks', methods=['GET'])
 def get_tasks():
+    # 添加排序支持
+    sort_field = request.args.get('sort_field', 'created_at')
+    sort_order = request.args.get('sort_order', 'desc')
+    
+    # 允许的排序字段
+    allowed_sort_fields = ['created_at', 'due_date', 'priority', 'status', 'title']
+    if sort_field not in allowed_sort_fields:
+        sort_field = 'created_at'
+    if sort_order not in ['asc', 'desc']:
+        sort_order = 'desc'
+    
     # 添加分页支持
     """获取任务列表"""
     status = request.args.get('status', '')
@@ -776,13 +787,24 @@ def get_tasks():
         query += ' AND t.project_id = %s'
         params.append(project_id)
 
+    # 添加排序支持
+    sort_field = request.args.get('sort_field', 'created_at')
+    sort_order = request.args.get('sort_order', 'desc')
+    
+    # 允许的排序字段
+    allowed_sort_fields = ['created_at', 'due_date', 'priority', 'status', 'title']
+    if sort_field not in allowed_sort_fields:
+        sort_field = 'created_at'
+    if sort_order not in ['asc', 'desc']:
+        sort_order = 'desc'
+    
     # 添加分页支持
     page = request.args.get('page', 1, type=int)
     per_page = request.args.get('per_page', 50, type=int)
     per_page = min(per_page, 500)  # 最大500条
     offset = (page - 1) * per_page
     
-    query += f" ORDER BY t.created_at DESC LIMIT {per_page} OFFSET {offset}"
+    query += f" ORDER BY t.{sort_field} {sort_order.upper()} LIMIT {per_page} OFFSET {offset}"
 
     c.execute(query, tuple(params))
     tasks = [row_to_dict(row, c) for row in c.fetchall()]
@@ -826,7 +848,7 @@ def update_task(task_id):
     """更新任务"""
     data = request.get_json()
 
-    allowed_fields = ['title', 'description', 'status', 'priority', 'project_id', 'result_summary',
+    allowed_fields = ['title', 'description', 'status', 'priority', 'project_id', 'due_date', 'tags', 'result_summary',
                      'conclusion_type', 'conclusion_passed', 'conclusion_execute', 'conclusion_audit_content']
     updates = {k: v for k, v in data.items() if k in allowed_fields}
 
@@ -938,7 +960,7 @@ def get_project_tasks(project_id):
 
         # 获取项目任务
         c.execute('''
-            SELECT id, title, status, priority, created_at, updated_at
+            SELECT id, title, status, priority, created_at, updated_at, task_type, description
             FROM tasks
             WHERE project_id = %s AND status != 'deleted'
             ORDER BY 
@@ -1043,6 +1065,147 @@ def get_file_content(filepath):
         return jsonify({'success': True, 'content': content})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
+
+# ============================================
+# 任务附件管理 API
+# ============================================
+
+# 上传目录配置
+UPLOAD_DIR = "/opt/kanban-react/frontend/public/uploads/docs"
+
+@app.route('/api/tasks/<int:task_id>/attachments', methods=['GET'])
+def get_task_attachments(task_id):
+    """获取任务附件列表"""
+    try:
+        conn = get_db()
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            SELECT id, entity_type, entity_id, filename, url, size, file_type, created_at
+            FROM attachments
+            WHERE entity_type = 'task' AND entity_id = %s
+            ORDER BY created_at DESC
+        """, (task_id,))
+        
+        attachments = cursor.fetchall()
+        cursor.close()
+        conn.close()
+        
+        return jsonify({'success': True, 'attachments': attachments})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/tasks/<int:task_id>/attachments/upload', methods=['POST'])
+def upload_task_attachment(task_id):
+    """上传任务附件"""
+    try:
+        if 'file' not in request.files:
+            return jsonify({'success': False, 'error': 'No file part'}), 400
+        
+        file = request.files['file']
+        if file.filename == '':
+            return jsonify({'success': False, 'error': 'No selected file'}), 400
+        
+        # 确保上传目录存在
+        if not os.path.exists(UPLOAD_DIR):
+            os.makedirs(UPLOAD_DIR, exist_ok=True)
+        
+        # 生成安全的文件名（添加时间戳避免冲突）
+        original_filename = file.filename
+        name, ext = os.path.splitext(original_filename)
+        timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
+        safe_filename = f"{timestamp}_{name}{ext}"
+        file_path = os.path.join(UPLOAD_DIR, safe_filename)
+        
+        # 保存文件
+        file.save(file_path)
+        file_size = os.path.getsize(file_path)
+        file_type = ext.lstrip('.').lower() if ext else 'unknown'
+        
+        # 获取文件URL
+        url = f"/uploads/docs/{safe_filename}"
+        
+        # 写入数据库
+        conn = get_db()
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            INSERT INTO attachments (entity_type, entity_id, filename, url, size, file_type, created_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+        """, ('task', task_id, original_filename, url, file_size, file_type, datetime.now()))
+        
+        conn.commit()
+        attachment_id = cursor.lastrowid
+        
+        cursor.execute("""
+            SELECT id, entity_type, entity_id, filename, url, size, file_type, created_at
+            FROM attachments WHERE id = %s
+        """, (attachment_id,))
+        
+        attachment = cursor.fetchone()
+        cursor.close()
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'message': 'File uploaded successfully',
+            'attachment': attachment
+        })
+    except Exception as e:
+        logger.error(f"Failed to upload attachment: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/tasks/<int:task_id>/attachments/edit', methods=['POST'])
+def edit_task_attachment(task_id):
+    """编辑任务附件内容"""
+    try:
+        data = request.json
+        filename = data.get('filename')
+        content = data.get('content')
+        
+        if not filename or content is None:
+            return jsonify({'success': False, 'error': 'Missing filename or content'}), 400
+        
+        # 查找附件记录
+        conn = get_db()
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            SELECT url FROM attachments
+            WHERE entity_type = 'task' AND entity_id = %s AND filename = %s
+        """, (task_id, filename))
+        
+        attachment = cursor.fetchone()
+        if not attachment:
+            return jsonify({'success': False, 'error': 'Attachment not found'}), 404
+        
+        # 提取文件路径
+        file_path = attachment['url'].replace('/uploads/', '/opt/kanban-react/frontend/public/uploads/')
+        
+        # 确保目录存在
+        file_dir = os.path.dirname(file_path)
+        if not os.path.exists(file_dir):
+            os.makedirs(file_dir, exist_ok=True)
+        
+        # 保存文件内容
+        with open(file_path, 'w', encoding='utf-8') as f:
+            f.write(content)
+        
+        # 更新文件大小
+        new_size = os.path.getsize(file_path)
+        cursor.execute("""
+            UPDATE attachments SET size = %s
+            WHERE entity_type = 'task' AND entity_id = %s AND filename = %s
+        """, (new_size, task_id, filename))
+        
+        conn.commit()
+        cursor.close()
+        conn.close()
+        
+        return jsonify({'success': True, 'message': 'File saved successfully'})
+    except Exception as e:
+        logger.error(f"Failed to edit attachment: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 # ============================================
 # 静态文件服务
@@ -2420,112 +2583,78 @@ def get_system_history():
 def get_metrics_history():
     """获取系统资源历史数据（用于趋势图）"""
     try:
+        import datetime
         time_range = request.args.get('range', '24h')
-        conn = get_db()
-        c = conn.cursor()
-    
-        # 根据时间范围确定查询条件 (MySQL语法)
-        time_condition = {
-            '1h': "DATE_SUB(NOW(), INTERVAL 1 HOUR)",
-            '6h': "DATE_SUB(NOW(), INTERVAL 6 HOUR)",
-            '24h': "DATE_SUB(NOW(), INTERVAL 24 HOUR)",
-            '7d': "DATE_SUB(NOW(), INTERVAL 7 DAY)"
-        }.get(time_range, "DATE_SUB(NOW(), INTERVAL 24 HOUR)")
-    
-        # 查询系统指标（修复：使用正确表 system_metrics，修复MySQL时间语法）
-        # MySQL中timestamp可以直接和datetime字符串比较
-        c.execute(f'''
-            SELECT 
-                id,
-                cpu_percent as cpu,
-                memory_percent as memory,
-                disk_percent as disk,
-                timestamp
-            FROM system_metrics
-            WHERE timestamp >= {time_condition}
-            ORDER BY timestamp ASC
-        ''')
-    
-        metrics = []
-        for row in c.fetchall():
-            # 将 Unix 时间戳转换为可读格式
-            import datetime
-            # get_db 使用 pymysql with DictCursor → row 是字典
-            if isinstance(row, dict):
-                id_val = row['id']
-                cpu_val = row['cpu']
-                mem_val = row['memory']
-                disk_val = row['disk']
-                ts = row['timestamp']
-            else:
-                # 回退到 tuple 索引
-                id_val = row[0]
-                cpu_val = row[1] if len(row) > 1 else None
-                mem_val = row[2] if len(row) > 2 else None
-                disk_val = row[3] if len(row) > 3 else None
-                ts = row[4] if len(row) > 4 else row[3]
-            try:
-                # 如果是 Unix 时间戳（数字）
-                if isinstance(ts, (int, float)):
-                    dt = datetime.datetime.fromtimestamp(ts)
+        with get_db_connection() as conn:
+            c = conn.cursor()
+
+            # 根据时间范围确定查询条件 (MySQL语法)
+            time_condition = {
+                '1h': "DATE_SUB(NOW(), INTERVAL 1 HOUR)",
+                '6h': "DATE_SUB(NOW(), INTERVAL 6 HOUR)",
+                '24h': "DATE_SUB(NOW(), INTERVAL 24 HOUR)",
+                '7d': "DATE_SUB(NOW(), INTERVAL 7 DAY)"
+            }.get(time_range, "DATE_SUB(NOW(), INTERVAL 24 HOUR)")
+
+            # 查询系统指标（修复：使用正确表 system_metrics，修复MySQL时间语法）
+            # MySQL中timestamp可以直接和datetime字符串比较
+            c.execute(f"""
+                SELECT 
+                    id,
+                    cpu_percent as cpu,
+                    memory_percent as memory,
+                    disk_percent as disk,
+                    timestamp
+                FROM system_metrics
+                WHERE timestamp >= {time_condition}
+                ORDER BY timestamp ASC
+            """)
+
+            metrics = []
+            for row in c.fetchall():
+                # 将 Unix 时间戳转换为可读格式
+                # get_db_connection uses pymysql with DictCursor → row is dict
+                if isinstance(row, dict):
+                    id_val = row['id']
+                    cpu_val = row['cpu']
+                    mem_val = row['memory']
+                    disk_val = row['disk']
+                    ts = row['timestamp']
                 else:
-                    # 如果已经是 datetime 对象或字符串
-                    if hasattr(ts, 'strftime'):
-                        dt = ts
+                    # 回退到 tuple 索引
+                    id_val = row[0]
+                    cpu_val = row[1] if len(row) > 1 else None
+                    mem_val = row[2] if len(row) > 2 else None
+                    disk_val = row[3] if len(row) > 3 else None
+                    ts = row[4] if len(row) > 4 else row[3]
+                try:
+                    # 如果是 Unix 时间戳（数字）
+                    if isinstance(ts, (int, float)):
+                        dt = datetime.datetime.fromtimestamp(ts)
                     else:
-                        dt = datetime.datetime.fromisoformat(str(ts).replace('Z', '+00:00'))
-            except:
-                dt = datetime.datetime.now()
-        
-            metrics.append({
-                'id': id_val,
-                'cpu': cpu_val if cpu_val is not None else 0,
-                'memory': mem_val if mem_val is not None else 0,
-                'disk': disk_val if disk_val is not None else 0,
-                'timestamp': ts,
-                'timestamp_formatted': dt.strftime('%H:%M')
-            })
-    
-        # 如果没有数据，生成模拟数据（用于演示）
-        if not metrics:
-            from datetime import timedelta
-            now = datetime.now()
-        
-            # 根据时间范围确定数据点数量
-            if time_range == '1h':
-                intervals = 12
-                delta = timedelta(minutes=5)
-            elif time_range == '6h':
-                intervals = 24
-                delta = timedelta(minutes=15)
-            elif time_range == '7d':
-                intervals = 28
-                delta = timedelta(hours=6)
-            else:  # 24h default
-                intervals = 24
-                delta = timedelta(hours=1)
-        
-            for i in range(intervals):
-                timestamp = now - (intervals - i) * delta
+                        # 如果已经是 datetime 对象或字符串
+                        if hasattr(ts, 'strftime'):
+                            dt = ts
+                        else:
+                            dt = datetime.datetime.fromisoformat(str(ts).replace('Z', '+00:00'))
+                except:
+                    dt = datetime.datetime.now()
                 metrics.append({
-                    'id': i,
-                    'cpu': round(20 + (i % 5) * 10 + (i % 3) * 5, 1),
-                    'memory': round(40 + (i % 4) * 8 + (i % 2) * 5, 1),
-                    'disk': round(55 + (i % 3), 1),
-                    'timestamp': timestamp.timestamp(),
-                    'timestamp_formatted': timestamp.strftime('%H:%M')
+                    "id": id_val,
+                    "cpu": cpu_val,
+                    "memory": mem_val,
+                    "disk": disk_val,
+                    "timestamp": dt.isoformat()
                 })
-    
-        conn.close()
-        return jsonify({'success': True, 'metrics': metrics, 'count': len(metrics)})
+
+            return jsonify({
+                "success": True,
+                "metrics": metrics,
+                "count": len(metrics)
+            })
     except Exception as e:
-        logger.error(f"获取系统指标历史失败：{e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-# ============================================
-# 目标 API
-# ============================================
-
+        logger.error(f"获取系统监控数据失败: {e}")
+        return jsonify({"success": False, "error": str(e)})
 @app.route('/api/goals/', methods=['GET'])
 @app.route('/api/goals', methods=['GET'])
 def get_goals():
@@ -2846,41 +2975,43 @@ def get_daily_token_usage():
         return jsonify({'success': False, 'error': str(e)})
 
 # ============================================
-# 计算任务 API (T109)
+# 计算任务 API (T109) - 适配 t109_calculations 表结构
 # ============================================
 
 @app.route('/api/calc-tasks', methods=['GET'])
 def get_calc_tasks():
-    """获取计算任务列表"""
+    """获取计算任务列表 - 从t109_calculations表"""
     try:
-        conn = get_db()
-        c = conn.cursor()
-        c.execute('''
-            SELECT * FROM chemistry_calculations
-            ORDER BY created_at DESC
-            LIMIT 50
-        ''')
-        tasks = [row_to_dict(row, c) for row in c.fetchall()]
-        conn.close()
+        with get_db_connection() as conn:
+            c = conn.cursor()
+            c.execute('''
+                SELECT id, smiles, basis_set, functional, status, method, 
+                       total_energy, activation_energy, reaction_energy,
+                       homo_energy, lumo_energy, dipole_moment, created_at
+                FROM t109_calculations
+                ORDER BY created_at DESC
+                LIMIT 50
+            ''')
+            tasks = [row_to_dict(row, c) for row in c.fetchall()]
         return jsonify({'success': True, 'tasks': tasks})
     except Exception as e:
+        logger.error(f"获取计算任务失败: {e}")
         return jsonify({'success': True, 'tasks': []})
 
 @app.route('/api/calc-tasks/stats', methods=['GET'])
 def get_calc_stats():
     """获取计算任务统计"""
     try:
-        conn = get_db()
-        c = conn.cursor()
-        c.execute('SELECT COUNT(*) FROM chemistry_calculations')
-        total = list(c.fetchone().values())[0]
-        c.execute("SELECT COUNT(*) FROM chemistry_calculations WHERE status = 'running'")
-        running = list(c.fetchone().values())[0]
-        c.execute("SELECT COUNT(*) FROM chemistry_calculations WHERE status = 'completed'")
-        completed = list(c.fetchone().values())[0]
-        c.execute("SELECT COUNT(*) FROM chemistry_calculations WHERE status = 'failed'")
-        failed = list(c.fetchone().values())[0]
-        conn.close()
+        with get_db_connection() as conn:
+            c = conn.cursor()
+            c.execute('SELECT COUNT(*) as count FROM t109_calculations')
+            total = c.fetchone()['count']
+            c.execute("SELECT COUNT(*) as count FROM t109_calculations WHERE status = 'completed'")
+            completed = c.fetchone()['count']
+            c.execute("SELECT COUNT(*) as count FROM t109_calculations WHERE status = 'error' OR status = 'failed'")
+            failed = c.fetchone()['count']
+            c.execute("SELECT COUNT(*) as count FROM t109_calculations WHERE status = 'running' OR status = 'pending'")
+            running = c.fetchone()['count']
         return jsonify({
             'success': True,
             'stats': {
@@ -2891,335 +3022,83 @@ def get_calc_stats():
             }
         })
     except Exception as e:
+        logger.error(f"获取计算统计失败: {e}")
         return jsonify({'success': True, 'stats': {'total': 0, 'running': 0, 'completed': 0, 'failed': 0}})
 
+@app.route('/api/calc-tasks/<task_id>', methods=['GET'])
+def get_calc_task(task_id):
+    """获取单个计算任务详情"""
+    try:
+        conn = get_db()
+        c = conn.cursor()
+        c.execute('''
+            SELECT * FROM t109_calculations WHERE id = %s
+        ''', (task_id,))
+        task = c.fetchone()
+        conn.close()
+        
+        if not task:
+            return jsonify({'success': False, 'error': '任务不存在'}), 404
+            
+        return jsonify({'success': True, 'task': row_to_dict(task, c)})
+    except Exception as e:
+        logger.error(f"获取任务详情失败: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/calc-tasks/sync', methods=['POST'])
+def sync_calc_tasks():
+    """从T109服务器同步计算任务状态"""
+    try:
+        import requests
+        # 调用T109 API获取最新任务
+        response = requests.get('http://60.205.197.9:8000/calculations', timeout=10)
+        if response.status_code == 200:
+            t109_tasks = response.json()
+            return jsonify({
+                'success': True, 
+                'message': '同步成功',
+                'synced_count': len(t109_tasks) if isinstance(t109_tasks, list) else 0
+            })
+        else:
+            return jsonify({'success': False, 'error': 'T109 API返回错误'}), 500
+    except Exception as e:
+        logger.error(f"同步T109任务失败: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/calc-tasks/submit', methods=['POST'])
 def submit_calc_task():
-    """
-    提交计算任务到队列
-
-    接收参数:
-    - reaction_id: 反应 ID (必需)
-    - task_type: 任务类型 (必需) - optimization/ts/frequency
-    - software: 计算软件 (可选) - Gaussian/ORCA
-    - input_data: 输入数据 (必需) - JSON 格式或文件内容
-
-    返回:
-    - task_id: 生成的任务 ID
-    - status: 任务状态 (queued)
-    - created_at: 创建时间
-    """
-    import logging
-    import json
-
-    # 配置日志
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-    )
-    logger = logging.getLogger('calc_tasks')
-
+    """提交计算任务到T109队列"""
     try:
-        # 获取请求数据
         data = request.get_json()
-    
-        if not data:
-            logger.warning("提交计算任务失败：请求数据为空")
+        smiles = data.get('smiles')
+        basis_set = data.get('basis_set', 'sto-3g')
+        
+        if not smiles:
+            return jsonify({'success': False, 'error': 'SMILES不能为空'}), 400
+        
+        # 调用T109 API提交任务
+        import requests
+        response = requests.post(
+            'http://60.205.197.9:8000/calculate',
+            json={'smiles': smiles, 'basis_set': basis_set},
+            timeout=30
+        )
+        
+        if response.status_code == 200:
+            result = response.json()
             return jsonify({
-                'success': False,
-                'error': '请求数据为空',
-                'message': '请提供 JSON 格式的请求体'
-            }), 400
-    
-        # 提取字段
-        reaction_id = data.get('reaction_id')
-        task_type = data.get('task_type')
-        software = data.get('software')
-        input_data = data.get('input_data')
-    
-        # 验证必需字段
-        missing_fields = []
-        if reaction_id is None:
-            missing_fields.append('reaction_id')
-        if task_type is None:
-            missing_fields.append('task_type')
-        if input_data is None:
-            missing_fields.append('input_data')
-    
-        if missing_fields:
-            error_msg = f'缺少必需字段：{", ".join(missing_fields)}'
-            logger.warning(f"提交计算任务失败：{error_msg}")
-            return jsonify({
-                'success': False,
-                'error': 'validation_error',
-                'message': error_msg,
-                'missing_fields': missing_fields
-            }), 400
-    
-        # 验证 reaction_id 类型
-        if not isinstance(reaction_id, int):
-            try:
-                reaction_id = int(reaction_id)
-            except (ValueError, TypeError):
-                error_msg = 'reaction_id 必须是整数'
-                logger.warning(f"提交计算任务失败：{error_msg}")
-                return jsonify({
-                    'success': False,
-                    'error': 'validation_error',
-                    'message': error_msg
-                }), 400
-    
-        # 验证 task_type
-        valid_task_types = ['optimization', 'ts', 'frequency', 'single_point', 'irc']
-        if task_type not in valid_task_types:
-            error_msg = f'无效的任务类型：{task_type}。允许的值：{", ".join(valid_task_types)}'
-            logger.warning(f"提交计算任务失败：{error_msg}")
-            return jsonify({
-                'success': False,
-                'error': 'validation_error',
-                'message': error_msg,
-                'valid_task_types': valid_task_types
-            }), 400
-    
-        # 验证 software (如果提供)
-        if software is not None:
-            valid_software = ['Gaussian', 'ORCA', 'Psi4', 'NWChem']
-            if software not in valid_software:
-                logger.warning(f"软件 {software} 不在推荐列表中，但仍将接受")
-    
-        # 验证 input_data 格式
-        input_file_path = None
-        if isinstance(input_data, dict):
-            # JSON 格式输入数据
-            try:
-                input_data_str = json.dumps(input_data)
-            except (TypeError, ValueError) as e:
-                error_msg = f'input_data JSON 格式无效：{str(e)}'
-                logger.warning(f"提交计算任务失败：{error_msg}")
-                return jsonify({
-                    'success': False,
-                    'error': 'validation_error',
-                    'message': error_msg
-                }), 400
-        elif isinstance(input_data, str):
-            # 字符串格式（可能是文件路径或文件内容）
-            if input_data.startswith('/') or input_data.startswith('./'):
-                # 文件路径
-                if not os.path.exists(input_data):
-                    error_msg = f'输入文件不存在：{input_data}'
-                    logger.warning(f"提交计算任务失败：{error_msg}")
-                    return jsonify({
-                        'success': False,
-                        'error': 'validation_error',
-                        'message': error_msg
-                    }), 400
-                input_file_path = input_data
-                input_data_str = None
-            else:
-                # 文件内容
-                input_data_str = input_data
+                'success': True,
+                'message': '任务已提交到T109',
+                'task': result
+            })
         else:
-            error_msg = 'input_data 必须是 JSON 对象或字符串'
-            logger.warning(f"提交计算任务失败：{error_msg}")
-            return jsonify({
-                'success': False,
-                'error': 'validation_error',
-                'message': error_msg
-            }), 400
-    
-        # 保存到数据库
-        conn = get_db()
-        c = conn.cursor()
-    
-        c.execute('''
-            INSERT INTO chemistry_calculations (
-                reaction_id, 
-                task_type, 
-                software, 
-                input_file,
-                status,
-                result_data,
-                created_at
-            ) VALUES (%s, %s, %s, %s, 'queued', %s, NOW())
-        ''', (
-            reaction_id,
-            task_type,
-            software,
-            input_file_path,
-            input_data_str if input_data_str else None
-        ))
-    
-        conn.commit()
-        task_id = c.lastrowid
-    
-        # 获取创建的任务信息
-        c.execute('''
-            SELECT id, reaction_id, task_type, software, status, created_at
-            FROM chemistry_calculations
-            WHERE id = %s
-        ''', (task_id,))
-    
-        task_row = c.fetchone()
-        conn.close()
-    
-        task_info = dict(task_row) if task_row else None
-    
-        # 记录日志
-        logger.info(f"计算任务提交成功 - Task ID: {task_id}, Reaction: {reaction_id}, Type: {task_type}")
-    
-        return jsonify({
-            'success': True,
-            'message': '计算任务已成功提交到队列',
-            'task': {
-                'task_id': task_id,
-                'reaction_id': reaction_id,
-                'task_type': task_type,
-                'software': software,
-                'status': 'queued',
-                'created_at': task_info['created_at'] if task_info else datetime.now().isoformat(),
-                'queue_position': 'pending'
-            }
-        }), 201
-    
+            return jsonify({'success': False, 'error': 'T109提交失败'}), 500
+            
     except Exception as e:
-        logger.error(f"提交计算任务时发生异常：{str(e)}", exc_info=True)
-        return jsonify({
-            'success': False,
-            'error': 'internal_error',
-            'message': f'服务器内部错误：{str(e)}'
-        }), 500
+        logger.error(f"提交计算任务失败: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
 
-
-@app.route('/api/calc-tasks/<int:task_id>', methods=['GET'])
-def get_calc_task(task_id):
-    """获取计算任务详情"""
-    import logging
-    import json
-    logger = logging.getLogger('calc_tasks')
-
-    try:
-        conn = get_db()
-        c = conn.cursor()
-    
-        c.execute('''
-            SELECT * FROM chemistry_calculations WHERE id = %s
-        ''', (task_id,))
-    
-        task = c.fetchone()
-        conn.close()
-    
-        if not task:
-            return jsonify({
-                'success': False,
-                'error': 'not_found',
-                'message': f'任务 {task_id} 不存在'
-            }), 404
-    
-        task_dict = dict(task)
-    
-        # 如果有输入文件，读取内容
-        if task_dict.get('input_file') and os.path.exists(task_dict['input_file']):
-            try:
-                with open(task_dict['input_file'], 'r', encoding='utf-8') as f:
-                    task_dict['input_content'] = f.read()
-            except Exception as e:
-                logger.warning(f"无法读取输入文件：{e}")
-    
-        # 解析结果数据
-        if task_dict.get('result_data'):
-            try:
-                task_dict['result_json'] = json.loads(task_dict['result_data'])
-            except:
-                pass
-    
-        return jsonify({
-            'success': True,
-            'task': task_dict
-        })
-    
-    except Exception as e:
-        logger.error(f"获取计算任务失败：{e}")
-        return jsonify({
-            'success': False,
-            'error': 'internal_error',
-            'message': str(e)
-        }), 500
-
-
-@app.route('/api/calc-tasks', methods=['PUT'])
-def update_calc_tasks():
-    """更新计算任务列表（支持分页和过滤）"""
-    import logging
-    logger = logging.getLogger('calc_tasks')
-
-    try:
-        conn = get_db()
-        c = conn.cursor()
-    
-        # 支持分页和过滤
-        page = request.args.get('page', 1, type=int)
-        per_page = request.args.get('per_page', 20, type=int)
-        status = request.args.get('status')
-        reaction_id = request.args.get('reaction_id')
-    
-        # 构建查询
-        query = 'SELECT * FROM chemistry_calculations WHERE 1=1'
-        params = []
-    
-        if status:
-            query += ' AND status = %s'
-            params.append(status)
-    
-        if reaction_id:
-            query += ' AND reaction_id = %s'
-            params.append(reaction_id)
-    
-        query += ' ORDER BY created_at DESC'
-    
-        # 分页
-        offset = (page - 1) * per_page
-        query += ' LIMIT %s OFFSET %s'
-        params.extend([per_page, offset])
-    
-        c.execute(query, tuple(params))
-        tasks = [row_to_dict(row, c) for row in c.fetchall()]
-    
-        # 获取总数
-        count_query = 'SELECT COUNT(*) FROM chemistry_calculations WHERE 1=1'
-        count_params = []
-        if status:
-            count_query += ' AND status = %s'
-            count_params.append(status)
-        if reaction_id:
-            count_query += ' AND reaction_id = %s'
-            count_params.append(reaction_id)
-    
-        c.execute(count_query, count_params)
-        total = list(c.fetchone().values())[0]
-    
-        conn.close()
-    
-        return jsonify({
-            'success': True,
-            'tasks': tasks,
-            'pagination': {
-                'page': page,
-                'per_page': per_page,
-                'total': total,
-                'pages': (total + per_page - 1) // per_page
-            }
-        })
-    
-    except Exception as e:
-        logger.error(f"获取计算任务列表失败：{e}")
-        return jsonify({
-            'success': False,
-            'error': 'internal_error',
-            'message': str(e)
-        }), 500
-
-
+# ============================================
 # ============================================
 # T018 调研记录 API
 # ============================================
@@ -4712,45 +4591,45 @@ def perception_events():
     try:
         limit = request.args.get('limit', 100, type=int)
         event_type = request.args.get('type', None)
-    
-        conn = get_db()
-        c = conn.cursor()
-    
-        if event_type:
-            c.execute('''
-                SELECT id, event_type, severity, source, message, metadata, timestamp, hash
-                FROM perception_events
-                WHERE event_type = %s
-                ORDER BY timestamp DESC
-                LIMIT %s
-            ''', (event_type, limit))
-        else:
-            c.execute('''
-                SELECT id, event_type, severity, source, message, metadata, timestamp, hash
-                FROM perception_events
-                ORDER BY timestamp DESC
-                LIMIT %s
-            ''', (limit,))
-    
-        rows = c.fetchall()
-        events = []
-        for row in rows:
-            events.append({
-                'id': str(row[0]),
-                'type': row[1],
-                'severity': row[2],
-                'source': row[3],
-                'message': row[4],
-                'metadata': json.loads(row[5]) if row[5] else {},
-                'timestamp': row[6],
-                'hash': row[7]
-            })
 
-        return jsonify({
-            'success': True,
-            'events': events,
-            'count': len(events)
-        })
+        with get_db_connection() as conn:
+            c = conn.cursor()
+
+            if event_type:
+                c.execute('''
+                    SELECT id, event_type, severity, source, message, metadata, timestamp, hash
+                    FROM perception_events
+                    WHERE event_type = %s
+                    ORDER BY timestamp DESC
+                    LIMIT %s
+                ''', (event_type, limit))
+            else:
+                c.execute('''
+                    SELECT id, event_type, severity, source, message, metadata, timestamp, hash
+                    FROM perception_events
+                    ORDER BY timestamp DESC
+                    LIMIT %s
+                ''', (limit,))
+
+            rows = c.fetchall()
+            events = []
+            for row in rows:
+                events.append({
+                    'id': str(row[0]),
+                    'type': row[1],
+                    'severity': row[2],
+                    'source': row[3],
+                    'message': row[4],
+                    'metadata': json.loads(row[5]) if row[5] else {},
+                    'timestamp': row[6],
+                    'hash': row[7]
+                })
+
+            return jsonify({
+                'success': True,
+                'events': events,
+                'count': len(events)
+            })
     except Exception as e:
         logger.error(f"获取感知事件失败: {e}")
         return jsonify({'success': False, 'error': str(e)})
@@ -7913,3 +7792,11 @@ def update_review(review_id):
 # Admin routes
 from admin_routes import admin_bp
 app.register_blueprint(admin_bp, url_prefix="/api/admin")
+
+# ============================================
+# 文件下载路由
+# ============================================
+@app.route('/uploads/docs/<path:filename>')
+def serve_upload(filename):
+    '''提供上传文件的下载服务'''
+    return send_from_directory('/opt/kanban-react/frontend/public/uploads/docs', filename)

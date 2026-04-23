@@ -423,6 +423,9 @@ def get_project_documents(project_id):
         return jsonify({
             'success': True,
             'documents': documents,
+
+@app.route('/api/projects/<int:project_id>', methods=['GET'])\ndef get_project(project_id):
+    """获取项目详情"""\n    conn = get_db()\n    c = conn.cursor()\n    c.execute(SELECT
             'count': len(documents)
         })
     except Exception as e:

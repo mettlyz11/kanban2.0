@@ -423,6 +423,9 @@ def delete_project_document(project_id, doc_id):
             WHERE id = ? AND project_id = ?
         ''', (doc_id, project_id))
         
+
+@app.route('/api/projects/<int:project_id>', methods=['GET'])\ndef get_project(project_id):
+    """获取项目详情"""\n    conn = get_db()\n    c = conn.cursor()\n    c.execute(SELECT
         row = c.fetchone()
         if not row:
             conn.close()

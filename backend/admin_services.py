@@ -3,12 +3,12 @@
 任务: P049-T8-2 管理员后台
 """
 
-import sqlite3
 import json
 import hashlib
 import secrets
 from datetime import datetime, timedelta
 from typing import List, Dict, Any, Optional, Tuple
+from database_config import get_db_connection, row_to_dict
 from admin_models import (
     AdminUser, AdminLog, SystemConfig, EmailTemplate,
     TaskQueueItem, WorkerStatus, SystemStats
@@ -22,8 +22,8 @@ class AdminService:
         self.db_path = db_path
     
     def get_db_connection(self):
-        """获取数据库连接"""
-        conn = sqlite3.connect(self.db_path)
+        """获取数据库连接（MySQL via database_config）"""
+        conn = get_db_connection()
         
         return conn
 
@@ -46,13 +46,13 @@ class UserManagementService(AdminService):
         params = []
         
         if status:
-            conditions.append("status = ?")
+            conditions.append("status = %s")
             params.append(status)
         if role:
-            conditions.append("role = ?")
+            conditions.append("role = %s")
             params.append(role)
         if search:
-            conditions.append("(username LIKE ? OR email LIKE ?)")
+            conditions.append("(username LIKE %s OR email LIKE %s)")
             params.extend([f"%{search}%", f"%{search}%"])
         
         where_clause = "WHERE " + " AND ".join(conditions) if conditions else ""
@@ -69,22 +69,14 @@ class UserManagementService(AdminService):
             FROM users
             {where_clause}
             ORDER BY created_at DESC
-            LIMIT ? OFFSET ?
+            LIMIT %s OFFSET %s
         """
         c.execute(sql, params + [per_page, offset])
         rows = c.fetchall()
         
         users = []
         for row in rows:
-            users.append({
-                'id': row[0],
-                'username': row[1],
-                'email': row[2],
-                'role': row[3],
-                'status': row[4],
-                'created_at': row[5],
-                'last_login': row[6]
-            })
+            users.append(row_to_dict(row, c))
         
         conn.close()
         
@@ -103,7 +95,7 @@ class UserManagementService(AdminService):
         
         c.execute("""
             SELECT id, username, email, role, status, created_at, last_login
-            FROM users WHERE id = ?
+            FROM users WHERE id = %s
         """, (user_id,))
         
         row = c.fetchone()
@@ -112,15 +104,7 @@ class UserManagementService(AdminService):
         if not row:
             return None
         
-        return {
-            'id': row[0],
-            'username': row[1],
-            'email': row[2],
-            'role': row[3],
-            'status': row[4],
-            'created_at': row[5],
-            'last_login': row[6]
-        }
+        return row_to_dict(row, c)
     
     def update_user_status(self, user_id: int, status: str) -> Dict[str, Any]:
         """更新用户状态（禁用/启用）"""
@@ -132,7 +116,7 @@ class UserManagementService(AdminService):
         
         try:
             c.execute(
-                "UPDATE users SET status = ? WHERE id = ?",
+                "UPDATE users SET status = %s WHERE id = %s",
                 (status, user_id)
             )
             conn.commit()
@@ -157,7 +141,7 @@ class UserManagementService(AdminService):
         
         try:
             c.execute(
-                "UPDATE users SET role = ? WHERE id = ?",
+                "UPDATE users SET role = %s WHERE id = %s",
                 (role, user_id)
             )
             conn.commit()
@@ -177,7 +161,7 @@ class UserManagementService(AdminService):
         c = conn.cursor()
         
         try:
-            c.execute("DELETE FROM users WHERE id = ?", (user_id,))
+            c.execute("DELETE FROM users WHERE id = %s", (user_id,))
             conn.commit()
             
             if c.rowcount == 0:
@@ -209,7 +193,7 @@ class UserManagementService(AdminService):
         # 今日新增
         today = datetime.now().strftime('%Y-%m-%d')
         c.execute(
-            "SELECT COUNT(*) FROM users WHERE DATE(created_at) = ?",
+            "SELECT COUNT(*) FROM users WHERE DATE(created_at) = %s",
             (today,)
         )
         new_today = c.fetchone()[0]
@@ -254,7 +238,7 @@ class TaskMonitorService(AdminService):
         c.execute("""
             SELECT status, COUNT(*) as count 
             FROM tasks 
-            WHERE created_at > ?
+            WHERE created_at > %s
             GROUP BY status
         """, (yesterday,))
         recent_counts = {row[0]: row[1] for row in c.fetchall()}
@@ -269,13 +253,7 @@ class TaskMonitorService(AdminService):
         """)
         pending_tasks = []
         for row in c.fetchall():
-            pending_tasks.append({
-                'id': row[0],
-                'title': row[1],
-                'status': row[2],
-                'priority': row[3],
-                'created_at': row[4]
-            })
+            pending_tasks.append(row_to_dict(row, c))
         
         conn.close()
         
@@ -374,14 +352,7 @@ class ConfigService(AdminService):
         
         configs = []
         for row in c.fetchall():
-            configs.append({
-                'id': row[0],
-                'config_key': row[1],
-                'config_value': row[2],
-                'config_type': row[3],
-                'description': row[4],
-                'updated_at': row[5]
-            })
+            configs.append(row_to_dict(row, c))
         
         conn.close()
         return configs
@@ -392,7 +363,7 @@ class ConfigService(AdminService):
         c = conn.cursor()
         
         c.execute(
-            "SELECT * FROM system_config WHERE config_key = ?",
+            "SELECT * FROM system_config WHERE config_key = %s",
             (key,)
         )
         row = c.fetchone()
@@ -411,8 +382,8 @@ class ConfigService(AdminService):
         try:
             c.execute("""
                 UPDATE system_config 
-                SET config_value = ?, updated_at = ?, updated_by = ?
-                WHERE config_key = ?
+                SET config_value = %s, updated_at = %s, updated_by = %s
+                WHERE config_key = %s
             """, (value, datetime.now().isoformat(), updated_by, key))
             
             conn.commit()
@@ -439,14 +410,7 @@ class ConfigService(AdminService):
         
         templates = []
         for row in c.fetchall():
-            templates.append({
-                'id': row[0],
-                'template_name': row[1],
-                'subject': row[2],
-                'variables': json.loads(row[3]) if row[3] else [],
-                'is_active': bool(row[4]),
-                'updated_at': row[5]
-            })
+            templates.append(row_to_dict(row, c))
         
         conn.close()
         return templates
@@ -457,7 +421,7 @@ class ConfigService(AdminService):
         c = conn.cursor()
         
         c.execute(
-            "SELECT * FROM email_templates WHERE id = ?",
+            "SELECT * FROM email_templates WHERE id = %s",
             (template_id,)
         )
         row = c.fetchone()
@@ -480,8 +444,8 @@ class ConfigService(AdminService):
         try:
             c.execute("""
                 UPDATE email_templates 
-                SET subject = ?, body = ?, updated_at = ?, updated_by = ?
-                WHERE id = ?
+                SET subject = %s, body = %s, updated_at = %s, updated_by = %s
+                WHERE id = %s
             """, (subject, body, datetime.now().isoformat(), updated_by, template_id))
             
             conn.commit()
@@ -515,16 +479,16 @@ class LogService(AdminService):
         params = []
         
         if level:
-            conditions.append("level = ?")
+            conditions.append("level = %s")
             params.append(level)
         if source:
-            conditions.append("source LIKE ?")
+            conditions.append("source LIKE %s")
             params.append(f"%{source}%")
         if start_time:
-            conditions.append("timestamp >= ?")
+            conditions.append("timestamp >= %s")
             params.append(start_time)
         if end_time:
-            conditions.append("timestamp <= ?")
+            conditions.append("timestamp <= %s")
             params.append(end_time)
         
         where_clause = "WHERE " + " AND ".join(conditions) if conditions else ""
@@ -541,20 +505,13 @@ class LogService(AdminService):
             FROM system_logs
             {where_clause}
             ORDER BY timestamp DESC
-            LIMIT ? OFFSET ?
+            LIMIT %s OFFSET %s
         """
         c.execute(sql, params + [per_page, offset])
         
         logs = []
         for row in c.fetchall():
-            logs.append({
-                'id': row[0],
-                'level': row[1],
-                'source': row[2],
-                'message': row[3],
-                'timestamp': row[4],
-                'metadata': json.loads(row[5]) if row[5] else {}
-            })
+            logs.append(row_to_dict(row, c))
         
         conn.close()
         
@@ -581,13 +538,13 @@ class LogService(AdminService):
         params = []
         
         if admin_id:
-            conditions.append("admin_id = ?")
+            conditions.append("admin_id = %s")
             params.append(admin_id)
         if action:
-            conditions.append("action = ?")
+            conditions.append("action = %s")
             params.append(action)
         if target_type:
-            conditions.append("target_type = ?")
+            conditions.append("target_type = %s")
             params.append(target_type)
         
         where_clause = "WHERE " + " AND ".join(conditions) if conditions else ""
@@ -605,23 +562,13 @@ class LogService(AdminService):
             FROM admin_logs
             {where_clause}
             ORDER BY created_at DESC
-            LIMIT ? OFFSET ?
+            LIMIT %s OFFSET %s
         """
         c.execute(sql, params + [per_page, offset])
         
         logs = []
         for row in c.fetchall():
-            logs.append({
-                'id': row[0],
-                'admin_id': row[1],
-                'admin_username': row[2],
-                'action': row[3],
-                'target_type': row[4],
-                'target_id': row[5],
-                'details': json.loads(row[6]) if row[6] else {},
-                'ip_address': row[7],
-                'created_at': row[8]
-            })
+            logs.append(row_to_dict(row, c))
         
         conn.close()
         
@@ -649,7 +596,7 @@ class LogService(AdminService):
             c.execute("""
                 INSERT INTO admin_logs 
                 (admin_id, admin_username, action, target_type, target_id, details, ip_address, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
             """, (
                 admin_id, admin_username, action, target_type, target_id,
                 json.dumps(details) if details else '{}',
@@ -693,7 +640,7 @@ class DashboardService(AdminService):
         c.execute("""
             SELECT DATE(created_at) as date, COUNT(*) as count
             FROM tasks
-            WHERE DATE(created_at) >= ?
+            WHERE DATE(created_at) >= %s
             GROUP BY DATE(created_at)
             ORDER BY date
         """, (week_ago,))
@@ -711,7 +658,7 @@ class DashboardService(AdminService):
             ORDER BY last_login DESC
             LIMIT 5
         """)
-        recent_logins = [{'username': row[0], 'last_login': row[1]} for row in c.fetchall()]
+        recent_logins = [row_to_dict(row, c) for row in c.fetchall()]
         
         conn.close()
         

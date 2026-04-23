@@ -423,6 +423,9 @@ def allowed_file(filename):
     """检查文件扩展名是否允许"""
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
+
+@app.route('/api/projects/<int:project_id>', methods=['GET'])\ndef get_project(project_id):
+    """获取项目详情"""\n    conn = get_db()\n    c = conn.cursor()\n    c.execute(SELECT
 def check_project_member_permission(project_id, user_id=None):
     """检查用户是否是项目成员（简化版，可根据需要扩展）"""
     # TODO: 实现实际的项目成员验证逻辑

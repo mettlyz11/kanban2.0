@@ -1,11 +1,8 @@
-import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate, Outlet } from "react-router-dom"
 import { useState } from 'react'
 import { useAuth } from '../hooks/useAuth'
 import './Layout.css'
 
-interface LayoutProps {
-  children: React.ReactNode
-}
 
 const menuItems = [
   { path: '/projects', icon: '📁', label: '项目' },
@@ -37,6 +34,10 @@ const menuItems = [
 
 // 更新记录
 const updateRecords = [
+  { date: "2026-04-04", version: "v4.6.0", changes: ["新增个人信息页面", "新增公司信息页面", "任务页面看板视图", "任务页面甘特图视图", "美化更新记录", "优化移动端适配"] },
+  { date: '2026-03-22', version: 'v4.5.1', changes: ['重新构建前端优化性能', '更新所有依赖到最新版本', '优化打包体积和加载速度'] },
+  { date: '2026-03-22', version: 'v5.3.0', changes: ['**重大更新：移除登录认证**', '无需登录即可访问看板', '直接显示看板主界面', '前端重新构建'] },
+  { date: '2026-03-22', version: 'v5.2.2', changes: ['**重大更新：MySQL RDS 迁移完成**', '后端从 SQLite 迁移到 MySQL RDS', '使用 pymysql 替代 sqlite3', '修复所有数据库连接', '前端重新构建到 v4.5.1'] },
   { date: '2026-02-28', version: 'v2.3.0', changes: ['新增任务下拉菜单和齿轮执行详情', '项目卡片显示目标字段和任务列表', '新增项目目标页面', '新增24小时系统资源趋势监控', '后端API扩展：任务历史、项目任务、资源监控'] },
   { date: '2026-02-27', version: 'v2.2.0', changes: ['新增感知Agent系统', '实时日志监控', 'API错误自动检测', '性能指标监控', '用户行为分析', '智能告警与长思考触发'] },
   { date: '2026-02-26', version: 'v2.1.0', changes: ['新增系统监控历史数据', '新增访问统计详情', '优化移动端适配', '修复计算任务页面'] },
@@ -70,6 +71,7 @@ export function Layout({ children }: LayoutProps) {
   }
 
   const handleLogout = () => {
+    setShowUserMenu(false)
     logout()
     navigate('/login')
   }
@@ -103,11 +105,27 @@ export function Layout({ children }: LayoutProps) {
 
   return (
     <div className="app">
+      {/* Sidebar comes first before header so sibling selectors work correctly */}
+      <aside className={`sidebar ${sidebarOpen ? 'open' : 'closed'}`}>
+        <nav className="sidebar-nav">
+          {menuItems.map(item => (
+            <Link
+              key={item.path}
+              to={item.path}
+              className={`nav-item ${location.pathname === item.path ? 'active' : ''}`}
+            >
+              <span className="nav-icon">{item.icon}</span>
+              {sidebarOpen && <span className="nav-label">{item.label}</span>}
+            </Link>
+          ))}
+        </nav>
+      </aside>
+      
       <header className="app-header">
         <div className="header-brand">
           <button className="menu-toggle" onClick={() => setSidebarOpen(!sidebarOpen)}>☰</button>
           <Link to="/" style={{ textDecoration: 'none', color: 'inherit' }}>
-            <h1>📊 看板系统 v2.0</h1>
+            <h1>📊 看板系统 v4.5.1</h1>
           </Link>
         </div>
         <nav className="header-nav">
@@ -209,21 +227,7 @@ export function Layout({ children }: LayoutProps) {
       )}
       
       <div className="app-body">
-        <aside className={`sidebar ${sidebarOpen ? 'open' : 'closed'}`}>
-          <nav className="sidebar-nav">
-            {menuItems.map(item => (
-              <Link
-                key={item.path}
-                to={item.path}
-                className={`nav-item ${location.pathname === item.path ? 'active' : ''}`}
-              >
-                <span className="nav-icon">{item.icon}</span>
-                {sidebarOpen && <span className="nav-label">{item.label}</span>}
-              </Link>
-            ))}
-          </nav>
-        </aside>
-        <main className="main-content">{children}</main>
+        <main className="main-content"><Outlet /></main>
       </div>
 
       {/* 更新记录弹窗 */}
@@ -238,7 +242,7 @@ export function Layout({ children }: LayoutProps) {
                   padding: '12px', 
                   background: '#f8f9fa', 
                   borderRadius: '8px',
-                  borderLeft: '4px solid #667eea'
+                  borderLeft: '4px solid #667eea', boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
                 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
                     <strong>{record.version}</strong>
@@ -314,3 +318,5 @@ export function Layout({ children }: LayoutProps) {
     </div>
   )
 }
+
+export default Layout

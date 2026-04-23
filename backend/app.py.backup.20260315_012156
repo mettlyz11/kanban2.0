@@ -423,6 +423,9 @@ def get_project_upload_path(project_id):
         os.makedirs(upload_path, exist_ok=True)
     return upload_path
 
+
+@app.route('/api/projects/<int:project_id>', methods=['GET'])\ndef get_project(project_id):
+    """获取项目详情"""\n    conn = get_db()\n    c = conn.cursor()\n    c.execute(SELECT
 @app.route('/api/projects/<int:project_id>/documents', methods=['GET'])
 def get_project_documents(project_id):
     """获取项目文档列表"""

@@ -8,6 +8,7 @@ export function Emails() {
   const [syncing, setSyncing] = useState(false)
   const [filter, setFilter] = useState('Inbox')
   const [selectedEmail, setSelectedEmail] = useState<any>(null)
+  const [loadingDetail, setLoadingDetail] = useState(false)
   const [showReplyModal, setShowReplyModal] = useState(false)
   const [replyContent, setReplyContent] = useState('')
   const [activeTab, setActiveTab] = useState('Inbox')
@@ -28,7 +29,7 @@ export function Emails() {
       if (data.success && data.stats && data.stats.folders) {
         // 从统计数据转换为文件夹列表
         const folderList = Object.entries(data.stats.folders).map(([id, count]) => ({
-          id: id,
+          id: id as string,
           name: getFolderName(id),
           unread: id === 'Inbox' ? data.stats.unread : 0
         }))
@@ -95,6 +96,22 @@ export function Emails() {
     }
   }
 
+  // 加载邮件详情
+  const loadEmailDetail = async (emailId: number) => {
+    try {
+      setLoadingDetail(true)
+      const res = await fetch(`${EMAIL_API_URL}/api/emails/${emailId}`)
+      const data = await res.json()
+      if (data.success) {
+        setSelectedEmail(data.email)
+      }
+    } catch (e) {
+      console.error('加载邮件详情失败:', e)
+    } finally {
+      setLoadingDetail(false)
+    }
+  }
+
   // 标记已读
   const markAsRead = async (emailId: number) => {
     try {
@@ -157,6 +174,14 @@ export function Emails() {
     } catch (e) {
       console.error(e)
     }
+  }
+
+  // 处理邮件点击
+  const handleEmailClick = async (email: any) => {
+    setSelectedEmail(email)
+    // 加载完整详情
+    await loadEmailDetail(email.id)
+    await markAsRead(email.id)
   }
 
   // 格式化日期
@@ -243,7 +268,7 @@ export function Emails() {
                 emails.map((email: any) => (
                   <div
                     key={email.id}
-                    onClick={() => { setSelectedEmail(email); markAsRead(email.id) }}
+                    onClick={() => handleEmailClick(email)}
                     className={`p-4 cursor-pointer hover:bg-gray-50 transition ${
                       selectedEmail?.id === email.id ? 'bg-blue-50 border-l-4 border-blue-600' : ''
                     } ${!email.is_read ? 'font-semibold bg-gray-50' : ''}`}
@@ -276,9 +301,16 @@ export function Emails() {
                   <div>
                     <h2 className="text-lg font-semibold text-gray-900">{selectedEmail.subject}</h2>
                     <p className="text-sm text-gray-500 mt-1">
-                      来自: {selectedEmail.sender_name || selectedEmail.sender}
+                      发件人: {selectedEmail.sender_name || selectedEmail.sender}
                     </p>
-                    <p className="text-xs text-gray-400">{formatDate(selectedEmail.date)}</p>
+                    {selectedEmail.date && (
+                      <p className="text-xs text-gray-400">{formatDate(selectedEmail.date || selectedEmail.received_at)}</p>
+                    )}
+                    {selectedEmail.recipient && (
+                      <p className="text-xs text-gray-500 mt-1">
+                        收件人: {selectedEmail.recipient}
+                      </p>
+                    )}
                   </div>
                   <div className="flex space-x-2">
                     <button
@@ -298,21 +330,27 @@ export function Emails() {
                   </div>
                 </div>
                 <div className="p-4 max-h-[calc(100vh-350px)] overflow-y-auto mt-4">
-                  <div className="prose max-w-none whitespace-pre-wrap">
-                    {selectedEmail.body}
-                  </div>
-                  {selectedEmail.attachments && selectedEmail.attachments.length > 0 && (
-                    <div className="mt-6 pt-4 border-t">
-                      <h3 className="text-sm font-semibold text-gray-700 mb-3">附件</h3>
-                      <div className="space-y-2">
-                        {selectedEmail.attachments.map((att: any, idx: number) => (
-                          <div key={idx} className="flex items-center p-2 bg-gray-50 rounded-lg">
-                            <span className="text-sm text-gray-600">{att.name}</span>
-                            <span className="text-xs text-gray-400 ml-2">({Math.round(att.size / 1024)} KB)</span>
-                          </div>
-                        ))}
+                  {loadingDetail ? (
+                    <div className="text-center py-8 text-gray-500">加载中...</div>
+                  ) : (
+                    <>
+                      <div className="prose max-w-none whitespace-pre-wrap">
+                        {selectedEmail.body || selectedEmail.preview}
                       </div>
-                    </div>
+                      {selectedEmail.attachments && selectedEmail.attachments.length > 0 && (
+                        <div className="mt-6 pt-4 border-t">
+                          <h3 className="text-sm font-semibold text-gray-700 mb-3">附件</h3>
+                          <div className="space-y-2">
+                            {selectedEmail.attachments.map((att: any, idx: number) => (
+                              <div key={idx} className="flex items-center p-2 bg-gray-50 rounded-lg">
+                                <span className="text-sm text-gray-600">{att.name}</span>
+                                <span className="text-xs text-gray-400 ml-2">({Math.round(att.size / 1024)} KB)</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
               </>
@@ -330,7 +368,7 @@ export function Emails() {
 
       {/* 回复弹窗 */}
       {showReplyModal && selectedEmail && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-5">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl mx-4 modal">
             <div className="p-4 border-b">
               <h3 className="text-lg font-semibold">回复: {selectedEmail.subject}</h3>

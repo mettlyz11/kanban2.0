@@ -1,0 +1,26 @@
+[Unit]
+Description=感知 Agent 系统 (Perception Agent)
+Documentation=https://github.com/mettlyz11/kanban-system
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/.openclaw/workspace/kanban-react/backend
+ExecStart=/usr/bin/python3 /root/.openclaw/workspace/kanban-react/backend/start_perception_agent.sh
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=perception-agent
+
+# 环境变量
+Environment="PYTHONUNBUFFERED=1"
+Environment="PATH=/usr/local/bin:/usr/bin:/bin"
+
+# 安全设置
+NoNewPrivileges=false
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

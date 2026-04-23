@@ -22,7 +22,7 @@ export function Molecules() {
             </p>
           </div>
           <a 
-            href="http://47.93.184.128/helight/" 
+            href="https://helight.com.cn" 
             target="_blank" 
             rel="noopener noreferrer"
             className="btn"
@@ -47,7 +47,7 @@ export function Molecules() {
           </p>
           <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', flexWrap: 'wrap', marginTop: '24px' }}>
             <a
-              href="http://47.93.184.128/helight/"
+              href="https://helight.com.cn"
               target="_blank"
               rel="noopener noreferrer"
               className="btn btn-primary"
@@ -56,7 +56,7 @@ export function Molecules() {
               🚀 进入平台
             </a>
             <a
-              href="http://47.93.184.128/helight/docs"
+              href="https://helight.com.cn/docs"
               target="_blank"
               rel="noopener noreferrer"
               className="btn btn-secondary"

@@ -1,0 +1,95 @@
+"""
+人员和公司动态Tab路由 - MySQL版本
+"""
+
+from flask import Blueprint, request, jsonify
+from database_config import get_db_connection, row_to_dict
+import json
+
+person_company_bp = Blueprint('person_company', __name__, url_prefix='/api')
+
+# 人员相关API
+@person_company_bp.route('/persons', methods=['GET'])
+def get_persons():
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('SELECT id, name, title, email, phone, company, location, avatar, created_at FROM persons ORDER BY created_at DESC')
+            persons = [row_to_dict(row, cursor) for row in cursor.fetchall()]
+            return jsonify({'success': True, 'persons': persons})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@person_company_bp.route('/persons/<int:person_id>', methods=['GET'])
+def get_person_detail(person_id):
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('SELECT * FROM persons WHERE id = %s', (person_id,))
+            person = cursor.fetchone()
+            if not person:
+                return jsonify({'success': False, 'error': '人员不存在'}), 404
+            person_dict = row_to_dict(person, cursor)
+            
+            cursor.execute('SELECT id, name, type, sort_order FROM person_tabs WHERE person_id = %s ORDER BY sort_order', (person_id,))
+            tabs = [row_to_dict(row, cursor) for row in cursor.fetchall()]
+            
+            if not tabs:
+                defaults = [('基本信息', 'basic'), ('教育背景', 'education'), ('工作经历', 'experience'), ('技能证书', 'skills')]
+                for idx, (name, t) in enumerate(defaults):
+                    cursor.execute('INSERT INTO person_tabs (person_id, name, type, sort_order) VALUES (%s, %s, %s, %s)', (person_id, name, t, idx))
+                conn.commit()
+                cursor.execute('SELECT id, name, type, sort_order FROM person_tabs WHERE person_id = %s ORDER BY sort_order', (person_id,))
+                tabs = [row_to_dict(row, cursor) for row in cursor.fetchall()]
+            
+            for tab in tabs:
+                cursor.execute('SELECT id, title, content, item_date FROM person_tab_items WHERE tab_id = %s ORDER BY created_at DESC', (tab['id'],))
+                tab['items'] = [row_to_dict(row, cursor) for row in cursor.fetchall()]
+            
+            person_dict['tabs'] = tabs
+            return jsonify({'success': True, 'person': person_dict})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+# 公司相关API
+@person_company_bp.route('/companies', methods=['GET'])
+def get_companies():
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('SELECT id, name, short_name, industry, address, logo, employee_count, created_at FROM company_info ORDER BY created_at DESC')
+            companies = [row_to_dict(row, cursor) for row in cursor.fetchall()]
+            return jsonify({'success': True, 'companies': companies})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@person_company_bp.route('/companies/<int:company_id>', methods=['GET'])
+def get_company_detail(company_id):
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('SELECT * FROM company_info WHERE id = %s', (company_id,))
+            company = cursor.fetchone()
+            if not company:
+                return jsonify({'success': False, 'error': '公司不存在'}), 404
+            company_dict = row_to_dict(company, cursor)
+            
+            cursor.execute('SELECT id, name, type, sort_order FROM company_tabs WHERE company_id = %s ORDER BY sort_order', (company_id,))
+            tabs = [row_to_dict(row, cursor) for row in cursor.fetchall()]
+            
+            if not tabs:
+                defaults = [('基本信息', 'basic'), ('产品介绍', 'products'), ('合作案例', 'cases'), ('新闻动态', 'news')]
+                for idx, (name, t) in enumerate(defaults):
+                    cursor.execute('INSERT INTO company_tabs (company_id, name, type, sort_order) VALUES (%s, %s, %s, %s)', (company_id, name, t, idx))
+                conn.commit()
+                cursor.execute('SELECT id, name, type, sort_order FROM company_tabs WHERE company_id = %s ORDER BY sort_order', (company_id,))
+                tabs = [row_to_dict(row, cursor) for row in cursor.fetchall()]
+            
+            for tab in tabs:
+                cursor.execute('SELECT id, title, content, item_date FROM company_tab_items WHERE tab_id = %s ORDER BY created_at DESC', (tab['id'],))
+                tab['items'] = [row_to_dict(row, cursor) for row in cursor.fetchall()]
+            
+            company_dict['tabs'] = tabs
+            return jsonify({'success': True, 'company': company_dict})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500

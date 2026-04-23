@@ -1,0 +1,198 @@
+# 感知Agent配置文件
+# 路径: kanban-react/backend/perception_config.yml
+
+listeners:
+  # =============================================================================
+  # 日志监听器 - 实时监控日志文件
+  # =============================================================================
+  log_watcher:
+    enabled: true
+    poll_interval: 2  # 轮询间隔(秒)
+    
+    files:
+      - ~/.openclaw/workspace/kanban-react/server.log
+      - ~/.openclaw/workspace/logs/kanban_v5.log
+      - ~/.openclaw/workspace/logs/cloudflared.log
+      - ~/.openclaw/workspace/logs/t109.log
+      - ~/.openclaw/workspace/logs/pepi.log
+    
+    patterns:
+      # Critical级别 - 立即触发长思考
+      - regex: "ERROR|CRITICAL|FATAL|Exception|Traceback"
+        severity: critical
+        action: immediate_reflection
+      
+      # High级别 - HTTP 5xx错误
+      - regex: "5\\d{2}"
+        severity: high
+        action: delayed_reflection
+      
+      # High级别 - 数据库连接失败
+      - regex: "Connection refused|Connection timeout|DatabaseError"
+        severity: high
+        action: delayed_reflection
+      
+      # Medium级别 - 警告信息
+      - regex: "WARNING|Warn|DeprecationWarning"
+        severity: medium
+        action: daily_summary
+      
+      # Low级别 - 信息提示
+      - regex: "INFO:.*completed|DEBUG:"
+        severity: low
+        action: log
+
+  # =============================================================================
+  # 错误监听器 - API和系统错误
+  # =============================================================================
+  error_watcher:
+    enabled: true
+    dedup_window: 3600  # 去重窗口(秒)，1小时内相同错误不重复触发
+    
+    sources:
+      - api_errors       # API调用错误
+      - database_errors  # 数据库错误
+      - network_errors   # 网络错误
+      - auth_errors      # 认证错误
+
+  # =============================================================================
+  # 性能指标监听器 - 系统资源监控
+  # =============================================================================
+  metric_watcher:
+    enabled: true
+    poll_interval: 30  # 采集间隔(秒)
+    
+    metrics:
+      - name: cpu_usage
+        threshold: 80    # CPU使用率阈值(%)
+        duration: 300    # 持续超过阈值时间(秒)
+      
+      - name: memory_usage
+        threshold: 85    # 内存使用率阈值(%)
+        duration: 300    # 持续超过阈值时间(秒)
+      
+      - name: disk_usage
+        threshold: 90    # 磁盘使用率阈值(%)
+        duration: 60     # 持续超过阈值时间(秒)
+      
+      - name: response_time
+        threshold: 5000  # API响应时间阈值(毫秒)
+        duration: 60     # 持续超过阈值时间(秒)
+
+  # =============================================================================
+  # 行为监听器 - 用户行为分析
+  # =============================================================================
+  behavior_watcher:
+    enabled: true
+    
+    patterns:
+      # 重复操作检测
+      - name: repeated_action
+        description: "用户在短时间内重复执行相同操作"
+        window: 300      # 时间窗口(秒)
+        count: 3         # 触发阈值(次数)
+        action: suggest_optimization
+      
+      # 高频操作检测
+      - name: high_frequency
+        description: "用户操作频率异常高"
+        window: 60       # 时间窗口(秒)
+        count: 20        # 触发阈值(次数)
+        action: alert
+      
+      # 异常时间操作
+      - name: unusual_time
+        description: "用户在非常规时间进行操作"
+        hours: [0, 1, 2, 3, 4, 5]  # 凌晨时段
+        action: log
+
+  # =============================================================================
+  # 外部监听器 - 外部API和源
+  # =============================================================================
+  external_watcher:
+    enabled: false  # 默认关闭，需要配置API密钥后启用
+    
+    sources:
+      - name: github
+        enabled: false
+        url: "https://api.github.com/notifications"
+        interval: 300   # 轮询间隔(秒)
+        token: ""       # GitHub Personal Access Token
+      
+      - name: arxiv
+        enabled: false
+        query: "cat:cs.AI OR cat:cs.CL"
+        interval: 3600  # 轮询间隔(秒)
+        max_results: 10
+      
+      - name: rss
+        enabled: false
+        urls:
+          - "https://news.ycombinator.com/rss"
+        interval: 1800  # 轮询间隔(秒)
+
+# =============================================================================
+# 处理器配置
+# =============================================================================
+processor:
+  dedup_window: 300  # 全局去重窗口(秒)
+  
+  # 严重级别映射
+  severity_actions:
+    critical:
+      - immediate_reflection
+      - alert
+    high:
+      - delayed_reflection
+      - alert
+    medium:
+      - daily_summary
+    low:
+      - weekly_improvement
+
+# =============================================================================
+# 响应动作配置
+# =============================================================================
+actions:
+  immediate_reflection:
+    description: "立即生成长思考任务"
+    priority: 1
+    delay: 0
+  
+  delayed_reflection:
+    description: "延迟生成长思考任务"
+    priority: 2
+    delay: 3600  # 1小时后
+  
+  daily_summary:
+    description: "添加到每日汇总"
+    priority: 3
+    schedule: "0 9 * * *"  # 每天上午9点
+  
+  weekly_improvement:
+    description: "添加到周度改进"
+    priority: 4
+    schedule: "0 10 * * 1"  # 每周一上午10点
+  
+  suggest_optimization:
+    description: "生成优化建议"
+    priority: 5
+  
+  alert:
+    description: "发送告警通知"
+    priority: 2
+
+# =============================================================================
+# 存储配置
+# =============================================================================
+storage:
+  # 事件日志目录
+  log_dir: ~/.openclaw/workspace/logs/perception
+  
+  # 保留日志天数
+  retention_days: 30
+  
+  # 数据库(可选)
+  database:
+    enabled: false
+    path: ~/.openclaw/workspace/kanban/perception.db

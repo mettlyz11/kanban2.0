@@ -1,0 +1,53 @@
+2026-03-11 23:17:58,804 - TaskWorker-Sim - INFO - 执行单轮任务处理（模拟模式）
+2026-03-11 23:17:58,805 - TaskWorker-Sim - INFO - 发现 5 个待处理任务
+2026-03-11 23:17:58,805 - TaskWorker-Sim - INFO - 开始执行任务 298: T109架构评审与确认
+2026-03-11 23:17:58,806 - TaskWorker-Sim - INFO - 任务 298 状态更新为：in_progress
+2026-03-11 23:17:58,807 - TaskWorker-Sim - INFO - 模拟作业 278806 已提交 (任务 298)
+2026-03-11 23:17:58,808 - TaskWorker-Sim - INFO - 任务 298 状态更新为：submitted
+2026-03-11 23:17:58,808 - TaskWorker-Sim - INFO - 任务 298 已提交，作业 ID: 278806
+2026-03-11 23:17:58,808 - TaskWorker-Sim - INFO - 任务 298: 成功
+2026-03-11 23:17:58,808 - TaskWorker-Sim - INFO - 开始执行任务 301: 国自然结题报告撰写与提交
+2026-03-11 23:17:58,808 - TaskWorker-Sim - INFO - 任务 301 状态更新为：in_progress
+2026-03-11 23:17:58,809 - TaskWorker-Sim - INFO - 模拟作业 278808 已提交 (任务 301)
+2026-03-11 23:17:58,810 - TaskWorker-Sim - INFO - 任务 301 状态更新为：submitted
+2026-03-11 23:17:58,810 - TaskWorker-Sim - INFO - 任务 301 已提交，作业 ID: 278808
+2026-03-11 23:17:58,810 - TaskWorker-Sim - INFO - 任务 301: 成功
+2026-03-11 23:17:58,810 - TaskWorker-Sim - INFO - 开始执行任务 302: 金度律所聘请合同签署
+2026-03-11 23:17:58,810 - TaskWorker-Sim - INFO - 任务 302 状态更新为：in_progress
+2026-03-11 23:17:58,811 - TaskWorker-Sim - INFO - 模拟作业 278810 已提交 (任务 302)
+2026-03-11 23:17:58,812 - TaskWorker-Sim - INFO - 任务 302 状态更新为：submitted
+2026-03-11 23:17:58,812 - TaskWorker-Sim - INFO - 任务 302 已提交，作业 ID: 278810
+2026-03-11 23:17:58,812 - TaskWorker-Sim - INFO - 任务 302: 成功
+2026-03-11 23:17:58,812 - TaskWorker-Sim - INFO - 开始执行任务 303: 周孟飞用餐安排确认
+2026-03-11 23:17:58,812 - TaskWorker-Sim - INFO - 任务 303 状态更新为：in_progress
+2026-03-11 23:17:58,813 - TaskWorker-Sim - INFO - 模拟作业 278812 已提交 (任务 303)
+2026-03-11 23:17:58,814 - TaskWorker-Sim - INFO - 任务 303 状态更新为：submitted
+2026-03-11 23:17:58,814 - TaskWorker-Sim - INFO - 任务 303 已提交，作业 ID: 278812
+2026-03-11 23:17:58,814 - TaskWorker-Sim - INFO - 任务 303: 成功
+2026-03-11 23:17:58,814 - TaskWorker-Sim - INFO - 开始执行任务 304: MACE-POLAR-1模型集成可行性评估
+2026-03-11 23:17:58,814 - TaskWorker-Sim - INFO - 任务 304 状态更新为：in_progress
+2026-03-11 23:17:58,816 - TaskWorker-Sim - INFO - 模拟作业 278814 已提交 (任务 304)
+2026-03-11 23:17:58,816 - TaskWorker-Sim - INFO - 任务 304 状态更新为：submitted
+2026-03-11 23:17:58,816 - TaskWorker-Sim - INFO - 任务 304 已提交，作业 ID: 278814
+2026-03-11 23:17:58,816 - TaskWorker-Sim - INFO - 任务 304: 成功
+2026-03-11 23:17:58,816 - TaskWorker-Sim - INFO - 等待作业完成...
+2026-03-11 23:18:03,819 - TaskWorker-Sim - INFO - 处理完成的任务 298
+2026-03-11 23:18:03,820 - TaskWorker-Sim - INFO - 任务 298 状态更新为：completed
+2026-03-11 23:18:03,820 - TaskWorker-Sim - INFO - 任务 298 处理完成：描述：架构设计完成后进行评审与确认\n\n[原项目44合并]
+任务执行成功
+
+结束时间：2026年 3月11日 星期三 23时18分00秒 CST
+任务执行成功
+2026-03-11 23:18:03,820 - TaskWorker-Sim - INFO - 任务 298 状态更新为：completed
+2026-03-11 23:18:03,820 - TaskWorker-Sim - INFO - 任务 301 状态更新为：running
+2026-03-11 23:18:03,820 - TaskWorker-Sim - INFO - 处理完成的任务 302
+2026-03-11 23:18:03,821 - TaskWorker-Sim - INFO - 任务 302 状态更新为：completed
+2026-03-11 23:18:03,821 - TaskWorker-Sim - INFO - 任务 302 处理完成：任务：金度律所聘请合同签署
+任务执行成功
+
+结束时间：2026年 3月11日 星期三 23时18分03秒 CST
+任务执行成功
+2026-03-11 23:18:03,821 - TaskWorker-Sim - INFO - 任务 302 状态更新为：completed
+2026-03-11 23:18:03,821 - TaskWorker-Sim - INFO - 任务 303 状态更新为：running
+2026-03-11 23:18:03,821 - TaskWorker-Sim - INFO - 任务 304 状态更新为：running
+2026-03-11 23:18:03,821 - TaskWorker-Sim - INFO - 单轮执行完成

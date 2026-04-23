@@ -1,4 +1,7 @@
 import { useState, useEffect } from 'react'
+import { TaskAttachments } from "../components/TaskAttachments"
+import { TaskAccordion } from "../components/TaskAccordion"
+import "../components/TaskAttachments.css"
 import { api, projectFilesApi } from '../utils/api'
 import { ChevronDown, ChevronUp, Target, ListTodo, Edit2, Trash2, Plus, X, Save, Upload, Download, FileText, AlertCircle, Loader2 } from 'lucide-react'
 
@@ -81,7 +84,7 @@ export function Projects() {
     status: 'todo'
   })
 
-  // 加载折叠状态，并自动加载已展开项目的任务
+  // 加载折叠状态（但不立即加载任务，等待项目列表加载完成）
   useEffect(() => {
     const saved = localStorage.getItem('kanban_expanded_projects')
     if (saved) {
@@ -89,38 +92,7 @@ export function Projects() {
         const ids = JSON.parse(saved)
         const expandedIds = new Set(ids)
         setExpandedProjects(expandedIds)
-        
-        // 自动加载已展开项目的任务和文件
-        ids.forEach(async (projectId: number) => {
-          // 加载任务
-          if (!projectTasks[projectId]) {
-            try {
-              const data = await api.getProjectTasks(projectId)
-              if (data.success) {
-                setProjectTasks(prev => ({
-                  ...prev,
-                  [projectId]: data.tasks || []
-                }))
-              }
-            } catch (e) {
-              console.error('Failed to load project tasks:', e)
-            }
-          }
-          // 加载文件
-          if (!projectFiles[projectId]) {
-            try {
-              const data = await projectFilesApi.getFiles(projectId)
-              if (data.success) {
-                setProjectFiles(prev => ({
-                  ...prev,
-                  [projectId]: data.documents || []
-                }))
-              }
-            } catch (e) {
-              console.error('Failed to load project files:', e)
-            }
-          }
-        })
+        // 注意：任务加载移到 loadProjects 完成后进行
       } catch (e) {
         console.error('Failed to load expanded state:', e)
       }
@@ -165,6 +137,15 @@ export function Projects() {
           })
         )
         setProjects(projectsWithStats)
+        
+        // 清理已删除项目的展开状态
+        const validIds = new Set(projectsWithStats.map((p: ProjectWithTasks) => p.id))
+        const currentExpanded = Array.from(expandedProjects)
+        const validExpanded = currentExpanded.filter(id => validIds.has(id))
+        if (validExpanded.length !== currentExpanded.length) {
+          setExpandedProjects(new Set(validExpanded))
+          localStorage.setItem('kanban_expanded_projects', JSON.stringify(validExpanded))
+        }
       }
     } catch (e) {
       console.error(e)
@@ -254,18 +235,31 @@ export function Projects() {
   }
 
   const handleAddTask = (projectId: number) => {
+    console.log('handleAddTask called with projectId:', projectId)
     setTaskProjectId(projectId)
     setShowAddTaskModal(true)
+    console.log('showAddTaskModal set to true')
   }
 
   const handleTaskSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!taskProjectId) return
+    console.log('handleTaskSubmit called')
+    console.log('taskProjectId:', taskProjectId)
+    console.log('taskFormData:', taskFormData)
+    if (!taskProjectId) {
+      console.log('No taskProjectId, returning')
+      return
+    }
     const project = projects.find(p => p.id === taskProjectId)
-    if (!project) return
+    console.log('found project:', project)
+    if (!project) {
+      console.log('No project found, returning')
+      return
+    }
     
     const res = await api.createTask({
       ...taskFormData,
+      project_id: taskProjectId,
       project_name: project.name
     })
     if (res.success) {
@@ -791,12 +785,10 @@ function ProjectTaskList({ tasks, loading, onDeleteTask }: {
   loading: boolean;
   onDeleteTask: (taskId: number) => void;
 }) {
-  const [selectedTask, setSelectedTask] = useState<Task | null>(null)
-
   if (loading) {
     return (
       <div style={{ textAlign: 'center', padding: '20px', color: '#999' }}>
-        点击展开查看任务
+        加载中...
       </div>
     )
   }
@@ -821,81 +813,7 @@ function ProjectTaskList({ tasks, loading, onDeleteTask }: {
       <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#333', marginBottom: '10px' }}>
         关联任务 ({tasks.length})
       </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-        {tasks.map(task => (
-          <div 
-            key={task.id} 
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              padding: '10px 12px',
-              background: '#fff',
-              borderRadius: '6px',
-              border: '1px solid #e0e0e0',
-              transition: 'all 0.2s ease'
-            }}
-            onMouseEnter={e => {
-              e.currentTarget.style.background = '#f8f9fa'
-              e.currentTarget.style.borderColor = '#667eea'
-            }}
-            onMouseLeave={e => {
-              e.currentTarget.style.background = '#fff'
-              e.currentTarget.style.borderColor = '#e0e0e0'
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1 }}>
-              <span style={{ 
-                fontSize: '0.7rem', 
-                color: '#667eea', 
-                fontWeight: 600, 
-                fontFamily: 'monospace',
-                background: '#f0f4ff',
-                padding: '2px 6px',
-                borderRadius: '4px'
-              }}>
-                {task.number}
-              </span>
-              <span style={{ fontSize: '0.9rem', color: '#333' }}>{task.title}</span>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span className={`badge ${
-                task.priority === 'high' ? 'badge-red' : 
-                task.priority === 'medium' ? 'badge-orange' : 'badge-green'
-              }`} style={{ fontSize: '0.7rem', padding: '2px 6px' }}>
-                {task.priority === 'high' ? '高' : task.priority === 'medium' ? '中' : '低'}
-              </span>
-              <span className={`status-badge status-${task.status}`} style={{ fontSize: '0.7rem' }}>
-                {task.status === 'todo' ? '待办' : task.status === 'progress' ? '进行中' : '已完成'}
-              </span>
-              <button
-                onClick={() => onDeleteTask(task.id)}
-                style={{
-                  background: '#ffebee',
-                  border: 'none',
-                  color: '#c62828',
-                  cursor: 'pointer',
-                  padding: '4px 8px',
-                  borderRadius: '4px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  fontSize: '0.75rem'
-                }}
-                title="删除任务"
-              >
-                <Trash2 size={14} />
-              </button>
-            </div>
-          </div>
-        ))}
-      </div>
-      
-      {selectedTask && (
-        <TaskDetailPopup 
-          task={selectedTask} 
-          onClose={() => setSelectedTask(null)} 
-        />
-      )}
+      <TaskAccordion tasks={tasks} onDeleteTask={onDeleteTask} />
     </>
   )
 }
@@ -987,7 +905,8 @@ function ProjectFilesSection({
             e.currentTarget.style.borderColor = '#667eea'
             e.currentTarget.style.color = '#667eea'
           }}
-          onMouseLeave={e => {
+          onClick={() => setSelectedTask(task)}
+            onMouseLeave={e => {
             e.currentTarget.style.borderColor = '#ddd'
             e.currentTarget.style.color = '#666'
           }}
@@ -1116,7 +1035,8 @@ function ProjectFilesSection({
                 e.currentTarget.style.borderColor = '#667eea'
                 e.currentTarget.style.background = '#f8f9fa'
               }}
-              onMouseLeave={e => {
+              onClick={() => setSelectedTask(task)}
+            onMouseLeave={e => {
                 e.currentTarget.style.borderColor = '#e0e0e0'
                 e.currentTarget.style.background = '#fff'
               }}
@@ -1243,8 +1163,11 @@ function TaskDetailPopup({ task, onClose }: { task: Task | null; onClose: () => 
         <div style={{ fontSize: '0.75rem', color: '#999' }}>
           创建时间：{new Date(task.created_at).toLocaleString('zh-CN')}
         </div>
+        
+        {/* 附件文档 */}
+        <TaskAttachments taskId={task.id} />
+        </div>
       </div>
-    </div>
   )
 }
 

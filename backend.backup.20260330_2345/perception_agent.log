@@ -1,0 +1,40 @@
+INFO:PerceptionAgent:Listener 'LogListener' started
+INFO:PerceptionAgent:Listener 'ErrorListener' started
+INFO:PerceptionAgent:Listener 'MetricListener' started
+INFO:PerceptionAgent:Listener 'BehaviorListener' started
+INFO:PerceptionAgent:🎯 PerceptionAgent started with 4 listeners
+CRITICAL:PerceptionAgent:🚨 IMMEDIATE REFLECTION REQUIRED: INFO:PerceptionAgent:Listener 'ErrorListener' started
+CRITICAL:PerceptionAgent:🚨 IMMEDIATE REFLECTION REQUIRED: INFO:PerceptionAgent:Listener 'ErrorListener' started
+INFO:PerceptionAgent:📋 LOG: [metric_alert:high] memory_usage持续超过阈值: 99.87% (阈值: 85%)
+INFO:PerceptionAgent:Metric memory_usage recovered
+INFO:PerceptionAgent:📋 LOG: [metric_alert:high] memory_usage持续超过阈值: 93.65% (阈值: 85%)
+INFO:PerceptionAgent:Metric memory_usage recovered
+INFO:PerceptionAgent:📋 LOG: [metric_alert:high] memory_usage持续超过阈值: 93.34% (阈值: 85%)
+INFO:PerceptionAgent:Metric memory_usage recovered
+INFO:PerceptionAgent:📋 LOG: [metric_alert:high] memory_usage持续超过阈值: 87.09% (阈值: 85%)
+INFO:PerceptionAgent:Metric memory_usage recovered
+INFO:PerceptionAgent:📋 LOG: [metric_alert:high] memory_usage持续超过阈值: 98.15% (阈值: 85%)
+INFO:PerceptionAgent:Metric memory_usage recovered
+INFO:PerceptionAgent:📋 LOG: [metric_alert:high] memory_usage持续超过阈值: 85.63% (阈值: 85%)
+INFO:PerceptionAgent:Metric memory_usage recovered
+INFO:PerceptionAgent:📋 LOG: [metric_alert:high] memory_usage持续超过阈值: 85.79% (阈值: 85%)
+INFO:PerceptionAgent:Metric memory_usage recovered
+INFO:PerceptionAgent:📋 LOG: [metric_alert:high] memory_usage持续超过阈值: 85.7% (阈值: 85%)
+INFO:PerceptionAgent:Metric memory_usage recovered
+INFO:PerceptionAgent:📋 LOG: [metric_alert:high] memory_usage持续超过阈值: 85.59% (阈值: 85%)
+INFO:PerceptionAgent:Metric memory_usage recovered
+INFO:PerceptionAgent:📋 LOG: [metric_alert:high] memory_usage持续超过阈值: 85.73% (阈值: 85%)
+INFO:PerceptionAgent:Metric memory_usage recovered
+INFO:PerceptionAgent:📋 LOG: [metric_alert:high] memory_usage持续超过阈值: 85.82% (阈值: 85%)
+INFO:PerceptionAgent:Metric memory_usage recovered
+INFO:PerceptionAgent:📋 LOG: [metric_alert:high] memory_usage持续超过阈值: 85.74% (阈值: 85%)
+INFO:PerceptionAgent:Metric memory_usage recovered
+INFO:PerceptionAgent:📋 LOG: [metric_alert:high] memory_usage持续超过阈值: 85.99% (阈值: 85%)
+INFO:PerceptionAgent:Metric memory_usage recovered
+INFO:PerceptionAgent:📋 LOG: [metric_alert:high] memory_usage持续超过阈值: 85.78% (阈值: 85%)
+INFO:PerceptionAgent:Metric memory_usage recovered
+INFO:PerceptionAgent:📋 LOG: [metric_alert:high] memory_usage持续超过阈值: 85.73% (阈值: 85%)
+INFO:PerceptionAgent:Metric memory_usage recovered
+INFO:PerceptionAgent:📋 LOG: [metric_alert:high] memory_usage持续超过阈值: 86.23% (阈值: 85%)
+INFO:PerceptionAgent:Metric memory_usage recovered
+INFO:PerceptionAgent:📋 LOG: [metric_alert:high] memory_usage持续超过阈值: 85.02% (阈值: 85%)
