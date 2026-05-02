@@ -857,6 +857,28 @@ def get_tasks():
 
     return jsonify({'success': True, 'tasks': tasks})
 
+
+
+@app.route('/api/tasks/stats', methods=['GET'])
+def get_tasks_stats():
+    """获取任务统计"""
+    conn = get_db()
+    c = conn.cursor()
+    
+    c.execute("SELECT status, COUNT(*) as count FROM tasks WHERE status != 'deleted' GROUP BY status")
+    
+    stats = {}
+    for row in c.fetchall():
+        row_dict = dict(row)
+        stats[row_dict['status']] = row_dict['count']
+    
+    for s in ['todo', 'pending', 'in_progress', 'pending_review', 'completed', 'failed', 'failed_retryable', 'cancelled', 'archived']:
+        if s not in stats:
+            stats[s] = 0
+    
+    conn.close()
+    return jsonify({"success": True, "stats": stats})
+
 @app.route('/api/tasks', methods=['POST'])
 def create_task():
     """创建任务"""

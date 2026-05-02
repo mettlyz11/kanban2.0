@@ -92,6 +92,8 @@ const Tasks: React.FC = () => {
   const [activeStatusTab, setActiveStatusTab] = useState('pending');
   const [tabCurrentPage, setTabCurrentPage] = useState(1);
   
+n  // 任务统计
+  const [taskStats, setTaskStats] = useState<Record<string, number>>({});
   // 防抖搜索
   const [debouncedSearch, setDebouncedSearch] = useState('');
 
@@ -160,6 +162,18 @@ const Tasks: React.FC = () => {
       console.error('Failed to fetch saved views:', error);
     }
   };
+n  // 获取任务统计
+  const fetchTaskStats = async () => {
+    try {
+      const res = await fetch("/api/tasks/stats");
+      const data = await res.json();
+      if (data.success) {
+        setTaskStats(data.stats);
+      }
+    } catch (error) {
+      console.error("Failed to fetch task stats:", error);
+    }
+  };
 
   // 获取任务
   const fetchTasks = async () => {
@@ -204,6 +218,7 @@ const Tasks: React.FC = () => {
     fetchTasks();
     fetchProjects();
     fetchSavedViews();
+    fetchTaskStats();
   }, [debouncedSearch, tags, dateFrom, dateTo, quickFilter, projectFilter, statusFilter, projectStatusFilter, sortField, sortOrder]);
 
   // 保存视图
@@ -235,6 +250,7 @@ const Tasks: React.FC = () => {
         setViewName('');
         setShowSaveViewModal(false);
         fetchSavedViews();
+    fetchTaskStats();
       }
     } catch (error) {
       console.error('Failed to save view:', error);
@@ -263,6 +279,7 @@ const Tasks: React.FC = () => {
       const data = await res.json();
       if (data.success) {
         fetchSavedViews();
+    fetchTaskStats();
       } else {
         alert(data.error || '删除失败');
       }
@@ -332,22 +349,20 @@ const Tasks: React.FC = () => {
 
   const listTotalPages = Math.ceil(tasks.length / pageSize);
 
-  // Tab视图：各状态数量统计
+  // Tab视图：各状态数量统计（使用API统计，不是本地已加载的任务）
   const statusCounts = useMemo(() => {
     const counts: Record<string, number> = statusTabs.reduce(
       (acc, tab) => ({ ...acc, [tab.key]: 0 }),
       {} as Record<string, number>
     );
-    counts['all'] = tasks.length;
-    tasks.forEach((task) => {
-      statusTabs.forEach(tab => {
-        if (tab.statuses.includes(task.status)) {
-          counts[tab.key] = (counts[tab.key] || 0) + 1;
-        }
+    counts['all'] = Object.values(taskStats).reduce((a, b) => a + b, 0);
+    statusTabs.forEach(tab => {
+      tab.statuses.forEach(status => {
+        counts[tab.key] += taskStats[status] || 0;
       });
     });
     return counts;
-  }, [tasks]);
+  }, [taskStats]);
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
