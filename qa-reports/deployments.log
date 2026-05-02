@@ -1,0 +1,4 @@
+[2026-05-02 14:55:46] 部署完成
+- URL: http://47.93.184.128
+- 构建产物: /opt/kanban-react/frontend/dist
+- Nginx 状态: active

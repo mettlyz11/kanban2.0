@@ -368,6 +368,13 @@ body {
 .status-badge.todo { background: #fff3cd; color: #856404; }
 .status-badge.progress { background: #cce5ff; color: #004085; }
 .status-badge.done { background: #d4edda; color: #155724; }
+.status-badge.failed { background: #f8d7da; color: #721c24; }
+.status-badge.failed_retryable { background: #ffeeba; color: #856404; }
+.status-badge.redundant { background: #e2e3e5; color: #383d41; }
+.status-badge.cancelled { background: #f5c6cb; color: #721c24; }
+.status-badge.pending { background: #fff3cd; color: #856404; }
+.status-badge.in_progress { background: #cce5ff; color: #004085; }
+.status-badge.completed { background: #d4edda; color: #155724; }
 
 .date {
   font-size: 0.8rem;

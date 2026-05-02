@@ -1,16 +1,54 @@
 <!doctype html>
 <html lang="zh-CN">
   <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta http-equiv="Cache-Control" content="no-store" />
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-store">
     <title>看板系统 v3.0</title>
-    <script type="module" crossorigin src="/assets/main-Cyqp1jyb.js"></script>
-    <link rel="modulepreload" crossorigin href="/assets/vendor-CBpgZ649.js">
-    <link rel="modulepreload" crossorigin href="/assets/ui-BwwXVQmF.js">
-    <link rel="stylesheet" crossorigin href="/assets/main-BK3fPj7B.css">
+    <script>
+      // 补丁：修复 SVGAnimatedString 没有 split 方法的问题
+      (function() {
+        if (typeof SVGAnimatedString !== 'undefined' && !SVGAnimatedString.prototype.split) {
+          Object.defineProperty(SVGAnimatedString.prototype, 'split', {
+            value: function() {
+              return (this.baseVal || '').split.apply(this.baseVal || '', arguments);
+            },
+            writable: true,
+            configurable: true
+          });
+        }
+      })();
+    </script>
+    <script type="module" crossorigin src="/assets/main-zxpcycCv.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/vendor-Bddnc4PW.js">
+    <link rel="modulepreload" crossorigin href="/assets/ui-CXxNZWO1.js">
+    <link rel="stylesheet" crossorigin href="/assets/main-B1S8au8K.css">
+    <style>
+      #error-overlay { position:fixed; top:0; left:0; right:0; background:#ff4444; color:white; padding:10px; font-family:monospace; font-size:12px; z-index:999999; max-height:200px; overflow-y:auto; display:none; white-space:pre-wrap; word-break:break-all; }
+      #error-overlay.show { display:block; }
+      #error-count { position:fixed; top:5px; right:5px; background:#ff4444; color:white; padding:4px 8px; border-radius:12px; font-size:12px; font-weight:bold; z-index:999999; display:none; }
+      #error-count.show { display:block; }
+    </style>
   </head>
   <body>
     <div id="root"></div>
+    <div id="error-count"></div>
+    <div id="error-overlay">
+      <div style="font-weight:bold;border-bottom:1px solid rgba(255,255,255,0.3);padding-bottom:5px;">❌ 页面错误捕获（点击关闭）</div>
+      <div id="error-list"></div>
+    </div>
+    <script>
+      (function(){
+        var errors=[], overlay=document.getElementById('error-overlay'),
+            list=document.getElementById('error-list'),
+            badge=document.getElementById('error-count');
+        function show(){ if(!errors.length)return; list.innerHTML=errors.map(function(e,i){return '<div style="margin:4px 0;padding:4px;background:rgba(0,0,0,0.2);border-radius:4px;">'+(i+1)+'. '+e+'</div>';}).join(''); overlay.classList.add('show'); badge.textContent=errors.length; badge.classList.add('show'); }
+        overlay.addEventListener('click',function(){overlay.classList.remove('show');});
+        badge.addEventListener('click',function(){overlay.classList.toggle('show');});
+        window.onerror=function(msg,url,line,col,err){var t=msg+' @ '+(url||'')+':'+line+':'+col;if(err&&err.stack)t+='\n'+err.stack;errors.push(t);show();return false;};
+        window.addEventListener('unhandledrejection',function(e){var t='Promise: '+(e.reason&&e.reason.message?e.reason.message:String(e.reason));errors.push(t);show();});
+        var orig=console.error; console.error=function(){var a=Array.prototype.slice.call(arguments),t=a.map(function(x){if(typeof x==='object')try{return JSON.stringify(x);}catch(e){return String(x);}return String(x);}).join(' ');errors.push(t);show();orig.apply(console,arguments);};
+      })();
+    </script>
   </body>
 </html>

@@ -1,4 +1,7 @@
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import * as Sentry from "@sentry/react"
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom"
+import { useLocation } from "react-router-dom";
+import { useEffect } from "react";
 import Layout from "./components/Layout";
 import ProtectedRoute from "./components/ProtectedRoute";
 import Projects from "./pages/Projects";
@@ -44,18 +47,39 @@ import Resources from "./pages/Resources";
 import SystemPages from "./pages/SystemPages";
 import XiaBoshi from "./pages/XiaBoshi";
 import PeopleList from "./pages/PeopleList";
+import SelfDrivingSystem from './pages/SelfDrivingSystem';
 import Pepi from "./pages/Pepi";
+import StrategicMap from "./pages/StrategicMap";
+import Cockpit from "./pages/Cockpit";
+
+function LocationTracker() {
+  const location = useLocation();
+  useEffect(() => {
+    Sentry.addBreadcrumb({
+      category: "navigation",
+      message: "Navigate to " + location.pathname,
+      level: "info",
+      data: { pathname: location.pathname, search: location.search }
+    });
+    Sentry.captureMessage("页面切换: " + location.pathname, {
+      level: "info",
+      tags: { page: location.pathname, type: "page_view" }
+    });
+  }, [location]);
+  return null;
+}
 
 export default function Router() {
   return (
     <BrowserRouter>
+      <LocationTracker />
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/p049/login" element={<P049Login />} />
         <Route path="/p049" element={<P049Dashboard />} />
         <Route path="/p049/profile" element={<P049UserProfile />} />
         <Route path="/p049/members" element={<P049ProjectMembers />} />
-        <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
+        <Route element={<ProtectedRoute><Layout>{undefined}</Layout></ProtectedRoute>}>
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/projects" element={<Projects />} />
@@ -96,6 +120,10 @@ export default function Router() {
           <Route path="/system-monitor" element={<SystemPages />} />
           <Route path="/meetings" element={<MeetingNotes />} />
           <Route path="/pepi" element={<Pepi />} />
+          <Route path="/self-driving" element={<SelfDrivingSystem />} />
+          <Route path="/strategic-map" element={<StrategicMap />} />
+          {/* self-driving route added 2026-04-23 */}
+          <Route path="/cockpit" element={<Cockpit />} />
         </Route>
       </Routes>
     </BrowserRouter>

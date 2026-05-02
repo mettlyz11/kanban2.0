@@ -1,0 +1,60 @@
+{
+  "timestamp": "2026-05-02T06:58:55.917Z",
+  "summary": {
+    "pass": 7,
+    "fail": 1,
+    "warn": 0,
+    "skip": 3
+  },
+  "results": [
+    {
+      "test": "首页加载",
+      "status": "PASS"
+    },
+    {
+      "test": "任务-Tab切换",
+      "status": "SKIP",
+      "reason": "按钮未找到"
+    },
+    {
+      "test": "项目-最大化按钮",
+      "status": "PASS"
+    },
+    {
+      "test": "战略全景-视图切换",
+      "status": "SKIP",
+      "reason": "按钮未找到"
+    },
+    {
+      "test": "会议纪要加载",
+      "status": "PASS"
+    },
+    {
+      "test": "SDS-页面加载",
+      "status": "PASS"
+    },
+    {
+      "test": "SDS-历史趋势",
+      "status": "FAIL",
+      "reason": "未找到\"历史趋势\"标签"
+    },
+    {
+      "test": "SDS-架构编辑",
+      "status": "SKIP",
+      "reason": "标签未找到"
+    },
+    {
+      "test": "API-任务列表",
+      "status": "PASS"
+    },
+    {
+      "test": "API-SDS统计",
+      "status": "PASS"
+    },
+    {
+      "test": "API-SDS历史",
+      "status": "PASS"
+    }
+  ],
+  "errors": []
+}

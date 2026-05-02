@@ -19,7 +19,7 @@ DB_CONFIG = {
     'database': 'kanban'
 }
 
-UPLOAD_DIR = "/opt/kanban-react/frontend/public/uploads/docs"
+UPLOAD_DIR = "/opt/kanban-react/backend/uploads"
 
 def get_db_connection():
     return mysql.connector.connect(**DB_CONFIG)
@@ -112,7 +112,7 @@ def upload_task_attachment(task_id):
         name, ext = os.path.splitext(original_filename)
         timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
         safe_filename = f"{timestamp}_{name}{ext}"
-        file_path = os.path.join(UPLOAD_DIR, safe_filename)
+        file_path = os.path.join(UPLOAD_DIR, "docs", safe_filename)
         
         # 保存文件
         file.save(file_path)

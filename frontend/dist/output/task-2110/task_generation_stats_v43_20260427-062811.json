@@ -1,0 +1,9 @@
+{
+  "24h_stats": {
+    "period_hours": 24,
+    "window_start": "2026-04-26T06:28:40.930487",
+    "report_time": "2026-04-27T06:28:44.358425",
+    "by_goal": {
+      "1": {
+        "total": 1,
+        "auto_generated": 

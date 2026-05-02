@@ -1,3 +1,66 @@
+import * as Sentry from '@sentry/react'
+// Global fetch timeout interceptor
+const originalFetch = window.fetch
+window.fetch = function(...args) {
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), 15000)
+  const [url, init = {}] = args
+  const config = { ...init, signal: init.signal || controller.signal }
+  const startTime = Date.now()
+  
+  Sentry.addBreadcrumb({
+    category: "fetch",
+    message: "→ " + url,
+    level: "info",
+    data: { method: init.method || "GET" }
+  })
+  
+  return originalFetch(url, config)
+    .then(res => {
+      const elapsed = Date.now() - startTime
+      clearTimeout(timeoutId)
+      
+      Sentry.addBreadcrumb({
+        category: "fetch",
+        message: "← " + res.status + " " + url + " (" + elapsed + "ms)",
+        level: res.ok ? "info" : "warning",
+        data: { status: res.status, duration: elapsed }
+      })
+      
+      if (!res.ok) {
+        Sentry.captureMessage("API " + res.status + ": " + url, {
+          level: "warning",
+          tags: { url: url, status: String(res.status) }
+        })
+      }
+      
+      if (elapsed > 2000) {
+        Sentry.captureMessage("慢请求: " + url + " (" + elapsed + "ms)", {
+          level: "warning",
+          tags: { url: url, type: "slow_request" }
+        })
+      }
+      
+      return res
+    })
+    .catch(err => {
+      const elapsed = Date.now() - startTime
+      clearTimeout(timeoutId)
+      
+      if (err.name === "AbortError") {
+        Sentry.captureMessage("API 超时 (15s): " + url, {
+          level: "error",
+          tags: { url: url, type: "timeout" }
+        })
+      } else {
+        Sentry.captureException(err, {
+          tags: { url: url, type: "fetch_error" }
+        })
+      }
+      throw err
+    })
+}
+
 // API 服务 - 复用 v1.0 后端
 // 使用相对路径，自动适配当前域名
 const API_BASE = '/api'

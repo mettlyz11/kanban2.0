@@ -1,0 +1,76 @@
+{
+  "version": "5.0",
+  "timestamp": "2026-04-24T12:10:56.205358",
+  "dispatch_mode": "mesh",
+  "total_agents": 4,
+  "agents": {
+    "research_agent": {
+      "name": "研究代理",
+      "capabilities": [
+        "research",
+        "search",
+        "paper"
+      ],
+      "concurrency": 2,
+      "success_rate": 0.92,
+      "status": "active",
+      "load": 0.0,
+      "health_score": 0.92
+    },
+    "analysis_agent": {
+      "name": "分析代理",
+      "capabilities": [
+        "analysis",
+        "strategy",
+        "report"
+      ],
+      "concurrency": 1,
+      "success_rate": 0.88,
+      "status": "active",
+      "load": 0.0,
+      "health_score": 0.88
+    },
+    "execution_agent": {
+      "name": "执行代理",
+      "capabilities": [
+        "execution",
+        "file",
+        "sync",
+        "upload"
+      ],
+      "concurrency": 3,
+      "success_rate": 0.95,
+      "status": "active",
+      "load": 0.0,
+      "health_score": 0.95
+    },
+    "wiki_agent": {
+      "name": "知识库代理",
+      "capabilities": [
+        "wiki",
+        "knowledge",
+        "graph",
+        "index"
+      ],
+      "concurrency": 1,
+      "success_rate": 0.9,
+      "status": "active",
+      "load": 0.0,
+      "health_score": 0.9
+    }
+  },
+  "circuit_breaker_status": {
+    "research_agent": true,
+    "analysis_agent": true,
+    "execution_agent": true,
+    "wiki_agent": true
+  },
+  "memory_bus": {
+    "short_term_items": 2,
+    "long_term_items": 2,
+    "context_items": 1,
+    "total_queries": 0
+  },
+  "total_dispatches": 2,
+  "total_trace_spans": 3
+}

@@ -1,0 +1,68 @@
+INFO:__main__:🗄️ 数据库模式: mysql
+INFO:__main__:🗄️ RDS 连接: rm-2zew4su9p966e8x2ofo.mysql.rds.aliyuncs.com / kanban
+INFO:__main__:✅ 认证路由已注册 (P049-T007: 密码管理, P049-T008: API密钥管理)
+INFO:__main__:✅ 管理员后台路由已注册 (P049-T8-2: 管理员后台)
+INFO:__main__:✅ 文献调研记录路由已注册
+INFO:__main__:✅ 感知 Agent 路由已注册 (P049-T042: 感知 Agent)
+INFO:__main__:✅ 工作流程架构图路由已注册
+INFO:__main__:✅ 人员和公司动态Tab路由已注册
+INFO:__main__:✅ 战略全景图路由已注册
+INFO:PerceptionAgent:Listener 'LogListener' started
+INFO:PerceptionAgent:Listener 'ErrorListener' started
+INFO:PerceptionAgent:Listener 'MetricListener' started
+INFO:PerceptionAgent:Listener 'BehaviorListener' started
+INFO:PerceptionAgent:🎯 PerceptionAgent started with 4 listeners
+INFO:__main__:✅ PerceptionAgent started successfully
+INFO:p049_monitoring:✅ 监控数据库表初始化完成
+INFO:p049_monitoring:✅ 已初始化 7 条默认告警规则
+INFO:p049_monitoring:✅ 指标收集器已启动
+INFO:p049_monitoring:✅ 告警管理器已启动
+INFO:p049_monitoring:✅ P049-T041 监控告警系统初始化完成
+✅ Sentry 已初始化
+============================================================
+Kanban React - Flask API Server
+============================================================
+API地址: http://localhost:8086
+============================================================
+✅ 系统启动事件已记录到感知监控
+✅ P049-T041 监控告警系统已启动
+ * Serving Flask app 'app'
+ * Debug mode: off
+Address already in use
+Port 8086 is in use by another program. Either identify and stop that program, or start the server with a different port.
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.12/dist-packages/werkzeug/serving.py", line 759, in __init__
+    self.server_bind()
+  File "/usr/lib/python3.12/http/server.py", line 136, in server_bind
+    socketserver.TCPServer.server_bind(self)
+  File "/usr/lib/python3.12/socketserver.py", line 473, in server_bind
+    self.socket.bind(self.server_address)
+OSError: [Errno 98] Address already in use
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/opt/kanban-react/backend/app.py", line 7441, in <module>
+    app.run(host='0.0.0.0', port=8086, debug=False)
+  File "/usr/local/lib/python3.12/dist-packages/flask/app.py", line 612, in run
+    run_simple(t.cast(str, host), port, self, **options)
+  File "/usr/local/lib/python3.12/dist-packages/werkzeug/serving.py", line 1093, in run_simple
+    srv = make_server(
+          ^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/werkzeug/serving.py", line 930, in make_server
+    return ThreadedWSGIServer(
+           ^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/werkzeug/serving.py", line 782, in __init__
+    sys.exit(1)
+SystemExit: 1
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/opt/kanban-react/backend/app.py", line 7445, in <module>
+    stop_perception_agent()
+    ^^^^^^^^^^^^^^^^^^^^^
+NameError: name 'stop_perception_agent' is not defined. Did you mean: '_perception_agent'?
+Sentry is attempting to send 2 pending events
+Waiting up to 2 seconds
+Press Ctrl-C to quit

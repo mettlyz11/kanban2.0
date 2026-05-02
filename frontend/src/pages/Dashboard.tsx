@@ -37,17 +37,17 @@ export function Dashboard() {
     : 0
 
   return (
-    <div>
+    <div style={{ maxWidth: '1400px', margin: '0 auto' }}>
       <h2 className="page-title">📊 看板总览</h2>
       
       {/* 项目统计 */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: '10px', marginBottom: '16px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '20px' }}>
         <Link to="/projects" style={{ textDecoration: 'none', color: 'inherit' }}>
-          <div className="stat-card blue" style={{ padding: '12px', cursor: 'pointer', transition: 'transform 0.2s' }}>
-            <div className="stat-icon" style={{ width: '36px', height: '36px', fontSize: '1.1rem' }}>📁</div>
+          <div className="stat-card blue" style={{ padding: '20px', cursor: 'pointer', transition: 'transform 0.2s' }}>
+            <div className="stat-icon" style={{ width: '48px', height: '48px', fontSize: '1.5rem' }}>📁</div>
             <div className="stat-info">
-              <h3 style={{ fontSize: '1.2rem' }}>{stats?.projects || 0}</h3>
-              <p style={{ fontSize: '0.7rem' }}>项目总数</p>
+              <h3 style={{ fontSize: '2rem' }}>{stats?.projects || 0}</h3>
+              <p style={{ fontSize: '0.85rem' }}>项目总数</p>
             </div>
           </div>
         </Link>
@@ -177,31 +177,31 @@ export function Dashboard() {
       </div>
 
       {/* 任务统计 */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: '10px', marginBottom: '16px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '20px' }}>
         <Link to="/tasks" style={{ textDecoration: 'none', color: 'inherit' }}>
-          <div className="stat-card green" style={{ padding: '12px', cursor: 'pointer', transition: 'transform 0.2s' }}>
-            <div className="stat-icon" style={{ width: '36px', height: '36px', fontSize: '1.1rem' }}>✅</div>
+          <div className="stat-card green" style={{ padding: '20px', cursor: 'pointer', transition: 'transform 0.2s' }}>
+            <div className="stat-icon" style={{ width: '48px', height: '48px', fontSize: '1.5rem' }}>✅</div>
             <div className="stat-info">
-              <h3 style={{ fontSize: '1.2rem' }}>{stats?.tasks?.total || 0}</h3>
-              <p style={{ fontSize: '0.7rem' }}>任务总数</p>
+              <h3 style={{ fontSize: '2rem' }}>{stats?.tasks?.total || 0}</h3>
+              <p style={{ fontSize: '0.85rem' }}>任务总数</p>
             </div>
           </div>
         </Link>
         <Link to="/tasks" style={{ textDecoration: 'none', color: 'inherit' }}>
-          <div className="stat-card orange" style={{ padding: '12px', cursor: 'pointer', transition: 'transform 0.2s' }}>
-            <div className="stat-icon" style={{ width: '36px', height: '36px', fontSize: '1.1rem' }}>✨</div>
+          <div className="stat-card orange" style={{ padding: '20px', cursor: 'pointer', transition: 'transform 0.2s' }}>
+            <div className="stat-icon" style={{ width: '48px', height: '48px', fontSize: '1.5rem' }}>✨</div>
             <div className="stat-info">
-              <h3 style={{ fontSize: '1.2rem' }}>{stats && stats.tasks ? stats.tasks.done : 0}</h3>
-              <p style={{ fontSize: '0.7rem' }}>已完成</p>
+              <h3 style={{ fontSize: '2rem' }}>{stats && stats.tasks ? stats.tasks.done : 0}</h3>
+              <p style={{ fontSize: '0.85rem' }}>已完成</p>
             </div>
           </div>
         </Link>
         <Link to="/tasks" style={{ textDecoration: 'none', color: 'inherit' }}>
-          <div className="stat-card cyan" style={{ padding: '12px', cursor: 'pointer', transition: 'transform 0.2s' }}>
-            <div className="stat-icon" style={{ width: '36px', height: '36px', fontSize: '1.1rem' }}>🚀</div>
+          <div className="stat-card cyan" style={{ padding: '20px', cursor: 'pointer', transition: 'transform 0.2s' }}>
+            <div className="stat-icon" style={{ width: '48px', height: '48px', fontSize: '1.5rem' }}>🚀</div>
             <div className="stat-info">
-              <h3 style={{ fontSize: '1.2rem' }}>{stats && stats.tasks ? stats.tasks.progress : 0}</h3>
-              <p style={{ fontSize: '0.7rem' }}>进行中</p>
+              <h3 style={{ fontSize: '2rem' }}>{stats && stats.tasks ? stats.tasks.progress : 0}</h3>
+              <p style={{ fontSize: '0.85rem' }}>进行中</p>
             </div>
           </div>
         </Link>
@@ -209,22 +209,22 @@ export function Dashboard() {
 
       {/* Cron统计 */}
       {cronStats && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: '10px', marginBottom: '16px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '20px' }}>
           <Link to="/cron" style={{ textDecoration: 'none', color: 'inherit' }}>
-            <div className="stat-card purple" style={{ padding: '12px', cursor: 'pointer', transition: 'transform 0.2s' }}>
-              <div className="stat-icon" style={{ width: '36px', height: '36px', fontSize: '1.1rem' }}>⏰</div>
+            <div className="stat-card purple" style={{ padding: '20px', cursor: 'pointer', transition: 'transform 0.2s' }}>
+              <div className="stat-icon" style={{ width: '48px', height: '48px', fontSize: '1.5rem' }}>⏰</div>
               <div className="stat-info">
-                <h3 style={{ fontSize: '1.2rem' }}>{cronStats.total || 0}</h3>
-                <p style={{ fontSize: '0.7rem' }}>Cron任务</p>
+                <h3 style={{ fontSize: '2rem' }}>{cronStats.total || 0}</h3>
+                <p style={{ fontSize: '0.85rem' }}>Cron任务</p>
               </div>
             </div>
           </Link>
           <Link to="/cron" style={{ textDecoration: 'none', color: 'inherit' }}>
-            <div className="stat-card green" style={{ padding: '12px', cursor: 'pointer', transition: 'transform 0.2s' }}>
-              <div className="stat-icon" style={{ width: '36px', height: '36px', fontSize: '1.1rem' }}>▶️</div>
+            <div className="stat-card green" style={{ padding: '20px', cursor: 'pointer', transition: 'transform 0.2s' }}>
+              <div className="stat-icon" style={{ width: '48px', height: '48px', fontSize: '1.5rem' }}>▶️</div>
               <div className="stat-info">
-                <h3 style={{ fontSize: '1.2rem' }}>{cronStats.active || 0}</h3>
-                <p style={{ fontSize: '0.7rem' }}>运行中</p>
+                <h3 style={{ fontSize: '2rem' }}>{cronStats.active || 0}</h3>
+                <p style={{ fontSize: '0.85rem' }}>运行中</p>
               </div>
             </div>
           </Link>
@@ -233,26 +233,26 @@ export function Dashboard() {
 
       {/* 资产统计 */}
       {stockStats && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: '10px', marginBottom: '16px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '20px' }}>
           <Link to="/stocks" style={{ textDecoration: 'none', color: 'inherit' }}>
-            <div className="stat-card pink" style={{ padding: '12px', cursor: 'pointer', transition: 'transform 0.2s' }}>
-              <div className="stat-icon" style={{ width: '36px', height: '36px', fontSize: '1.1rem' }}>💰</div>
+            <div className="stat-card pink" style={{ padding: '20px', cursor: 'pointer', transition: 'transform 0.2s' }}>
+              <div className="stat-icon" style={{ width: '48px', height: '48px', fontSize: '1.5rem' }}>💰</div>
               <div className="stat-info">
-                <h3 style={{ fontSize: '1.1rem' }}>¥{(stockStats.total_value || 0).toLocaleString()}</h3>
-                <p style={{ fontSize: '0.7rem' }}>总资产</p>
+                <h3 style={{ fontSize: '2rem' }}>¥{(stockStats.total_value || 0).toLocaleString()}</h3>
+                <p style={{ fontSize: '0.85rem' }}>总资产</p>
               </div>
             </div>
           </Link>
           <Link to="/stocks" style={{ textDecoration: 'none', color: 'inherit' }}>
             <div className={`stat-card ${(stockStats.total_return || 0) >= 0 ? 'green' : 'orange'}`} style={{ 
-              padding: '12px', 
+              padding: '20px', 
               cursor: 'pointer', 
               transition: 'transform 0.2s'
             }}>
-              <div className="stat-icon" style={{ width: '36px', height: '36px', fontSize: '1.1rem' }}>📈</div>
+              <div className="stat-icon" style={{ width: '48px', height: '48px', fontSize: '1.5rem' }}>📈</div>
               <div className="stat-info">
-                <h3 style={{ fontSize: '1.1rem' }}>{(stockStats.total_return || 0).toFixed(2)}%</h3>
-                <p style={{ fontSize: '0.7rem' }}>总收益率</p>
+                <h3 style={{ fontSize: '2rem' }}>{(stockStats.total_return || 0).toFixed(2)}%</h3>
+                <p style={{ fontSize: '0.85rem' }}>总收益率</p>
               </div>
             </div>
           </Link>

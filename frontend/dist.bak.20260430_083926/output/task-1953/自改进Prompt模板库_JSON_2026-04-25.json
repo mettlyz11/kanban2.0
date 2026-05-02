@@ -1,0 +1,469 @@
+{
+  "exported_at": "2026-04-25T10:13:31.565244",
+  "total_templates": 16,
+  "categories": {
+    "hallucination": 4,
+    "knowledge_gap": 4,
+    "tool_usage_error": 5,
+    "general": 3
+  },
+  "templates": [
+    {
+      "template_id": "imp_hall_factual_001",
+      "name": "事实核查约束",
+      "description": "防止Agent产生事实性错误",
+      "failure_pattern": "hallucination.factual_error",
+      "trigger_condition": "Agent输出包含可验证的事实错误",
+      "original_pattern": "请回答关于 {topic} 的问题",
+      "improved_template": "请回答关于 {topic} 的问题。\n\n⚠️ 重要约束：\n1. 只陈述你可以确认的事实，不确定的内容请明确标注「可能不准确」\n2. 涉及具体数字、日期、人名时，请再次确认准确性\n3. 如果无法确认某条信息，请说「我无法确认」而不是猜测",
+      "applicable_tools": [
+        "read",
+        "web_fetch",
+        "memory_search"
+      ],
+      "applicable_agents": [
+        "research",
+        "analysis"
+      ],
+      "effectiveness_score": 0.78,
+      "usage_count": 0,
+      "success_count": 0,
+      "created_at": "",
+      "last_used_at": "",
+      "last_updated_at": "",
+      "tags": [
+        "hallucination",
+        "fact-check",
+        "accuracy"
+      ],
+      "examples": []
+    },
+    {
+      "template_id": "imp_hall_ref_001",
+      "name": "引用验证约束",
+      "description": "防止Agent伪造论文引用或数据来源",
+      "failure_pattern": "hallucination.fabricated_reference",
+      "trigger_condition": "Agent引用了不存在或不正确的论文/数据",
+      "original_pattern": "请提供关于 {topic} 的相关论文",
+      "improved_template": "请提供关于 {topic} 的相关论文。\n\n⚠️ 重要约束：\n1. 所有引用的论文必须真实存在，请提供 DOI 或可验证的链接\n2. 如果你不确定某篇论文是否存在，请不要列出它\n3. 优先使用 web_search 工具验证论文的准确性后再引用",
+      "applicable_tools": [
+        "web_fetch",
+        "openclaw-academic-search"
+      ],
+      "applicable_agents": [
+        "research"
+      ],
+      "effectiveness_score": 0.82,
+      "usage_count": 0,
+      "success_count": 0,
+      "created_at": "",
+      "last_used_at": "",
+      "last_updated_at": "",
+      "tags": [
+        "hallucination",
+        "citation",
+        "verification"
+      ],
+      "examples": []
+    },
+    {
+      "template_id": "imp_hall_conf_001",
+      "name": "置信度标注约束",
+      "description": "要求Agent对不确定内容标注置信度",
+      "failure_pattern": "hallucination.overconfident_guess",
+      "trigger_condition": "Agent以高置信度表达了不确定的内容",
+      "original_pattern": "请分析 {topic} 的发展趋势",
+      "improved_template": "请分析 {topic} 的发展趋势。\n\n⚠️ 重要约束：\n1. 对于每个结论，请标注置信度等级：高/中/低\n2. 低置信度的内容请使用「可能」「倾向于」「推测」等限定词\n3. 区分「事实」和「推论」，不要将推测包装为事实",
+      "applicable_tools": [
+        "read",
+        "exec"
+      ],
+      "applicable_agents": [
+        "research",
+        "analysis",
+        "wiki"
+      ],
+      "effectiveness_score": 0.75,
+      "usage_count": 0,
+      "success_count": 0,
+      "created_at": "",
+      "last_used_at": "",
+      "last_updated_at": "",
+      "tags": [
+        "hallucination",
+        "confidence",
+        "uncertainty"
+      ],
+      "examples": []
+    },
+    {
+      "template_id": "imp_hall_logic_001",
+      "name": "逻辑一致性检查",
+      "description": "防止Agent回答前后矛盾",
+      "failure_pattern": "hallucination.logical_inconsistency",
+      "trigger_condition": "Agent回答中出现前后不一致或自相矛盾的内容",
+      "original_pattern": "请分析 {topic}",
+      "improved_template": "请分析 {topic}。\n\n⚠️ 重要约束：\n1. 请确保你的回答前后逻辑一致，不要自相矛盾\n2. 在回答末尾，请自检：是否有矛盾之处？\n3. 如果发现自己前后表述不一致，请在修正部分明确说明",
+      "applicable_tools": [
+        "read"
+      ],
+      "applicable_agents": [
+        "analysis",
+        "wiki"
+      ],
+      "effectiveness_score": 0.7,
+      "usage_count": 0,
+      "success_count": 0,
+      "created_at": "",
+      "last_used_at": "",
+      "last_updated_at": "",
+      "tags": [
+        "hallucination",
+        "consistency",
+        "self-check"
+      ],
+      "examples": []
+    },
+    {
+      "template_id": "imp_kg_domain_001",
+      "name": "领域知识预加载",
+      "description": "在执行任务前先检索相关知识",
+      "failure_pattern": "knowledge_gap.missing_domain_knowledge",
+      "trigger_condition": "Agent表示不了解某个领域",
+      "original_pattern": "请分析 {topic}",
+      "improved_template": "请分析 {topic}。\n\n📋 执行步骤：\n1. 首先使用 web_search 搜索 {topic} 的最新信息（至少3个来源）\n2. 整理搜索到的关键信息\n3. 基于整理的信息进行分析回答",
+      "applicable_tools": [
+        "web_fetch",
+        "tavily-search"
+      ],
+      "applicable_agents": [
+        "research"
+      ],
+      "effectiveness_score": 0.88,
+      "usage_count": 0,
+      "success_count": 0,
+      "created_at": "",
+      "last_used_at": "",
+      "last_updated_at": "",
+      "tags": [
+        "knowledge-gap",
+        "research-first",
+        "pre-loading"
+      ],
+      "examples": []
+    },
+    {
+      "template_id": "imp_kg_time_001",
+      "name": "时效性知识约束",
+      "description": "处理需要最新知识的任务",
+      "failure_pattern": "knowledge_gap.outdated_information",
+      "trigger_condition": "Agent使用了过时的信息或知识截止日期之前的数据",
+      "original_pattern": "请提供 {topic} 的最新信息",
+      "improved_template": "请提供 {topic} 的最新信息。\n\n⏰ 时效性约束：\n1. 请优先使用 2024年以后的信息来源\n2. 如果你不确定某条信息是否是最新的，请明确标注「信息可能已过时」\n3. 使用 web_search 获取最新信息，而非仅依赖训练数据",
+      "applicable_tools": [
+        "web_fetch",
+        "tavily-search"
+      ],
+      "applicable_agents": [
+        "research"
+      ],
+      "effectiveness_score": 0.8,
+      "usage_count": 0,
+      "success_count": 0,
+      "created_at": "",
+      "last_used_at": "",
+      "last_updated_at": "",
+      "tags": [
+        "knowledge-gap",
+        "timeliness",
+        "freshness"
+      ],
+      "examples": []
+    },
+    {
+      "template_id": "imp_kg_ctx_001",
+      "name": "上下文增强模板",
+      "description": "为缺乏上下文的任务补充必要信息",
+      "failure_pattern": "knowledge_gap.insufficient_context",
+      "trigger_condition": "Agent因缺乏上下文而无法完成任务",
+      "original_pattern": "请处理 {task}",
+      "improved_template": "请处理 {task}。\n\n📋 背景信息：\n- 输入格式：{input_format}\n- 预期输出格式：{output_format}\n- 约束条件：{constraints}\n- 相关参考：{references}\n\n如有不确定的地方，请向我确认后再继续",
+      "applicable_tools": [
+        "read"
+      ],
+      "applicable_agents": [
+        "analysis",
+        "execution"
+      ],
+      "effectiveness_score": 0.85,
+      "usage_count": 0,
+      "success_count": 0,
+      "created_at": "",
+      "last_used_at": "",
+      "last_updated_at": "",
+      "tags": [
+        "knowledge-gap",
+        "context",
+        "specification"
+      ],
+      "examples": []
+    },
+    {
+      "template_id": "imp_kg_amb_001",
+      "name": "歧义消解模板",
+      "description": "将模糊的任务拆分为具体子任务",
+      "failure_pattern": "knowledge_gap.ambiguous_query",
+      "trigger_condition": "任务描述存在多种解读方式",
+      "original_pattern": "请处理 {task}",
+      "improved_template": "任务「{task}」存在多种解读，请按以下方式处理：\n\n📋 消解步骤：\n1. 列出你对任务的 2-3 种理解方式\n2. 对每种理解分别给出处理方案\n3. 标注你认为最可能的理解方式及理由",
+      "applicable_tools": [
+        "read"
+      ],
+      "applicable_agents": [
+        "analysis",
+        "wiki"
+      ],
+      "effectiveness_score": 0.72,
+      "usage_count": 0,
+      "success_count": 0,
+      "created_at": "",
+      "last_used_at": "",
+      "last_updated_at": "",
+      "tags": [
+        "knowledge-gap",
+        "ambiguity",
+        "clarification"
+      ],
+      "examples": []
+    },
+    {
+      "template_id": "imp_tool_wrong_001",
+      "name": "工具选择指引",
+      "description": "帮助Agent选择正确的工具",
+      "failure_pattern": "tool_usage_error.wrong_tool",
+      "trigger_condition": "Agent选择了不合适的工具来完成任务",
+      "original_pattern": "请完成 {task}",
+      "improved_template": "请完成 {task}。\n\n🔧 工具选择指引：\n- 如果需要搜索信息 → 使用 web_fetch 或 tavily-search\n- 如果需要读取文件 → 使用 read\n- 如果需要写入文件 → 使用 write\n- 如果需要执行命令 → 使用 exec（请先在脑中验证命令安全性）\n- 如果需要搜索记忆 → 使用 memory_search 或 memory_get\n\n请优先使用最适合当前任务的工具，不要强行使用不匹配的工具。",
+      "applicable_tools": [
+        "exec",
+        "read",
+        "write",
+        "web_fetch",
+        "memory_search"
+      ],
+      "applicable_agents": [
+        "research",
+        "analysis",
+        "execution"
+      ],
+      "effectiveness_score": 0.83,
+      "usage_count": 0,
+      "success_count": 0,
+      "created_at": "",
+      "last_used_at": "",
+      "last_updated_at": "",
+      "tags": [
+        "tool-error",
+        "tool-selection",
+        "guidance"
+      ],
+      "examples": []
+    },
+    {
+      "template_id": "imp_tool_param_001",
+      "name": "参数验证模板",
+      "description": "在工具调用前增加参数验证",
+      "failure_pattern": "tool_usage_error.wrong_parameters",
+      "trigger_condition": "工具调用因参数错误而失败",
+      "original_pattern": "请执行 {command}",
+      "improved_template": "请执行 {command}。\n\n✅ 参数验证清单：\n1. 确认所有必填参数已提供：{required_params}\n2. 确认参数格式正确（路径/数字/字符串）\n3. 确认目标文件或目录存在（如适用）\n4. 如果不确定，先用小范围测试验证",
+      "applicable_tools": [
+        "exec",
+        "read",
+        "write"
+      ],
+      "applicable_agents": [
+        "analysis",
+        "execution"
+      ],
+      "effectiveness_score": 0.79,
+      "usage_count": 0,
+      "success_count": 0,
+      "created_at": "",
+      "last_used_at": "",
+      "last_updated_at": "",
+      "tags": [
+        "tool-error",
+        "parameter-validation"
+      ],
+      "examples": []
+    },
+    {
+      "template_id": "imp_tool_timeout_001",
+      "name": "超时防护模板",
+      "description": "处理超时问题的改进模板",
+      "failure_pattern": "tool_usage_error.timeout",
+      "trigger_condition": "工具调用因超时失败",
+      "original_pattern": "请搜索 {query}",
+      "improved_template": "请搜索 {query}。\n\n⏱️ 超时防护：\n1. 学术网站响应较慢，请使用 60 秒超时（而非默认 30 秒）\n2. 如果首次失败，等待 5 秒后重试（最多 3 次）\n3. 如果 3 次都超时，尝试备选方案：{fallback_method}",
+      "applicable_tools": [
+        "web_fetch",
+        "openclaw-academic-search"
+      ],
+      "applicable_agents": [
+        "research"
+      ],
+      "effectiveness_score": 0.86,
+      "usage_count": 0,
+      "success_count": 0,
+      "created_at": "",
+      "last_used_at": "",
+      "last_updated_at": "",
+      "tags": [
+        "tool-error",
+        "timeout",
+        "retry"
+      ],
+      "examples": []
+    },
+    {
+      "template_id": "imp_tool_rate_001",
+      "name": "频率限制防护模板",
+      "description": "避免触发API频率限制",
+      "failure_pattern": "tool_usage_error.rate_limit",
+      "trigger_condition": "因请求过于频繁被限流",
+      "original_pattern": "请批量处理 {count} 个项目",
+      "improved_template": "请批量处理 {count} 个项目。\n\n🚦 频率控制：\n1. 每处理 {batch_size} 个项目后，等待 {delay} 秒\n2. 如果遇到 429 错误，等待 60 秒后继续（指数退避）\n3. 优先使用批量接口而非逐个处理",
+      "applicable_tools": [
+        "web_fetch",
+        "exec"
+      ],
+      "applicable_agents": [
+        "research",
+        "analysis"
+      ],
+      "effectiveness_score": 0.81,
+      "usage_count": 0,
+      "success_count": 0,
+      "created_at": "",
+      "last_used_at": "",
+      "last_updated_at": "",
+      "tags": [
+        "tool-error",
+        "rate-limit",
+        "throttling"
+      ],
+      "examples": []
+    },
+    {
+      "template_id": "imp_tool_perm_001",
+      "name": "权限检查模板",
+      "description": "在执行前验证权限配置",
+      "failure_pattern": "tool_usage_error.permission_denied",
+      "trigger_condition": "因权限不足访问被拒绝",
+      "original_pattern": "请访问 {resource}",
+      "improved_template": "请访问 {resource}。\n\n🔐 权限预检：\n1. 确认 API Key / 认证信息已正确配置（从 ~/.openclaw/.env 读取）\n2. 确认你有访问 {resource} 的权限级别\n3. 如果收到 403/401 错误，请检查配置而非重试",
+      "applicable_tools": [
+        "web_fetch",
+        "exec"
+      ],
+      "applicable_agents": [
+        "research",
+        "execution"
+      ],
+      "effectiveness_score": 0.77,
+      "usage_count": 0,
+      "success_count": 0,
+      "created_at": "",
+      "last_used_at": "",
+      "last_updated_at": "",
+      "tags": [
+        "tool-error",
+        "permission",
+        "auth"
+      ],
+      "examples": []
+    },
+    {
+      "template_id": "imp_general_selfcheck_001",
+      "name": "自我检查模板",
+      "description": "在任务完成前强制执行自我检查",
+      "failure_pattern": "general.quality_check",
+      "trigger_condition": "任何需要高质量输出的任务",
+      "original_pattern": "请完成 {task}",
+      "improved_template": "请完成 {task}。\n\n✅ 完成前自检清单：\n1. 我的回答是否直接解决了任务目标？\n2. 是否有事实性错误或幻觉内容？\n3. 输出格式是否符合要求？\n4. 是否有遗漏的关键信息？\n5. 如果需要，我是否使用了合适的工具来验证信息？",
+      "applicable_tools": [],
+      "applicable_agents": [
+        "research",
+        "analysis",
+        "execution",
+        "wiki"
+      ],
+      "effectiveness_score": 0.9,
+      "usage_count": 0,
+      "success_count": 0,
+      "created_at": "",
+      "last_used_at": "",
+      "last_updated_at": "",
+      "tags": [
+        "general",
+        "quality",
+        "self-check"
+      ],
+      "examples": []
+    },
+    {
+      "template_id": "imp_general_step_001",
+      "name": "分步执行模板",
+      "description": "将复杂任务拆分为明确步骤",
+      "failure_pattern": "general.complex_task",
+      "trigger_condition": "任务过于复杂导致执行混乱",
+      "original_pattern": "请完成 {task}",
+      "improved_template": "请完成 {task}。\n\n📋 执行步骤（请严格按顺序执行）：\nStep 1: {step1}\nStep 2: {step2}\nStep 3: {step3}\n\n每完成一步请确认结果后再进行下一步。",
+      "applicable_tools": [],
+      "applicable_agents": [
+        "research",
+        "analysis",
+        "execution"
+      ],
+      "effectiveness_score": 0.87,
+      "usage_count": 0,
+      "success_count": 0,
+      "created_at": "",
+      "last_used_at": "",
+      "last_updated_at": "",
+      "tags": [
+        "general",
+        "step-by-step",
+        "complex"
+      ],
+      "examples": []
+    },
+    {
+      "template_id": "imp_general_format_001",
+      "name": "输出格式约束模板",
+      "description": "强制规范输出格式",
+      "failure_pattern": "general.format_error",
+      "trigger_condition": "输出格式不符合预期",
+      "original_pattern": "请输出 {topic} 的分析结果",
+      "improved_template": "请输出 {topic} 的分析结果。\n\n📐 格式要求：\n- 使用 Markdown 格式\n- 包含：概述、详细分析、结论 三个部分\n- 数据用表格呈现（如适用）\n- 结论不超过 200 字",
+      "applicable_tools": [],
+      "applicable_agents": [
+        "analysis",
+        "wiki"
+      ],
+      "effectiveness_score": 0.84,
+      "usage_count": 0,
+      "success_count": 0,
+      "created_at": "",
+      "last_used_at": "",
+      "last_updated_at": "",
+      "tags": [
+        "general",
+        "format",
+        "output-constraint"
+      ],
+      "examples": []
+    }
+  ]
+}

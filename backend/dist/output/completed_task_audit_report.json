@@ -1,0 +1,206 @@
+{
+  "audit_time": "2026-04-25T16:36:18.433215",
+  "total_completed": 348,
+  "recent_completed": 348,
+  "average_score": 54.73850574712644,
+  "score_distribution": {
+    "较差 (20-39)": 49,
+    "良好 (60-79)": 175,
+    "严重缺失 (0-19)": 19,
+    "一般 (40-59)": 103,
+    "优秀 (80-100)": 2
+  },
+  "output_completeness": {
+    "log_ok": 341,
+    "summary_ok": 334,
+    "has_attachments": 322,
+    "fully_complete": 332,
+    "avg_log_length": 1057.4252873563219,
+    "avg_summary_length": 359.2816091954023
+  },
+  "anomaly_count": 42,
+  "top10_high_quality": [
+    {
+      "task_id": 1724,
+      "title": "SDS系统性能优化与慢查询修复",
+      "score": 82,
+      "quality_level": "优秀 (A)"
+    },
+    {
+      "task_id": 1723,
+      "title": "SDS 72小时无人值守持续监控与稳定性验证",
+      "score": 82,
+      "quality_level": "优秀 (A)"
+    },
+    {
+      "task_id": 1727,
+      "title": "SDS系统备份与灾备方案实现",
+      "score": 79,
+      "quality_level": "良好 (B)"
+    },
+    {
+      "task_id": 1725,
+      "title": "SDS告警推送系统与微信集成",
+      "score": 79,
+      "quality_level": "良好 (B)"
+    },
+    {
+      "task_id": 1570,
+      "title": "T1: AI助手优化 - 2026自我驱动系统(SDS)生产部署与自闭环验证（目标:72h无人值守+自动Kanban任务生成）",
+      "score": 77,
+      "quality_level": "良好 (B)"
+    },
+    {
+      "task_id": 1575,
+      "title": "T4: 财富增值与资产管理 - 新收入来源探索规划（AI咨询+技术授权+知识付费可行性分析）",
+      "score": 77,
+      "quality_level": "良好 (B)"
+    },
+    {
+      "task_id": 1574,
+      "title": "T3: 学术影响力 - Pepi数字员工系统能力定义与技术路线规划（视觉+操作+思考三位一体）",
+      "score": 77,
+      "quality_level": "良好 (B)"
+    },
+    {
+      "task_id": 1584,
+      "title": "T6: 社会参与与法律事务 - 致公党AI+新材料社情民意信息撰写与提交（目标:2026年5月前完成首篇提交）",
+      "score": 77,
+      "quality_level": "良好 (B)"
+    },
+    {
+      "task_id": 1573,
+      "title": "T3: 学术影响力 - T109 Hermes子代理训练与过渡态寻找系统世界领先目标验证",
+      "score": 77,
+      "quality_level": "良好 (B)"
+    },
+    {
+      "task_id": 1580,
+      "title": "T4: 财富增值与资产管理 - AI材料科学咨询业务商业化方案（目标:3个月内获取首个付费咨询客户,定价策略+服务目录+获客渠道）",
+      "score": 77,
+      "quality_level": "良好 (B)"
+    }
+  ],
+  "top20_low_quality": [
+    {
+      "task_id": 1849,
+      "title": "",
+      "score": 0,
+      "quality_level": "严重缺失 (F)"
+    },
+    {
+      "task_id": 324,
+      "title": "文献数据收集",
+      "score": 5,
+      "quality_level": "严重缺失 (F)"
+    },
+    {
+      "task_id": 1726,
+      "title": "SDS子代理调度系统压力测试与边界验证",
+      "score": 7,
+      "quality_level": "严重缺失 (F)"
+    },
+    {
+      "task_id": 1657,
+      "title": "高中同学关系维护",
+      "score": 9,
+      "quality_level": "严重缺失 (F)"
+    },
+    {
+      "task_id": 317,
+      "title": "Ni-ML模型训练",
+      "score": 9,
+      "quality_level": "严重缺失 (F)"
+    },
+    {
+      "task_id": 316,
+      "title": "Ni-催化剂筛选",
+      "score": 9,
+      "quality_level": "严重缺失 (F)"
+    },
+    {
+      "task_id": 1671,
+      "title": "在服务器3上实现看板系统的复制",
+      "score": 12,
+      "quality_level": "严重缺失 (F)"
+    },
+    {
+      "task_id": 1651,
+      "title": "高等院校继续教育专委会曹建锋对接",
+      "score": 12,
+      "quality_level": "严重缺失 (F)"
+    },
+    {
+      "task_id": 1509,
+      "title": "test_normal_task",
+      "score": 12,
+      "quality_level": "严重缺失 (F)"
+    },
+    {
+      "task_id": 1508,
+      "title": "test_zombie_task",
+      "score": 12,
+      "quality_level": "严重缺失 (F)"
+    },
+    {
+      "task_id": 1652,
+      "title": "励英教育科技蒋莉对接",
+      "score": 14,
+      "quality_level": "严重缺失 (F)"
+    },
+    {
+      "task_id": 1654,
+      "title": "和光智成BP发送给陈俊宇",
+      "score": 14,
+      "quality_level": "严重缺失 (F)"
+    },
+    {
+      "task_id": 318,
+      "title": "Ni-DFT计算",
+      "score": 14,
+      "quality_level": "严重缺失 (F)"
+    },
+    {
+      "task_id": 1968,
+      "title": "T4: 财富增值 - 2026 Q2黄金ETF配置执行方案",
+      "score": 15,
+      "quality_level": "严重缺失 (F)"
+    },
+    {
+      "task_id": 1653,
+      "title": "📅下周二1:30约定（赵勇/高龙成）",
+      "score": 17,
+      "quality_level": "严重缺失 (F)"
+    },
+    {
+      "task_id": 560,
+      "title": "[knowledge] 知识库维护 - 自动产生任务",
+      "score": 17,
+      "quality_level": "严重缺失 (F)"
+    },
+    {
+      "task_id": 559,
+      "title": "[system] 系统健康检查 - 自动产生任务",
+      "score": 17,
+      "quality_level": "严重缺失 (F)"
+    },
+    {
+      "task_id": 558,
+      "title": "[T3] T109平台 - 自动产生任务",
+      "score": 17,
+      "quality_level": "严重缺失 (F)"
+    },
+    {
+      "task_id": 556,
+      "title": "[T1] 深云智合 - 自动产生任务",
+      "score": 17,
+      "quality_level": "严重缺失 (F)"
+    },
+    {
+      "task_id": 1649,
+      "title": "杭州银行陈硕科创金融对接",
+      "score": 20,
+      "quality_level": "较差 (D)"
+    }
+  ]
+}

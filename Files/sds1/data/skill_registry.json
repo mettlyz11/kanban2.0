@@ -1,0 +1,948 @@
+{
+  "total": 71,
+  "builtin": 53,
+  "custom": 18,
+  "skills": [
+    {
+      "name": "nano-pdf",
+      "path": "/opt/homebrew/lib/node_modules/openclaw/skills/nano-pdf",
+      "skill_type": "builtin",
+      "description": "---",
+      "command": "nano-pdf edit deck.pdf 1 \"Change the title to 'Q3 Results' and fix the typo in the subtitle\"",
+      "when_to_use": [],
+      "tags": [
+        "document"
+      ]
+    },
+    {
+      "name": "himalaya",
+      "path": "/opt/homebrew/lib/node_modules/openclaw/skills/himalaya",
+      "skill_type": "builtin",
+      "description": "---",
+      "command": "himalaya account configure",
+      "when_to_use": [],
+      "tags": [
+        "search",
+        "download",
+        "communication",
+        "system"
+      ]
+    },
+    {
+      "name": "bear-notes",
+      "path": "/opt/homebrew/lib/node_modules/openclaw/skills/bear-notes",
+      "skill_type": "builtin",
+      "description": "---",
+      "command": "echo \"Note content here\" | grizzly create --title \"My Note\" --tag work",
+      "when_to_use": [],
+      "tags": [
+        "search",
+        "coding"
+      ]
+    },
+    {
+      "name": "peekaboo",
+      "path": "/opt/homebrew/lib/node_modules/openclaw/skills/peekaboo",
+      "skill_type": "builtin",
+      "description": "---",
+      "command": "peekaboo permissions",
+      "when_to_use": [],
+      "tags": [
+        "research",
+        "document",
+        "health",
+        "system",
+        "coding"
+      ]
+    },
+    {
+      "name": "model-usage",
+      "path": "/opt/homebrew/lib/node_modules/openclaw/skills/model-usage",
+      "skill_type": "builtin",
+      "description": "---",
+      "command": "python {baseDir}/scripts/model_usage.py --provider codex --mode current",
+      "when_to_use": [],
+      "tags": [
+        "search",
+        "document",
+        "coding"
+      ]
+    },
+    {
+      "name": "blogwatcher",
+      "path": "/opt/homebrew/lib/node_modules/openclaw/skills/blogwatcher",
+      "skill_type": "builtin",
+      "description": "---",
+      "command": "",
+      "when_to_use": [],
+      "tags": [
+        "system"
+      ]
+    },
+    {
+      "name": "discord",
+      "path": "/opt/homebrew/lib/node_modules/openclaw/skills/discord",
+      "skill_type": "builtin",
+      "description": "---",
+      "command": "",
+      "when_to_use": [],
+      "tags": [
+        "search",
+        "communication"
+      ]
+    },
+    {
+      "name": "coding-agent",
+      "path": "/opt/homebrew/lib/node_modules/openclaw/skills/coding-agent",
+      "skill_type": "builtin",
+      "description": "---",
+      "command": "# ✅ Correct for Codex/Pi/OpenCode",
+      "when_to_use": [],
+      "tags": [
+        "search",
+        "document",
+        "communication",
+        "system",
+        "coding"
+      ]
+    },
+    {
+      "name": "openhue",
+      "path": "/opt/homebrew/lib/node_modules/openclaw/skills/openhue",
+      "skill_type": "builtin",
+      "description": "---",
+      "command": "openhue get light       # List all lights",
+      "when_to_use": [
+        "\"Turn on/off the lights\"",
+        "\"Dim the living room lights\"",
+        "\"Set a scene\" or \"movie mode\"",
+        "Controlling specific Hue rooms or zones",
+        "Adjusting brightness, color, or color temperature"
+      ],
+      "tags": [
+        "system",
+        "coding"
+      ]
+    },
+    {
+      "name": "gemini",
+      "path": "/opt/homebrew/lib/node_modules/openclaw/skills/gemini",
+      "skill_type": "builtin",
+      "description": "---",
+      "command": "",
+      "when_to_use": [],
+      "tags": [
+        "coding"
+      ]
+    },
+    {
+      "name": "gifgrep",
+      "path": "/opt/homebrew/lib/node_modules/openclaw/skills/gifgrep",
+      "skill_type": "builtin",
+      "description": "---",
+      "command": "",
+      "when_to_use": [],
+      "tags": [
+        "search",
+        "download",
+        "document"
+      ]
+    },
+    {
+      "name": "session-logs",
+      "path": "/opt/homebrew/lib/node_modules/openclaw/skills/session-logs",
+      "skill_type": "builtin",
+      "description": "---",
+      "command": "AGENT_ID=\"<agentId>\"",
+      "when_to_use": [],
+      "tags": [
+        "search",
+        "research",
+        "communication",
+        "system"
+      ]
+    },
+    {
+      "name": "node-connect",
+      "path": "/opt/homebrew/lib/node_modules/openclaw/skills/node-connect",
+      "skill_type": "builtin",
+      "description": "---",
+      "command": "openclaw config get gateway.mode",
+      "when_to_use": [],
+      "tags": [
+        "coding"
+      ]
+    },
+    {
+      "name": "ordercli",
+      "path": "/opt/homebrew/lib/node_modules/openclaw/skills/ordercli",
+      "skill_type": "builtin",
+      "description": "---",
+      "command": "",
+      "when_to_use": [],
+      "tags": [
+        "coding"
+      ]
+    },
+    {
+      "name": "openai-whisper",
+      "path": "/opt/homebrew/lib/node_modules/openclaw/skills/openai-whisper",
+      "skill_type": "builtin",
+      "description": "---",
+      "command": "",
+      "when_to_use": [],
+      "tags": [
+        "search",
+        "download",
+        "research"
+      ]
+    },
+    {
+      "name": "spotify-player",
+      "path": "/opt/homebrew/lib/node_modules/openclaw/skills/spotify-player",
+      "skill_type": "builtin",
+      "description": "---",
+      "command": "",
+      "when_to_use": [],
+      "tags": [
+        "search",
+        "coding"
+      ]
+    },
+    {
+      "name": "healthcheck",
+      "path": "/opt/homebrew/lib/node_modules/openclaw/skills/healthcheck",
+      "skill_type": "builtin",
+      "description": "---",
+      "command": "",
+      "when_to_use": [],
+      "tags": [
+        "document",
+        "health",
+        "system",
+        "coding"
+      ]
+    },
+    {
+      "name": "oracle",
+      "path": "/opt/homebrew/lib/node_modules/openclaw/skills/oracle",
+      "skill_type": "builtin",
+      "description": "---",
+      "command": "",
+      "when_to_use": [],
+      "tags": [
+        "document",
+        "finance",
+        "coding"
+      ]
+    },
+    {
+      "name": "xurl",
+      "path": "/opt/homebrew/lib/node_modules/openclaw/skills/xurl",
+      "skill_type": "builtin",
+      "description": "---",
+      "command": "brew install --cask xdevplatform/tap/xurl",
+      "when_to_use": [],
+      "tags": [
+        "search",
+        "communication",
+        "coding"
+      ]
+    },
+    {
+      "name": "summarize",
+      "path": "/opt/homebrew/lib/node_modules/openclaw/skills/summarize",
+      "skill_type": "builtin",
+      "description": "---",
+      "command": "summarize \"https://example.com\" --model google/gemini-3-flash-preview",
+      "when_to_use": [],
+      "tags": [
+        "document"
+      ]
+    },
+    {
+      "name": "clawhub",
+      "path": "/opt/homebrew/lib/node_modules/openclaw/skills/clawhub",
+      "skill_type": "builtin",
+      "description": "---",
+      "command": "npm i -g clawhub",
+      "when_to_use": [],
+      "tags": [
+        "search",
+        "document"
+      ]
+    },
+    {
+      "name": "bluebubbles",
+      "path": "/opt/homebrew/lib/node_modules/openclaw/skills/bluebubbles",
+      "skill_type": "builtin",
+      "description": "---",
+      "command": "",
+      "when_to_use": [],
+      "tags": [
+        "communication",
+        "coding"
+      ]
+    },
+    {
+      "name": "sherpa-onnx-tts",
+      "path": "/opt/homebrew/lib/node_modules/openclaw/skills/sherpa-onnx-tts",
+      "skill_type": "builtin",
+      "description": "---",
+      "command": "STATE_DIR=\"${OPENCLAW_STATE_DIR:-$HOME/.openclaw}\"",
+      "when_to_use": [],
+      "tags": [
+        "download"
+      ]
+    },
+    {
+      "name": "video-frames",
+      "path": "/opt/homebrew/lib/node_modules/openclaw/skills/video-frames",
+      "skill_type": "builtin",
+      "description": "---",
+      "command": "{baseDir}/scripts/frame.sh /path/to/video.mp4 --out /tmp/frame.jpg",
+      "when_to_use": [],
+      "tags": []
+    },
+    {
+      "name": "eightctl",
+      "path": "/opt/homebrew/lib/node_modules/openclaw/skills/eightctl",
+      "skill_type": "builtin",
+      "description": "---",
+      "command": "",
+      "when_to_use": [],
+      "tags": []
+    },
+    {
+      "name": "gog",
+      "path": "/opt/homebrew/lib/node_modules/openclaw/skills/gog",
+      "skill_type": "builtin",
+      "description": "---",
+      "command": "gog gmail send --to recipient@example.com \\",
+      "when_to_use": [],
+      "tags": [
+        "search",
+        "document",
+        "communication"
+      ]
+    },
+    {
+      "name": "canvas",
+      "path": "/opt/homebrew/lib/node_modules/openclaw/skills/canvas",
+      "skill_type": "builtin",
+      "description": "Display HTML content on connected OpenClaw nodes (Mac app, iOS, Android).",
+      "command": "cat > ~/clawd/canvas/my-game.html << 'HTML'",
+      "when_to_use": [],
+      "tags": [
+        "document",
+        "coding"
+      ]
+    },
+    {
+      "name": "notion",
+      "path": "/opt/homebrew/lib/node_modules/openclaw/skills/notion",
+      "skill_type": "builtin",
+      "description": "---",
+      "command": "mkdir -p ~/.config/notion",
+      "when_to_use": [],
+      "tags": [
+        "search",
+        "coding"
+      ]
+    },
+    {
+      "name": "goplaces",
+      "path": "/opt/homebrew/lib/node_modules/openclaw/skills/goplaces",
+      "skill_type": "builtin",
+      "description": "---",
+      "command": "",
+      "when_to_use": [],
+      "tags": [
+        "search"
+      ]
+    },
+    {
+      "name": "apple-reminders",
+      "path": "/opt/homebrew/lib/node_modules/openclaw/skills/apple-reminders",
+      "skill_type": "builtin",
+      "description": "---",
+      "command": "remindctl                    # Today's reminders",
+      "when_to_use": [
+        "User explicitly mentions \"reminder\" or \"Reminders app\"",
+        "Creating personal to-dos with due dates that sync to iOS",
+        "Managing Apple Reminders lists",
+        "User wants tasks to appear in their iPhone/iPad Reminders app"
+      ],
+      "tags": [
+        "communication",
+        "system"
+      ]
+    },
+    {
+      "name": "imsg",
+      "path": "/opt/homebrew/lib/node_modules/openclaw/skills/imsg",
+      "skill_type": "builtin",
+      "description": "---",
+      "command": "imsg chats --limit 10 --json",
+      "when_to_use": [
+        "User explicitly asks to send iMessage or SMS",
+        "Reading iMessage conversation history",
+        "Checking recent Messages.app chats",
+        "Sending to phone numbers or Apple IDs"
+      ],
+      "tags": [
+        "communication"
+      ]
+    },
+    {
+      "name": "skill-creator",
+      "path": "/opt/homebrew/lib/node_modules/openclaw/skills/skill-creator",
+      "skill_type": "builtin",
+      "description": "---",
+      "command": "scripts/init_skill.py <skill-name> --path <output-directory> [--resources scripts,references,assets] [--examples]",
+      "when_to_use": [],
+      "tags": [
+        "search",
+        "research",
+        "document",
+        "communication",
+        "finance",
+        "system",
+        "coding"
+      ]
+    },
+    {
+      "name": "camsnap",
+      "path": "/opt/homebrew/lib/node_modules/openclaw/skills/camsnap",
+      "skill_type": "builtin",
+      "description": "---",
+      "command": "",
+      "when_to_use": [],
+      "tags": [
+        "document"
+      ]
+    },
+    {
+      "name": "github",
+      "path": "/opt/homebrew/lib/node_modules/openclaw/skills/github",
+      "skill_type": "builtin",
+      "description": "---",
+      "command": "# Authenticate (one-time)",
+      "when_to_use": [
+        "Checking PR status, reviews, or merge readiness",
+        "Viewing CI/workflow run status and logs",
+        "Creating, closing, or commenting on issues",
+        "Creating or merging pull requests",
+        "Querying GitHub API for repository data"
+      ],
+      "tags": [
+        "coding"
+      ]
+    },
+    {
+      "name": "taskflow-inbox-triage",
+      "path": "/opt/homebrew/lib/node_modules/openclaw/skills/taskflow-inbox-triage",
+      "skill_type": "builtin",
+      "description": "---",
+      "command": "",
+      "when_to_use": [],
+      "tags": [
+        "communication",
+        "coding"
+      ]
+    },
+    {
+      "name": "things-mac",
+      "path": "/opt/homebrew/lib/node_modules/openclaw/skills/things-mac",
+      "skill_type": "builtin",
+      "description": "---",
+      "command": "",
+      "when_to_use": [],
+      "tags": [
+        "search",
+        "health"
+      ]
+    },
+    {
+      "name": "blucli",
+      "path": "/opt/homebrew/lib/node_modules/openclaw/skills/blucli",
+      "skill_type": "builtin",
+      "description": "---",
+      "command": "",
+      "when_to_use": [],
+      "tags": [
+        "search",
+        "coding"
+      ]
+    },
+    {
+      "name": "sonoscli",
+      "path": "/opt/homebrew/lib/node_modules/openclaw/skills/sonoscli",
+      "skill_type": "builtin",
+      "description": "---",
+      "command": "",
+      "when_to_use": [],
+      "tags": [
+        "search",
+        "document",
+        "coding"
+      ]
+    },
+    {
+      "name": "mcporter",
+      "path": "/opt/homebrew/lib/node_modules/openclaw/skills/mcporter",
+      "skill_type": "builtin",
+      "description": "---",
+      "command": "",
+      "when_to_use": [],
+      "tags": [
+        "search",
+        "coding"
+      ]
+    },
+    {
+      "name": "tmux",
+      "path": "/opt/homebrew/lib/node_modules/openclaw/skills/tmux",
+      "skill_type": "builtin",
+      "description": "---",
+      "command": "tmux list-sessions",
+      "when_to_use": [
+        "Monitoring Claude/Codex sessions in tmux",
+        "Sending input to interactive terminal applications",
+        "Scraping output from long-running processes in tmux",
+        "Navigating tmux panes/windows programmatically",
+        "Checking on background work in existing sessions"
+      ],
+      "tags": [
+        "system",
+        "coding"
+      ]
+    },
+    {
+      "name": "sag",
+      "path": "/opt/homebrew/lib/node_modules/openclaw/skills/sag",
+      "skill_type": "builtin",
+      "description": "---",
+      "command": "# Generate audio file",
+      "when_to_use": [],
+      "tags": [
+        "communication"
+      ]
+    },
+    {
+      "name": "slack",
+      "path": "/opt/homebrew/lib/node_modules/openclaw/skills/slack",
+      "skill_type": "builtin",
+      "description": "---",
+      "command": "",
+      "when_to_use": [],
+      "tags": [
+        "search",
+        "communication",
+        "coding"
+      ]
+    },
+    {
+      "name": "weather",
+      "path": "/opt/homebrew/lib/node_modules/openclaw/skills/weather",
+      "skill_type": "builtin",
+      "description": "---",
+      "command": "# One-line summary",
+      "when_to_use": [
+        "\"What's the weather?\"",
+        "\"Will it rain today/tomorrow?\"",
+        "\"Temperature in [city]\"",
+        "\"Weather forecast for the week\"",
+        "Travel planning weather checks"
+      ],
+      "tags": [
+        "coding"
+      ]
+    },
+    {
+      "name": "obsidian",
+      "path": "/opt/homebrew/lib/node_modules/openclaw/skills/obsidian",
+      "skill_type": "builtin",
+      "description": "---",
+      "command": "",
+      "when_to_use": [],
+      "tags": [
+        "search",
+        "document",
+        "coding"
+      ]
+    },
+    {
+      "name": "trello",
+      "path": "/opt/homebrew/lib/node_modules/openclaw/skills/trello",
+      "skill_type": "builtin",
+      "description": "---",
+      "command": "export TRELLO_API_KEY=\"your-api-key\"",
+      "when_to_use": [],
+      "tags": [
+        "coding"
+      ]
+    },
+    {
+      "name": "wacli",
+      "path": "/opt/homebrew/lib/node_modules/openclaw/skills/wacli",
+      "skill_type": "builtin",
+      "description": "---",
+      "command": "",
+      "when_to_use": [],
+      "tags": [
+        "search",
+        "document",
+        "communication"
+      ]
+    },
+    {
+      "name": "songsee",
+      "path": "/opt/homebrew/lib/node_modules/openclaw/skills/songsee",
+      "skill_type": "builtin",
+      "description": "---",
+      "command": "",
+      "when_to_use": [],
+      "tags": [
+        "coding"
+      ]
+    },
+    {
+      "name": "apple-notes",
+      "path": "/opt/homebrew/lib/node_modules/openclaw/skills/apple-notes",
+      "skill_type": "builtin",
+      "description": "---",
+      "command": "",
+      "when_to_use": [],
+      "tags": [
+        "search",
+        "system"
+      ]
+    },
+    {
+      "name": "taskflow",
+      "path": "/opt/homebrew/lib/node_modules/openclaw/skills/taskflow",
+      "skill_type": "builtin",
+      "description": "---",
+      "command": "",
+      "when_to_use": [],
+      "tags": [
+        "communication",
+        "health",
+        "system",
+        "coding"
+      ]
+    },
+    {
+      "name": "openai-whisper-api",
+      "path": "/opt/homebrew/lib/node_modules/openclaw/skills/openai-whisper-api",
+      "skill_type": "builtin",
+      "description": "---",
+      "command": "{baseDir}/scripts/transcribe.sh /path/to/audio.m4a",
+      "when_to_use": [],
+      "tags": [
+        "document"
+      ]
+    },
+    {
+      "name": "gh-issues",
+      "path": "/opt/homebrew/lib/node_modules/openclaw/skills/gh-issues",
+      "skill_type": "builtin",
+      "description": "---",
+      "command": "",
+      "when_to_use": [],
+      "tags": [
+        "search",
+        "research",
+        "document",
+        "communication",
+        "system",
+        "coding"
+      ]
+    },
+    {
+      "name": "1password",
+      "path": "/opt/homebrew/lib/node_modules/openclaw/skills/1password",
+      "skill_type": "builtin",
+      "description": "---",
+      "command": "SOCKET_DIR=\"${OPENCLAW_TMUX_SOCKET_DIR:-${TMPDIR:-/tmp}/openclaw-tmux-sockets}\"",
+      "when_to_use": [],
+      "tags": [
+        "document",
+        "coding"
+      ]
+    },
+    {
+      "name": "voice-call",
+      "path": "/opt/homebrew/lib/node_modules/openclaw/skills/voice-call",
+      "skill_type": "builtin",
+      "description": "---",
+      "command": "openclaw voicecall call --to \"+15555550123\" --message \"Hello from OpenClaw\"",
+      "when_to_use": [],
+      "tags": [
+        "communication",
+        "coding"
+      ]
+    },
+    {
+      "name": "scihub-paper-downloader",
+      "path": "/Users/mettlyz/.openclaw/workspace/skills/scihub-paper-downloader",
+      "skill_type": "custom",
+      "description": "---",
+      "command": "",
+      "when_to_use": [],
+      "tags": [
+        "download",
+        "document",
+        "academic"
+      ]
+    },
+    {
+      "name": "hermes-bridge",
+      "path": "/Users/mettlyz/.openclaw/workspace/skills/hermes-bridge",
+      "skill_type": "custom",
+      "description": "---",
+      "command": "# Start Hermes MCP server",
+      "when_to_use": [
+        "Delegate complex, multi-step tasks to Hermes",
+        "Access Hermes persistent memory for long-term context",
+        "Utilize Hermes self-learning skills",
+        "Spawn Hermes subagents for parallel work"
+      ],
+      "tags": [
+        "document",
+        "communication"
+      ]
+    },
+    {
+      "name": "zotero-local-pdf-import",
+      "path": "/Users/mettlyz/.openclaw/workspace/skills/zotero-local-pdf-import",
+      "skill_type": "custom",
+      "description": "---",
+      "command": "python skills/zotero-local-import-zh/scripts/zotero_tool.py --help",
+      "when_to_use": [],
+      "tags": [
+        "document",
+        "communication",
+        "system"
+      ]
+    },
+    {
+      "name": "wechat-extraction-v3",
+      "path": "/Users/mettlyz/.openclaw/workspace/skills/wechat-extraction-v3",
+      "skill_type": "custom",
+      "description": "---",
+      "command": "python3 wechat_extraction.py [options]",
+      "when_to_use": [],
+      "tags": [
+        "research",
+        "document"
+      ]
+    },
+    {
+      "name": "self-driving-scheduler-skill",
+      "path": "/Users/mettlyz/.openclaw/workspace/skills/self-driving-scheduler-skill",
+      "skill_type": "custom",
+      "description": "- **Name**: self-driving-scheduler",
+      "command": "openclaw skills run self-driving-scheduler",
+      "when_to_use": [],
+      "tags": [
+        "download",
+        "research"
+      ]
+    },
+    {
+      "name": "openclaw-academic-search",
+      "path": "/Users/mettlyz/.openclaw/workspace/skills/openclaw-academic-search",
+      "skill_type": "custom",
+      "description": "---",
+      "command": "# arXiv 搜索",
+      "when_to_use": [],
+      "tags": [
+        "search",
+        "download",
+        "academic",
+        "coding"
+      ]
+    },
+    {
+      "name": "awesome-design-md",
+      "path": "/Users/mettlyz/.openclaw/workspace/skills/awesome-design-md",
+      "skill_type": "custom",
+      "description": "---",
+      "command": "",
+      "when_to_use": [],
+      "tags": [
+        "system",
+        "coding"
+      ]
+    },
+    {
+      "name": "paper-fetcher",
+      "path": "/Users/mettlyz/.openclaw/workspace/skills/paper-fetcher",
+      "skill_type": "custom",
+      "description": "---",
+      "command": "",
+      "when_to_use": [],
+      "tags": [
+        "search",
+        "download",
+        "research",
+        "document",
+        "communication",
+        "academic"
+      ]
+    },
+    {
+      "name": "ACS-paper-download",
+      "path": "/Users/mettlyz/.openclaw/workspace/skills/ACS-paper-download",
+      "skill_type": "custom",
+      "description": "---",
+      "command": "# 单篇下载",
+      "when_to_use": [],
+      "tags": [
+        "search",
+        "download",
+        "document",
+        "academic"
+      ]
+    },
+    {
+      "name": "patent-search",
+      "path": "/Users/mettlyz/.openclaw/workspace/skills/patent-search",
+      "skill_type": "custom",
+      "description": "---",
+      "command": "# 关键词搜索",
+      "when_to_use": [
+        "搜索特定技术领域的专利",
+        "查询专利详情（申请号、法律状态、IPC 分类）",
+        "按申请人/发明人统计专利",
+        "技术新颖性检索",
+        "竞品专利分析"
+      ],
+      "tags": [
+        "search",
+        "download",
+        "research",
+        "academic"
+      ]
+    },
+    {
+      "name": "openclaw-tavily-search",
+      "path": "/Users/mettlyz/.openclaw/workspace/skills/openclaw-tavily-search",
+      "skill_type": "custom",
+      "description": "---",
+      "command": "# raw JSON (default)",
+      "when_to_use": [],
+      "tags": [
+        "search"
+      ]
+    },
+    {
+      "name": "website-full-fix",
+      "path": "/Users/mettlyz/.openclaw/workspace/skills/website-full-fix",
+      "skill_type": "custom",
+      "description": "---",
+      "command": "ssh -i ~/.openclaw/workspace/Files/Info/aliserver1.pem root@47.93.184.128",
+      "when_to_use": [],
+      "tags": [
+        "search",
+        "research",
+        "document",
+        "communication",
+        "health",
+        "system",
+        "coding"
+      ]
+    },
+    {
+      "name": "zotero-openclaw",
+      "path": "/Users/mettlyz/.openclaw/workspace/skills/zotero-openclaw",
+      "skill_type": "custom",
+      "description": "---",
+      "command": "python3 {baseDir}/scripts/save_paper.py \\",
+      "when_to_use": [],
+      "tags": [
+        "document",
+        "academic"
+      ]
+    },
+    {
+      "name": "universal-journal-downloader",
+      "path": "/Users/mettlyz/.openclaw/workspace/skills/universal-journal-downloader",
+      "skill_type": "custom",
+      "description": "---",
+      "command": "# Install required Python packages",
+      "when_to_use": [],
+      "tags": [
+        "search",
+        "download",
+        "document",
+        "communication",
+        "academic",
+        "health",
+        "system",
+        "coding"
+      ]
+    },
+    {
+      "name": "browser-use",
+      "path": "/Users/mettlyz/.openclaw/workspace/skills/browser-use",
+      "skill_type": "custom",
+      "description": "---",
+      "command": "browser-use doctor    # Verify installation",
+      "when_to_use": [],
+      "tags": [
+        "download",
+        "document",
+        "coding"
+      ]
+    },
+    {
+      "name": "superpowers",
+      "path": "/Users/mettlyz/.openclaw/workspace/skills/superpowers",
+      "skill_type": "custom",
+      "description": "---",
+      "command": "",
+      "when_to_use": [],
+      "tags": [
+        "document",
+        "finance",
+        "system",
+        "coding"
+      ]
+    },
+    {
+      "name": "daily-finance-monitor",
+      "path": "/Users/mettlyz/.openclaw/workspace/skills/daily-finance-monitor",
+      "skill_type": "custom",
+      "description": "---",
+      "command": "",
+      "when_to_use": [],
+      "tags": [
+        "search",
+        "download",
+        "research",
+        "document",
+        "communication",
+        "finance",
+        "system",
+        "coding"
+      ]
+    },
+    {
+      "name": "openclaw-buaa-vpn",
+      "path": "/Users/mettlyz/.openclaw/workspace/skills/openclaw-buaa-vpn",
+      "skill_type": "custom",
+      "description": "---",
+      "command": "# 通过 DOI 下载 PDF",
+      "when_to_use": [],
+      "tags": [
+        "search",
+        "download",
+        "document",
+        "academic"
+      ]
+    }
+  ]
+}

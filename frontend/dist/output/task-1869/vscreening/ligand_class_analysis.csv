@@ -1,0 +1,7 @@
+,predicted_selectivity,predicted_selectivity,predicted_selectivity,predicted_selectivity,predicted_selectivity,MW
+,mean,median,max,min,count,mean
+ligand_class,,,,,,
+diphosphine,73.6,73.8,77.9,68.6,30,466.6
+diphosphite,81.5,82.1,84.4,77.3,42,664.7
+phosphine,64.0,69.8,75.8,18.7,1080,487.7
+phosphite,51.9,49.6,77.6,29.8,576,385.1

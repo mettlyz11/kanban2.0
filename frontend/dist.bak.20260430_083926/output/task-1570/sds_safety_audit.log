@@ -1,0 +1,8 @@
+[2026-04-23 08:49:15] [AUDIT] ACTION=AUTO_TASK_CREATED | task_id=1672, gap_type=missing_tasks, project_id=18
+[2026-04-23 08:49:19] [AUDIT] ACTION=AUTO_TASK_CREATED | task_id=1673, gap_type=missing_tasks, project_id=62
+[2026-04-23 08:49:24] [AUDIT] ACTION=AUTO_TASK_CREATED | task_id=1674, gap_type=missing_tasks, project_id=66
+[2026-04-23 08:49:28] [AUDIT] ACTION=AUTO_TASK_CREATED | task_id=1675, gap_type=stale_project, project_id=24
+[2026-04-23 08:49:33] [AUDIT] ACTION=AUTO_TASK_CREATED | task_id=1676, gap_type=stale_project, project_id=55
+[2026-04-23T08:52:16.660174] [INFO] ACTION=SAFETY_CHECK_START | task_id=9999, title=测试安全任务
+[2026-04-23T08:52:16.660749] [INFO] ACTION=SAFETY_CHECK_PASS | task_id=9999
+[2026-04-23T08:52:16.660787] [INFO] ACTION=SAFETY_CHECK_START | task_id=9998, title=危险任务

@@ -1,0 +1,4 @@
+ligand_name,ligand_type,denticity,temperature,solvent,ligand_class,MW,LogP,TPSA,NumHDonors,NumHAcceptors,NumRotatableBonds,NumRings,P_atoms,O_atoms,HeavyAtoms,predicted_selectivity
+diphosphite_2-tBu_T100_hexane,diphosphite,2,100,hexane,diphosphite,662,8.0,56.0,0,6,10,6,2,6,50,84.38390257463074
+diphosphite_2-iPr_T100_hexane,diphosphite,2,100,hexane,diphosphite,648,8.0,56.0,0,6,10,6,2,6,49,84.38390257463074
+diphosphite_2-Cl_T100_hexane,diphosphite,2,100,hexane,diphosphite,620,8.0,56.0,0,6,9,6,2,6,47,84.34635838060434

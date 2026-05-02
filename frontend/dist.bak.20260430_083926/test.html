@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+<head><title>Test Page</title></head>
+<body>
+<h1>✅ 服务器正常响应</h1>
+<p>如果看到这个页面，说明网络连接正常</p>
+<p>时间：<span id='time'></span></p>
+<script>
+document.getElementById('time').textContent = new Date().toLocaleString();
+// 测试 fetch API
+fetch('/api/login', {
+  method: 'POST',
+  headers: {'Content-Type': 'application/json'},
+  body: JSON.stringify({username:'test', password:'test'})
+}).then(r => r.json()).then(d => {
+  document.body.innerHTML += '<p>✅ API 正常：' + JSON.stringify(d) + '</p>';
+}).catch(e => {
+  document.body.innerHTML += '<p>❌ API 错误：' + e + '</p>';
+});
+</script>
+</body>
+</html>

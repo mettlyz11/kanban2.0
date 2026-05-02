@@ -1,3 +1,22 @@
+
+/* 强制状态标签样式 - 高优先级 */
+.status-badge[class*="failed_retryable"] {
+  background: #ffeeba !important;
+  color: #856404 !important;
+}
+.status-badge[class*="redundant"] {
+  background: #e2e3e5 !important;
+  color: #383d41 !important;
+}
+.status-badge[class*="failed"] {
+  background: #f8d7da !important;
+  color: #721c24 !important;
+}
+.status-badge[class*="cancelled"] {
+  background: #f5c6cb !important;
+  color: #721c24 !important;
+}
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -287,3 +306,17 @@ button:focus-visible {
   width: 100% !important;
   max-width: none !important;
 }
+
+
+
+/* 任务状态标签样式 */
+.status-badge.status-todo { background: #fff3cd; color: #856404; }
+.status-badge.status-progress { background: #cce5ff; color: #004085; }
+.status-badge.status-done { background: #d4edda; color: #155724; }
+.status-badge.status-failed { background: #f8d7da; color: #721c24; }
+.status-badge.status-failed_retryable { background: #ffeeba; color: #856404; }
+.status-badge.status-redundant { background: #e2e3e5; color: #383d41; }
+.status-badge.status-cancelled { background: #f5c6cb; color: #721c24; }
+.status-badge.status-pending { background: #fff3cd; color: #856404; }
+.status-badge.status-in_progress { background: #cce5ff; color: #004085; }
+.status-badge.status-completed { background: #d4edda; color: #155724; }

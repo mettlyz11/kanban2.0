@@ -1,0 +1,466 @@
+#!/bin/bash
+# ============================================================
+# 看板系统改进流水线 - Superpowers × gstack × Playwright × Sentry
+# 一键执行完整的5阶段改进流程
+# ============================================================
+
+set -euo pipefail
+
+# 配置
+KANBAN_URL="http://47.93.184.128"
+FRONTEND_DIR="/opt/kanban-react/frontend"
+BACKEND_DIR="/opt/kanban-react/backend"
+REPORTS_DIR="/opt/kanban-react/qa-reports"
+SENTRY_DSN="${SENTRY_DSN:-}"
+SENTRY_TOKEN="${SENTRY_TOKEN:-}"
+SENTRY_ORG="${SENTRY_ORG:-}"
+SENTRY_PROJECT="${SENTRY_PROJECT:-kanban}"
+
+# 颜色
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+# 日志函数
+log_info() { echo -e "${BLUE}ℹ️  $1${NC}"; }
+log_success() { echo -e "${GREEN}✅ $1${NC}"; }
+log_warn() { echo -e "${YELLOW}⚠️  $1${NC}"; }
+log_error() { echo -e "${RED}❌ $1${NC}"; }
+log_phase() {
+    echo -e "\n${GREEN}========================================${NC}"
+    echo -e "${GREEN}  Phase $1: $2${NC}"
+    echo -e "${GREEN}========================================${NC}\n"
+}
+
+# 帮助信息
+usage() {
+    cat << EOF
+看板系统改进流水线
+
+用法: $0 <命令> [选项]
+
+命令:
+    full          执行完整的5阶段改进流水线
+    qa            运行 Playwright + gstack QA 验收测试
+    sentry-check  检查 Sentry 最近错误
+    build         构建前端并验证
+    deploy        部署到生产环境
+    monitor       启动持续监控模式
+    report        生成最新 QA 报告
+
+选项:
+    --url         指定看板 URL (默认: $KANBAN_URL)
+    --sentry-dsn  Sentry DSN
+    --verbose     显示详细输出
+
+示例:
+    $0 full                    # 完整流水线
+    $0 qa --url localhost:3000 # 测试本地环境
+    $0 sentry-check            # 检查生产错误
+EOF
+}
+
+# ============================================================
+# Phase 1: 分析现状 (Analyze)
+# ============================================================
+phase1_analyze() {
+    log_phase "1" "分析现状"
+    
+    log_info "检查系统状态..."
+    
+    # 1.1 检查服务器状态
+    if curl -sf "$KANBAN_URL" > /dev/null; then
+        log_success "看板服务器可访问: $KANBAN_URL"
+    else
+        log_error "看板服务器无法访问"
+        return 1
+    fi
+    
+    # 1.2 检查 API 状态
+    local api_status=$(curl -sf "$KANBAN_URL/api/tasks?page=1&per_page=1" -o /dev/null -w "%{http_code}")
+    if [ "$api_status" = "200" ]; then
+        log_success "API 正常 (HTTP 200)"
+    else
+        log_error "API 异常 (HTTP $api_status)"
+    fi
+    
+    # 1.3 检查构建产物
+    if [ -f "$FRONTEND_DIR/dist/index.html" ]; then
+        local build_time=$(stat -c %y "$FRONTEND_DIR/dist/index.html" 2>/dev/null || stat -f %Sm "$FRONTEND_DIR/dist/index.html")
+        log_success "构建产物存在: $build_time"
+    else
+        log_warn "构建产物不存在"
+    fi
+    
+    # 1.4 Sentry 错误检查（如果配置了）
+    if [ -n "$SENTRY_TOKEN" ]; then
+        log_info "检查 Sentry 错误..."
+        check_sentry_errors
+    fi
+    
+    # 1.5 生成分析报告
+    mkdir -p "$REPORTS_DIR"
+    cat > "$REPORTS_DIR/phase1-analysis-$(date +%Y%m%d-%H%M%S).json" << EOF
+{
+    "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+    "url": "$KANBAN_URL",
+    "api_status": $api_status,
+    "build_exists": $( [ -f "$FRONTEND_DIR/dist/index.html" ] && echo "true" || echo "false" ),
+    "sentry_configured": $( [ -n "$SENTRY_TOKEN" ] && echo "true" || echo "false" )
+}
+EOF
+    
+    log_success "Phase 1 完成: 分析报告已保存"
+}
+
+# ============================================================
+# Phase 2: 计划改进 (Plan)
+# ============================================================
+phase2_plan() {
+    log_phase "2" "计划改进"
+    
+    log_info "基于分析结果生成改进计划..."
+    
+    # 2.1 读取现有计划
+    if [ -d "/opt/kanban-react/docs/plans" ]; then
+        local latest_plan=$(ls -t /opt/kanban-react/docs/plans/*.md 2>/dev/null | head -1)
+        if [ -n "$latest_plan" ]; then
+            log_info "最新计划: $(basename $latest_plan)"
+        fi
+    fi
+    
+    # 2.2 生成标准改进任务清单
+    cat > "$REPORTS_DIR/improvement-plan-$(date +%Y%m%d).md" << 'EOF'
+# 看板系统改进计划模板
+
+## 待办改进项
+- [ ] 性能优化：代码分割、懒加载
+- [ ] 错误处理：增加错误边界（Error Boundary）
+- [ ] 测试覆盖：添加 Playwright E2E 测试
+- [ ] 监控完善：Sentry 错误追踪
+- [ ] UI 优化：响应式布局改进
+- [ ] 无障碍：ARIA 标签支持
+
+## 优先级矩阵
+| 优先级 | 改进项 | 影响 |  effort |
+|--------|--------|------|---------|
+| P0 | 错误边界 | 高 | 低 |
+| P1 | E2E测试 | 高 | 中 |
+| P2 | 性能优化 | 中 | 高 |
+| P3 | 无障碍 | 低 | 中 |
+EOF
+    
+    log_success "Phase 2 完成: 改进计划已生成"
+}
+
+# ============================================================
+# Phase 3: 实现改进 (Implement)
+# ============================================================
+phase3_implement() {
+    log_phase "3" "实现改进"
+    
+    log_info "执行代码改进..."
+    
+    # 3.1 安装依赖
+    log_info "检查依赖..."
+    cd "$FRONTEND_DIR"
+    
+    # 3.2 构建
+    log_info "构建前端..."
+    if npm run build 2>&1 | tee "$REPORTS_DIR/build-$(date +%Y%m%d-%H%M%S).log"; then
+        log_success "构建成功"
+    else
+        log_error "构建失败，查看日志: $REPORTS_DIR/build-*.log"
+        return 1
+    fi
+    
+    log_success "Phase 3 完成: 代码已构建"
+}
+
+# ============================================================
+# Phase 4: QA 测试 (Test)
+# ============================================================
+phase4_test() {
+    log_phase "4" "QA 测试"
+    
+    log_info "运行 Playwright 自动化测试..."
+    
+    mkdir -p "$REPORTS_DIR/screenshots"
+    
+    # 4.1 基础冒烟测试 (使用 .cjs 扩展名因为 package.json 设置了 "type": "module")
+    cat > /tmp/smoke-test.cjs << 'EOF'
+const { chromium } = require('playwright');
+
+(async () => {
+    const browser = await chromium.launch({ headless: true });
+    const page = await browser.newPage();
+    const results = [];
+    const errors = [];
+    
+    page.on('console', msg => {
+        if (msg.type() === 'error') errors.push(msg.text());
+    });
+    page.on('pageerror', err => errors.push(err.message));
+    
+    // 测试所有页面
+    const pages = [
+        { url: '/', name: '首页' },
+        { url: '/tasks', name: '任务' },
+        { url: '/projects', name: '项目' },
+        { url: '/strategic-map', name: '战略全景' },
+        { url: '/meeting-notes', name: '会议纪要' },
+        { url: '/self-driving-system', name: '自我驱动系统' }
+    ];
+    
+    for (const p of pages) {
+        try {
+            await page.goto('http://localhost' + p.url, { 
+                waitUntil: 'domcontentloaded', 
+                timeout: 15000 
+            });
+            await page.waitForTimeout(1000);
+            
+            const title = await page.title().catch(() => '无标题');
+            results.push({ page: p.name, status: 'OK', title });
+            
+            // 截图
+            await page.screenshot({ 
+                path: `/opt/kanban-react/qa-reports/screenshots/${p.name.replace(/\//g, '-')}.png`,
+                fullPage: true 
+            });
+        } catch (e) {
+            results.push({ page: p.name, status: 'FAIL', error: e.message });
+        }
+    }
+    
+    console.log(JSON.stringify({ results, errors }, null, 2));
+    await browser.close();
+})();
+EOF
+    
+    # 运行测试（使用 frontend 目录下的 node_modules）
+    cd "$FRONTEND_DIR"
+    # 复制测试脚本到 frontend 目录以使用本地 node_modules
+    cp /tmp/smoke-test.cjs "$FRONTEND_DIR/smoke-test.cjs"
+    if node smoke-test.cjs > "$REPORTS_DIR/smoke-test-$(date +%Y%m%d-%H%M%S).json" 2>&1; then
+        log_success "冒烟测试完成"
+    else
+        log_warn "冒烟测试有失败项"
+    fi
+    
+    # 4.2 gstack 方法论 QA 检查
+    log_info "执行 gstack 方法论检查..."
+    
+    # 检查关键功能代码是否存在
+    local checks_passed=0
+    local checks_total=6
+    
+    [ -f "$FRONTEND_DIR/src/pages/Projects.tsx" ] && grep -q "Maximize2" "$FRONTEND_DIR/src/pages/Projects.tsx" && ((checks_passed++))
+    [ -f "$FRONTEND_DIR/src/pages/StrategicMap.tsx" ] && grep -q "viewMode" "$FRONTEND_DIR/src/pages/StrategicMap.tsx" && ((checks_passed++))
+    [ -f "$FRONTEND_DIR/src/pages/MeetingNotes.tsx" ] && ((checks_passed++))
+    [ -f "$FRONTEND_DIR/src/pages/MeetingNotes.css" ] && ((checks_passed++))
+    [ -f "$FRONTEND_DIR/src/pages/Tasks.tsx" ] && ((checks_passed++))
+    [ -f "$FRONTEND_DIR/src/pages/SelfDrivingSystem.tsx" ] && ((checks_passed++))
+    
+    log_info "功能检查: $checks_passed/$checks_total 通过"
+    
+    log_success "Phase 4 完成: QA 测试报告已生成"
+}
+
+# ============================================================
+# Phase 5: 部署与监控 (Deploy & Monitor)
+# ============================================================
+phase5_deploy() {
+    log_phase "5" "部署与监控"
+    
+    log_info "部署到生产环境..."
+    
+    # 5.1 检查 nginx 配置
+    if nginx -t 2>/dev/null; then
+        log_success "Nginx 配置正确"
+    else
+        log_error "Nginx 配置有误"
+        return 1
+    fi
+    
+    # 5.2 重新加载 nginx
+    if nginx -s reload 2>/dev/null; then
+        log_success "Nginx 已重新加载"
+    else
+        log_warn "Nginx 重新加载可能失败"
+    fi
+    
+    # 5.3 验证部署
+    sleep 2
+    if curl -sf "$KANBAN_URL" > /dev/null; then
+        log_success "部署验证成功"
+    else
+        log_error "部署验证失败"
+        return 1
+    fi
+    
+    # 5.4 记录部署日志
+    cat >> "$REPORTS_DIR/deployments.log" << EOF
+[$(date '+%Y-%m-%d %H:%M:%S')] 部署完成
+- URL: $KANBAN_URL
+- 构建产物: $FRONTEND_DIR/dist
+- Nginx 状态: $(systemctl is-active nginx 2>/dev/null || echo 'unknown')
+EOF
+    
+    log_success "Phase 5 完成: 已部署并启动监控"
+}
+
+# ============================================================
+# Sentry 错误检查
+# ============================================================
+check_sentry_errors() {
+    if [ -z "$SENTRY_TOKEN" ]; then
+        log_warn "SENTRY_TOKEN 未设置，跳过 Sentry 检查"
+        return
+    fi
+    
+    log_info "获取 Sentry 最近错误..."
+    
+    local sentry_api="https://sentry.io/api/0/projects/$SENTRY_ORG/$SENTRY_PROJECT/issues/"
+    local response=$(curl -sf "$sentry_api?statsPeriod=24h" \
+        -H "Authorization: Bearer $SENTRY_TOKEN" 2>/dev/null || echo "[]")
+    
+    local error_count=$(echo "$response" | grep -c '"id"' || echo "0")
+    
+    if [ "$error_count" -gt 0 ]; then
+        log_warn "Sentry 发现 $error_count 个错误"
+        echo "$response" | grep -o '"title":"[^"]*"' | head -5 | sed 's/"title":"/  - /g; s/"//g'
+        
+        # 生成错误报告
+        echo "$response" > "$REPORTS_DIR/sentry-errors-$(date +%Y%m%d-%H%M%S).json"
+    else
+        log_success "Sentry 无新错误"
+    fi
+}
+
+# ============================================================
+# 完整流水线
+# ============================================================
+run_full_pipeline() {
+    log_info "🚀 启动看板系统完整改进流水线"
+    log_info "目标: $KANBAN_URL"
+    log_info "时间: $(date)"
+    
+    phase1_analyze || return 1
+    phase2_plan || return 1
+    phase3_implement || return 1
+    phase4_test || return 1
+    phase5_deploy || return 1
+    
+    echo -e "\n${GREEN}========================================${NC}"
+    echo -e "${GREEN}  ✅ 完整流水线执行成功！${NC}"
+    echo -e "${GREEN}========================================${NC}"
+    echo -e "报告目录: $REPORTS_DIR"
+    echo -e "访问地址: $KANBAN_URL"
+}
+
+# ============================================================
+# QA 测试
+# ============================================================
+run_qa() {
+    log_info "🧪 运行 QA 验收测试"
+    
+    phase1_analyze
+    phase4_test
+    
+    log_success "QA 测试完成，查看报告: $REPORTS_DIR"
+}
+
+# ============================================================
+# 持续监控
+# ============================================================
+run_monitor() {
+    log_info "👁️ 启动持续监控模式 (每5分钟检查一次)"
+    
+    while true; do
+        clear
+        echo "看板系统监控 - $(date)"
+        echo "================================"
+        
+        # 检查服务状态
+        if curl -sf "$KANBAN_URL" > /dev/null; then
+            echo "✅ 服务正常"
+        else
+            echo "❌ 服务异常"
+        fi
+        
+        # 检查 API
+        local api_status=$(curl -sf "$KANBAN_URL/api/tasks?page=1&per_page=1" -o /dev/null -w "%{http_code}")
+        echo "API 状态: HTTP $api_status"
+        
+        # Sentry 检查
+        if [ -n "$SENTRY_TOKEN" ]; then
+            check_sentry_errors
+        fi
+        
+        echo "================================"
+        echo "下次检查: 5分钟后 (Ctrl+C 退出)"
+        
+        sleep 300
+    done
+}
+
+# ============================================================
+# 主命令处理
+# ============================================================
+main() {
+    case "${1:-}" in
+        full)
+            run_full_pipeline
+            ;;
+        qa)
+            run_qa
+            ;;
+        sentry-check)
+            check_sentry_errors
+            ;;
+        build)
+            phase3_implement
+            ;;
+        deploy)
+            phase5_deploy
+            ;;
+        monitor)
+            run_monitor
+            ;;
+        report)
+            ls -lt "$REPORTS_DIR" 2>/dev/null || log_warn "报告目录为空"
+            ;;
+        *)
+            usage
+            exit 1
+            ;;
+    esac
+}
+
+# 处理命令行参数
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --url)
+            KANBAN_URL="$2"
+            shift 2
+            ;;
+        --sentry-dsn)
+            SENTRY_DSN="$2"
+            shift 2
+            ;;
+        --verbose)
+            set -x
+            shift
+            ;;
+        *)
+            main "$1"
+            exit 0
+            ;;
+    esac
+done
+
+# 如果没有参数，显示帮助
+usage

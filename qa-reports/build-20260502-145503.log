@@ -1,0 +1,27 @@
+
+> kanban-frontend@3.0.0 build
+> vite build
+
+vite v5.4.21 building for production...
+transforming...
+[vite:css] @import must precede all other statements (besides @charset or empty @layer)
+22 |  @tailwind utilities;
+23 |  
+24 |  @import './App.css';
+   |  ^^^^^^^^^^^^^^^^^^^^
+25 |  
+26 |  :root {
+✓ 6323 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                     0.60 kB │ gzip:   0.36 kB
+dist/assets/main-bcefLpY-.css      59.38 kB │ gzip:  18.29 kB
+dist/assets/ui-enbSAtmY.js         26.82 kB │ gzip:   5.08 kB │ map:     65.17 kB
+dist/assets/vendor-9_rIkOlo.js    163.15 kB │ gzip:  53.23 kB │ map:    704.68 kB
+dist/assets/main-C8hDz40J.js    2,316.46 kB │ gzip: 720.85 kB │ map: 10,164.50 kB
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 30.68s

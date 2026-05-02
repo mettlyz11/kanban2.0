@@ -1,0 +1,323 @@
+import { useState, useEffect, useCallback } from 'react'
+import { Tree, RawNodeDatum } from 'react-d3-tree'
+import { Target, FolderOpen, CheckCircle2, Clock, AlertCircle, Loader2 } from 'lucide-react'
+
+interface TreeNode {
+  id: string
+  type: 'goal' | 'project' | 'task'
+  name: string
+  category?: string
+  progress?: number
+  status?: string
+  priority?: string
+  project_count?: number
+  task_count?: number
+  raw_id?: number
+  children?: TreeNode[]
+}
+
+interface ApiResponse {
+  success: boolean
+  data?: TreeNode[]
+  summary?: {
+    total_goals: number
+    total_projects: number
+    total_tasks: number
+  }
+  error?: string
+}
+
+const nodeColors: Record<string, string> = {
+  goal: '#1e3a5f',
+  project: '#667eea',
+  task: '#10b981'
+}
+
+const statusColors: Record<string, string> = {
+  completed: '#10b981',
+  pending: '#f59e0b',
+  in_progress: '#3b82f6',
+  failed_retryable: '#ef4444'
+}
+
+export default function StrategicMap() {
+  const [treeData, setTreeData] = useState<RawNodeDatum[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [summary, setSummary] = useState({ total_goals: 0, total_projects: 0, total_tasks: 0 })
+  const [selectedNode, setSelectedNode] = useState<TreeNode | null>(null)
+  const [translate, setTranslate] = useState({ x: 0, y: 0 })
+
+  useEffect(() => {
+    const container = document.getElementById('tree-container')
+    if (container) {
+      setTranslate({ x: container.clientWidth / 2, y: 80 })
+    }
+  }, [])
+
+  const fetchData = useCallback(async () => {
+    try {
+      setLoading(true)
+      const res = await fetch('/api/strategic-map')
+      const data: ApiResponse = await res.json()
+      
+      if (data.success && data.data) {
+        // Convert to react-d3-tree format
+        const converted = data.data.map(convertNode)
+        setTreeData(converted)
+        if (data.summary) setSummary(data.summary)
+      } else {
+        setError(data.error || '获取数据失败')
+      }
+    } catch (e) {
+      setError(String(e))
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    fetchData()
+  }, [fetchData])
+
+  const convertNode = (node: TreeNode): RawNodeDatum => {
+    const result: RawNodeDatum = {
+      name: node.name,
+      attributes: {
+        id: node.id,
+        type: node.type,
+        status: node.status || '',
+        progress: String(node.progress || ''),
+        project_count: String(node.project_count || ''),
+        task_count: String(node.task_count || ''),
+        priority: node.priority || '',
+        raw_id: String(node.raw_id || '')
+      }
+    }
+    if (node.children && node.children.length > 0) {
+      result.children = node.children.map(convertNode)
+    }
+    return result
+  }
+
+  const renderNode = ({ nodeDatum }: { nodeDatum: RawNodeDatum }) => {
+    const type = (nodeDatum.attributes?.type as string) || 'task'
+    const status = (nodeDatum.attributes?.status as string) || ''
+    const color = nodeColors[type] || '#999'
+    const statusColor = statusColors[status] || '#999'
+    const isGoal = type === 'goal'
+    const isProject = type === 'project'
+    
+    const size = isGoal ? 32 : isProject ? 24 : 16
+    
+    return (
+      <g onClick={() => {
+        setSelectedNode({
+          id: String(nodeDatum.attributes?.id || ''),
+          type: type as 'goal' | 'project' | 'task',
+          name: nodeDatum.name,
+          status: status,
+          progress: Number(nodeDatum.attributes?.progress || 0),
+          project_count: Number(nodeDatum.attributes?.project_count || 0),
+          task_count: Number(nodeDatum.attributes?.task_count || 0),
+          priority: String(nodeDatum.attributes?.priority || ''),
+          raw_id: Number(nodeDatum.attributes?.raw_id || 0)
+        })
+      }} style={{ cursor: 'pointer' }}>
+        <circle r={size} fill={color} stroke="#fff" strokeWidth={2} />
+        {status && !isGoal && (
+          <circle r={size + 4} fill="none" stroke={statusColor} strokeWidth={2} strokeDasharray="3,2" />
+        )}
+        <text
+          x={isGoal ? 42 : 32}
+          y={5}
+          fill="#333"
+          fontSize={isGoal ? 18 : 15}
+          fontWeight={isGoal ? 600 : 400}
+          style={{ pointerEvents: 'none' }}
+        >
+          {nodeDatum.name.length > 20 ? nodeDatum.name.slice(0, 20) + '...' : nodeDatum.name}
+        </text>
+        {isGoal && nodeDatum.attributes?.project_count && (
+          <text x={30} y={26} fill="#666" fontSize={13} style={{ pointerEvents: 'none' }}>
+            {nodeDatum.attributes.project_count} 项目 · {nodeDatum.attributes.task_count} 任务
+          </text>
+        )}
+      </g>
+    )
+  }
+
+  if (loading) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '80vh' }}>
+        <Loader2 size={32} className="animate-spin" style={{ color: '#667eea' }} />
+        <span style={{ marginLeft: 12, color: '#666' }}>加载战略全景图...</span>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div style={{ padding: 40, textAlign: 'center' }}>
+        <AlertCircle size={48} style={{ color: '#ef4444', marginBottom: 16 }} />
+        <h3 style={{ color: '#ef4444', marginBottom: 8 }}>加载失败</h3>
+        <p style={{ color: '#666' }}>{error}</p>
+        <button
+          onClick={fetchData}
+          style={{
+            marginTop: 16,
+            padding: '8px 16px',
+            background: '#667eea',
+            color: '#fff',
+            border: 'none',
+            borderRadius: 4,
+            cursor: 'pointer'
+          }}
+        >
+          重试
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <div style={{ padding: '10px 20px', height: 'calc(100vh - 20px)', display: 'flex', flexDirection: 'column' }}>
+      {/* Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        <div>
+          <h2 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Target size={24} style={{ color: '#667eea' }} />
+            战略全景图
+          </h2>
+          <p style={{ margin: '4px 0 0', color: '#666', fontSize: 14 }}>
+            战略目标 · 项目 · 任务 层级关系
+          </p>
+        </div>
+        <div style={{ display: 'flex', gap: 16, fontSize: 14 }}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <span style={{ width: 12, height: 12, borderRadius: '50%', background: '#1e3a5f' }} />
+            目标 ({summary.total_goals})
+          </span>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <span style={{ width: 12, height: 12, borderRadius: '50%', background: '#667eea' }} />
+            项目 ({summary.total_projects})
+          </span>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <span style={{ width: 12, height: 12, borderRadius: '50%', background: '#10b981' }} />
+            任务 ({summary.total_tasks})
+          </span>
+        </div>
+      </div>
+
+      {/* Main content */}
+      <div style={{ display: 'flex', flex: 1, gap: 16, overflow: 'hidden' }}>
+        {/* Tree */}
+        <div id="tree-container" style={{ flex: 1, border: '1px solid #e5e7eb', borderRadius: 8, background: '#fafbfc', overflow: 'hidden' }}>
+          {treeData.length > 0 && (
+            <Tree
+              data={treeData}
+              translate={translate}
+              orientation="vertical"
+              renderCustomNodeElement={renderNode}
+              collapsible={true}
+              initialDepth={1}
+              zoom={1.0}
+              separation={{ siblings: 1.5, nonSiblings: 2.0 }}
+              nodeSize={{ x: 220, y: 160 }}
+              pathClassFunc={() => 'link'}
+              styles={{
+                links: { stroke: '#d1d5db', strokeWidth: 1.5 }
+              }}
+            />
+          )}
+        </div>
+
+        {/* Detail panel */}
+        {selectedNode && (
+          <div style={{ width: 300, border: '1px solid #e5e7eb', borderRadius: 8, padding: 16, background: '#fff', overflow: 'auto' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+              {selectedNode.type === 'goal' && <Target size={18} style={{ color: '#1e3a5f' }} />}
+              {selectedNode.type === 'project' && <FolderOpen size={18} style={{ color: '#667eea' }} />}
+              {selectedNode.type === 'task' && <CheckCircle2 size={18} style={{ color: '#10b981' }} />}
+              <h3 style={{ margin: 0, fontSize: 16 }}>{selectedNode.type === 'goal' ? '战略目标' : selectedNode.type === 'project' ? '项目' : '任务'}</h3>
+            </div>
+            
+            <p style={{ fontWeight: 600, marginBottom: 12 }}>{selectedNode.name}</p>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: 14 }}>
+              {selectedNode.status && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <Clock size={14} style={{ color: '#666' }} />
+                  <span style={{ color: '#666' }}>状态:</span>
+                  <span style={{
+                    padding: '2px 8px',
+                    borderRadius: 4,
+                    fontSize: 12,
+                    background: statusColors[selectedNode.status] + '20',
+                    color: statusColors[selectedNode.status]
+                  }}>
+                    {selectedNode.status === 'completed' ? '已完成' : selectedNode.status === 'pending' ? '待办' : selectedNode.status === 'in_progress' ? '进行中' : selectedNode.status}
+                  </span>
+                </div>
+              )}
+              
+              {selectedNode.progress !== undefined && selectedNode.progress > 0 && (
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                    <span style={{ color: '#666' }}>进度</span>
+                    <span style={{ fontWeight: 600 }}>{selectedNode.progress}%</span>
+                  </div>
+                  <div style={{ height: 6, background: '#e5e7eb', borderRadius: 3 }}>
+                    <div style={{ height: '100%', width: `${selectedNode.progress}%`, background: '#667eea', borderRadius: 3 }} />
+                  </div>
+                </div>
+              )}
+              
+              {selectedNode.project_count !== undefined && selectedNode.project_count > 0 && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <FolderOpen size={14} style={{ color: '#666' }} />
+                  <span style={{ color: '#666' }}>项目数:</span>
+                  <span>{selectedNode.project_count}</span>
+                </div>
+              )}
+              
+              {selectedNode.task_count !== undefined && selectedNode.task_count > 0 && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <CheckCircle2 size={14} style={{ color: '#666' }} />
+                  <span style={{ color: '#666' }}>任务数:</span>
+                  <span>{selectedNode.task_count}</span>
+                </div>
+              )}
+              
+              {selectedNode.priority && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <AlertCircle size={14} style={{ color: '#666' }} />
+                  <span style={{ color: '#666' }}>优先级:</span>
+                  <span>{selectedNode.priority}</span>
+                </div>
+              )}
+              
+              {selectedNode.raw_id && selectedNode.raw_id > 0 && (
+                <a
+                  href={selectedNode.type === 'task' ? `/tasks?id=${selectedNode.raw_id}` : '#'}
+                  style={{
+                    marginTop: 8,
+                    padding: '6px 12px',
+                    background: '#667eea',
+                    color: '#fff',
+                    borderRadius: 4,
+                    textDecoration: 'none',
+                    textAlign: 'center',
+                    fontSize: 13
+                  }}
+                >
+                  {selectedNode.type === 'task' ? '查看任务详情' : 'ID: ' + selectedNode.raw_id}
+                </a>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}

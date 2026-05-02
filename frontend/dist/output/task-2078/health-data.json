@@ -1,0 +1,51 @@
+{
+  "2026-04-20": {
+    "morning": {"weight": 76.2, "bp_sys": 120, "bp_dia": 78, "morning_hr": 65},
+    "sleep": {"duration": 7.0, "quality": 7},
+    "exercise": {"type": "跑步", "duration_min": 30},
+    "energy": 7,
+    "notes": ""
+  },
+  "2026-04-21": {
+    "morning": {"weight": 76.0, "bp_sys": 118, "bp_dia": 76, "morning_hr": 63},
+    "sleep": {"duration": 7.5, "quality": 8},
+    "exercise": {"type": "力量训练", "duration_min": 45},
+    "energy": 8,
+    "notes": "状态不错"
+  },
+  "2026-04-22": {
+    "morning": {"weight": 75.8, "bp_sys": 116, "bp_dia": 75, "morning_hr": 61},
+    "sleep": {"duration": 6.5, "quality": 6},
+    "exercise": {"type": "散步", "duration_min": 20},
+    "energy": 6,
+    "notes": "昨晚睡得不太好"
+  },
+  "2026-04-23": {
+    "morning": {"weight": 75.8, "bp_sys": 119, "bp_dia": 77, "morning_hr": 64},
+    "sleep": {"duration": 7.0, "quality": 7},
+    "exercise": {"type": "瑜伽", "duration_min": 30},
+    "energy": 7,
+    "notes": ""
+  },
+  "2026-04-24": {
+    "morning": {"weight": 75.5, "bp_sys": 117, "bp_dia": 76, "morning_hr": 62},
+    "sleep": {"duration": 7.5, "quality": 8},
+    "exercise": {"type": "跑步", "duration_min": 35},
+    "energy": 8,
+    "notes": "晨跑感觉良好"
+  },
+  "2026-04-25": {
+    "morning": {"weight": 75.3, "bp_sys": 115, "bp_dia": 74, "morning_hr": 60, "hrv": 42},
+    "sleep": {"duration": 8.0, "quality": 8},
+    "exercise": {"type": "休息", "duration_min": 0},
+    "energy": 7,
+    "notes": "周末休息日"
+  },
+  "2026-04-26": {
+    "morning": {"weight": 75.2, "bp_sys": 114, "bp_dia": 74, "morning_hr": 59, "hrv": 45},
+    "sleep": {"duration": 8.0, "quality": 9},
+    "exercise": {"type": "瑜伽", "duration_min": 25},
+    "energy": 8,
+    "notes": "周末晨练"
+  }
+}

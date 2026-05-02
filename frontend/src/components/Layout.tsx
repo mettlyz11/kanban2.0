@@ -6,12 +6,15 @@ import './Layout.css'
 
 const menuItems = [
   { path: '/projects', icon: '📁', label: '项目' },
+  { path: '/self-driving', icon: '🤖', label: '自我驱动' },
   { path: '/tasks', icon: '✅', label: '任务' },
   { path: '/health', icon: '❤️', label: '健康管理' },
   { path: '/goals', icon: '🎯', label: '项目目标' },
+  { path: '/strategic-map', icon: '🗺️', label: '战略全景' },
   { path: '/brain', icon: '🧠', label: '知识大脑' },
   { path: '/cron', icon: '⏰', label: '定时任务' },
   { path: '/stocks', icon: '📈', label: '资产' },
+  { path: '/cockpit', icon: '🚀', label: '驾驶舱' },
   { path: '/review', icon: '👁️', label: '审核' },
   { path: '/skills', icon: '🛠️', label: '技能' },
   { path: '/llm-configs', icon: '🤖', label: '大模型配置' },
@@ -48,6 +51,8 @@ const updateRecords = [
   { date: '2026-02-26', version: 'v2.0.1', changes: ['修复Cron任务统计', '新增资产、审核页面', '修复React路由'] },
   { date: '2026-02-26', version: 'v2.0.0', changes: ['看板2.0正式发布', 'React + Flask架构', 'Cloudflare部署', '所有功能迁移完成'] },
 ]
+
+interface LayoutProps { children: React.ReactNode }
 
 export function Layout({ children }: LayoutProps) {
   const location = useLocation()

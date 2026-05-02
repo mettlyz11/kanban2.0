@@ -1,0 +1,233 @@
+{
+  "dashboard": {
+    "id": null,
+    "title": "量化自我 - 健康监测仪表盘",
+    "tags": ["health", "quantified-self"],
+    "timezone": "Asia/Shanghai",
+    "schemaVersion": 36,
+    "refresh": "30m",
+    "panels": [
+      {
+        "id": 1,
+        "title": "今日健康评分",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 6, "x": 0, "y": 0},
+        "targets": [{
+          "query": "from(bucket: \"health_data\") |> range(start: -1d) |> filter(fn: (r) => r._measurement == \"health_scores\" and r._field == \"total\") |> last()",
+          "datasource": {"type": "influxdb", "uid": "influxdb-health"}
+        }],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "none",
+            "min": 0,
+            "max": 100,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"color": "red", "value": null},
+                {"color": "yellow", "value": 60},
+                {"color": "green", "value": 80}
+              ]
+            }
+          }
+        },
+        "options": {"graphMode": "area", "colorMode": "background"}
+      },
+      {
+        "id": 2,
+        "title": "今日步数",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 6, "x": 6, "y": 0},
+        "targets": [{
+          "query": "from(bucket: \"health_data\") |> range(start: -1d) |> filter(fn: (r) => r._measurement == \"health_metrics\" and r._field == \"steps\") |> last()",
+          "datasource": {"type": "influxdb", "uid": "influxdb-health"}
+        }],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "min": 0,
+            "max": 15000,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"color": "red", "value": null},
+                {"color": "yellow", "value": 5000},
+                {"color": "green", "value": 10000}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 3,
+        "title": "昨晚睡眠",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 6, "x": 12, "y": 0},
+        "targets": [{
+          "query": "from(bucket: \"health_data\") |> range(start: -1d) |> filter(fn: (r) => r._measurement == \"health_metrics\" and r._field == \"sleep_hours\") |> last()",
+          "datasource": {"type": "influxdb", "uid": "influxdb-health"}
+        }],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "h",
+            "min": 0,
+            "max": 12,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"color": "red", "value": null},
+                {"color": "yellow", "value": 5},
+                {"color": "green", "value": 7}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 4,
+        "title": "静息心率",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 6, "x": 18, "y": 0},
+        "targets": [{
+          "query": "from(bucket: \"health_data\") |> range(start: -1d) |> filter(fn: (r) => r._measurement == \"health_metrics\" and r._field == \"resting_heart_rate\") |> last()",
+          "datasource": {"type": "influxdb", "uid": "influxdb-health"}
+        }],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "bpm",
+            "min": 40,
+            "max": 100,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"color": "yellow", "value": null},
+                {"color": "green", "value": 55},
+                {"color": "yellow", "value": 75},
+                {"color": "red", "value": 85}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 5,
+        "title": "健康评分趋势 (7天)",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 4},
+        "targets": [{
+          "query": "from(bucket: \"health_data\") |> range(start: -7d) |> filter(fn: (r) => r._measurement == \"health_scores\" and r._field == \"total\")",
+          "datasource": {"type": "influxdb", "uid": "influxdb-health"}
+        }],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "none",
+            "min": 0,
+            "max": 100,
+            "custom": {"lineWidth": 2, "fillOpacity": 20}
+          }
+        },
+        "options": {"legend": {"displayMode": "hidden"}}
+      },
+      {
+        "id": 6,
+        "title": "步数趋势 (7天)",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 4},
+        "targets": [{
+          "query": "from(bucket: \"health_data\") |> range(start: -7d) |> filter(fn: (r) => r._measurement == \"health_metrics\" and r._field == \"steps\")",
+          "datasource": {"type": "influxdb", "uid": "influxdb-health"}
+        }],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "custom": {"lineWidth": 2, "fillOpacity": 20}
+          }
+        }
+      },
+      {
+        "id": 7,
+        "title": "睡眠时长趋势 (14天)",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 12},
+        "targets": [{
+          "query": "from(bucket: \"health_data\") |> range(start: -14d) |> filter(fn: (r) => r._measurement == \"health_metrics\" and r._field == \"sleep_hours\")",
+          "datasource": {"type": "influxdb", "uid": "influxdb-health"}
+        }],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "h",
+            "min": 0,
+            "max": 12,
+            "custom": {"lineWidth": 2, "fillOpacity": 20},
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"color": "red", "value": null},
+                {"color": "yellow", "value": 5},
+                {"color": "green", "value": 7}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 8,
+        "title": "心率趋势 (14天)",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 12},
+        "targets": [{
+          "query": "from(bucket: \"health_data\") |> range(start: -14d) |> filter(fn: (r) => r._measurement == \"health_metrics\" and (r._field == \"resting_heart_rate\" or r._field == \"avg_heart_rate\"))",
+          "datasource": {"type": "influxdb", "uid": "influxdb-health"}
+        }],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "bpm",
+            "custom": {"lineWidth": 2, "fillOpacity": 10}
+          }
+        }
+      },
+      {
+        "id": 9,
+        "title": "各维度评分雷达",
+        "type": "bargauge",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 20},
+        "targets": [{
+          "query": "from(bucket: \"health_data\") |> range(start: -1d) |> filter(fn: (r) => r._measurement == \"health_scores\" and (r._field == \"activity\" or r._field == \"sleep\" or r._field == \"heart_rate\" or r._field == \"energy\"))",
+          "datasource": {"type": "influxdb", "uid": "influxdb-health"}
+        }],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "none",
+            "min": 0,
+            "max": 100,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"color": "red", "value": null},
+                {"color": "yellow", "value": 60},
+                {"color": "green", "value": 80}
+              ]
+            }
+          }
+        },
+        "options": {"orientation": "horizontal", "displayMode": "gradient"}
+      },
+      {
+        "id": 10,
+        "title": "卡路里与运动",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 20},
+        "targets": [{
+          "query": "from(bucket: \"health_data\") |> range(start: -7d) |> filter(fn: (r) => r._measurement == \"health_metrics\" and r._field == \"active_calories\")",
+          "datasource": {"type": "influxdb", "uid": "influxdb-health"}
+        }],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "kcal",
+            "custom": {"lineWidth": 2, "fillOpacity": 30}
+          }
+        }
+      }
+    ]
+  }
+}

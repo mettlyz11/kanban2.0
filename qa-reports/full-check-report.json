@@ -1,0 +1,567 @@
+{
+  "pages": [
+    {
+      "route": "/",
+      "status": 0,
+      "title": "Error",
+      "isLoginPage": false,
+      "hasErrors": true,
+      "errors": [
+        "page.evaluate: SecurityError: Failed to read the 'localStorage' property from 'Window': Access is denied for this document.\n    at UtilityScript.evaluate (<anonymous>:304:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)"
+      ],
+      "ok": false
+    },
+    {
+      "route": "/architecture",
+      "status": 0,
+      "title": "Error",
+      "isLoginPage": false,
+      "hasErrors": true,
+      "errors": [
+        "page.evaluate: SecurityError: Failed to read the 'localStorage' property from 'Window': Access is denied for this document.\n    at UtilityScript.evaluate (<anonymous>:304:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)"
+      ],
+      "ok": false
+    },
+    {
+      "route": "/brain",
+      "status": 0,
+      "title": "Error",
+      "isLoginPage": false,
+      "hasErrors": true,
+      "errors": [
+        "page.evaluate: SecurityError: Failed to read the 'localStorage' property from 'Window': Access is denied for this document.\n    at UtilityScript.evaluate (<anonymous>:304:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)"
+      ],
+      "ok": false
+    },
+    {
+      "route": "/calc-tasks",
+      "status": 0,
+      "title": "Error",
+      "isLoginPage": false,
+      "hasErrors": true,
+      "errors": [
+        "page.evaluate: SecurityError: Failed to read the 'localStorage' property from 'Window': Access is denied for this document.\n    at UtilityScript.evaluate (<anonymous>:304:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)"
+      ],
+      "ok": false
+    },
+    {
+      "route": "/calendar",
+      "status": 0,
+      "title": "Error",
+      "isLoginPage": false,
+      "hasErrors": true,
+      "errors": [
+        "page.evaluate: SecurityError: Failed to read the 'localStorage' property from 'Window': Access is denied for this document.\n    at UtilityScript.evaluate (<anonymous>:304:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)"
+      ],
+      "ok": false
+    },
+    {
+      "route": "/chat",
+      "status": 0,
+      "title": "Error",
+      "isLoginPage": false,
+      "hasErrors": true,
+      "errors": [
+        "page.evaluate: SecurityError: Failed to read the 'localStorage' property from 'Window': Access is denied for this document.\n    at UtilityScript.evaluate (<anonymous>:304:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)"
+      ],
+      "ok": false
+    },
+    {
+      "route": "/communication",
+      "status": 0,
+      "title": "Error",
+      "isLoginPage": false,
+      "hasErrors": true,
+      "errors": [
+        "page.evaluate: SecurityError: Failed to read the 'localStorage' property from 'Window': Access is denied for this document.\n    at UtilityScript.evaluate (<anonymous>:304:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)"
+      ],
+      "ok": false
+    },
+    {
+      "route": "/company",
+      "status": 0,
+      "title": "Error",
+      "isLoginPage": false,
+      "hasErrors": true,
+      "errors": [
+        "page.evaluate: SecurityError: Failed to read the 'localStorage' property from 'Window': Access is denied for this document.\n    at UtilityScript.evaluate (<anonymous>:304:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)"
+      ],
+      "ok": false
+    },
+    {
+      "route": "/company/helight",
+      "status": 0,
+      "title": "Error",
+      "isLoginPage": false,
+      "hasErrors": true,
+      "errors": [
+        "page.evaluate: SecurityError: Failed to read the 'localStorage' property from 'Window': Access is denied for this document.\n    at UtilityScript.evaluate (<anonymous>:304:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)"
+      ],
+      "ok": false
+    },
+    {
+      "route": "/cron",
+      "status": 0,
+      "title": "Error",
+      "isLoginPage": false,
+      "hasErrors": true,
+      "errors": [
+        "page.evaluate: SecurityError: Failed to read the 'localStorage' property from 'Window': Access is denied for this document.\n    at UtilityScript.evaluate (<anonymous>:304:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)"
+      ],
+      "ok": false
+    },
+    {
+      "route": "/daily-reviews",
+      "status": 0,
+      "title": "Error",
+      "isLoginPage": false,
+      "hasErrors": true,
+      "errors": [
+        "page.evaluate: SecurityError: Failed to read the 'localStorage' property from 'Window': Access is denied for this document.\n    at UtilityScript.evaluate (<anonymous>:304:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)"
+      ],
+      "ok": false
+    },
+    {
+      "route": "/dashboard",
+      "status": 0,
+      "title": "Error",
+      "isLoginPage": false,
+      "hasErrors": true,
+      "errors": [
+        "page.evaluate: SecurityError: Failed to read the 'localStorage' property from 'Window': Access is denied for this document.\n    at UtilityScript.evaluate (<anonymous>:304:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)"
+      ],
+      "ok": false
+    },
+    {
+      "route": "/emails",
+      "status": 0,
+      "title": "Error",
+      "isLoginPage": false,
+      "hasErrors": true,
+      "errors": [
+        "page.evaluate: SecurityError: Failed to read the 'localStorage' property from 'Window': Access is denied for this document.\n    at UtilityScript.evaluate (<anonymous>:304:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)"
+      ],
+      "ok": false
+    },
+    {
+      "route": "/goals",
+      "status": 0,
+      "title": "Error",
+      "isLoginPage": false,
+      "hasErrors": true,
+      "errors": [
+        "page.evaluate: SecurityError: Failed to read the 'localStorage' property from 'Window': Access is denied for this document.\n    at UtilityScript.evaluate (<anonymous>:304:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)"
+      ],
+      "ok": false
+    },
+    {
+      "route": "/health",
+      "status": 0,
+      "title": "Error",
+      "isLoginPage": false,
+      "hasErrors": true,
+      "errors": [
+        "page.evaluate: SecurityError: Failed to read the 'localStorage' property from 'Window': Access is denied for this document.\n    at UtilityScript.evaluate (<anonymous>:304:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)"
+      ],
+      "ok": false
+    },
+    {
+      "route": "/llm-configs",
+      "status": 0,
+      "title": "Error",
+      "isLoginPage": false,
+      "hasErrors": true,
+      "errors": [
+        "page.evaluate: SecurityError: Failed to read the 'localStorage' property from 'Window': Access is denied for this document.\n    at UtilityScript.evaluate (<anonymous>:304:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)"
+      ],
+      "ok": false
+    },
+    {
+      "route": "/login",
+      "status": 0,
+      "title": "Error",
+      "isLoginPage": false,
+      "hasErrors": true,
+      "errors": [
+        "page.evaluate: SecurityError: Failed to read the 'localStorage' property from 'Window': Access is denied for this document.\n    at UtilityScript.evaluate (<anonymous>:304:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)"
+      ],
+      "ok": false
+    },
+    {
+      "route": "/meetings",
+      "status": 0,
+      "title": "Error",
+      "isLoginPage": false,
+      "hasErrors": true,
+      "errors": [
+        "page.evaluate: SecurityError: Failed to read the 'localStorage' property from 'Window': Access is denied for this document.\n    at UtilityScript.evaluate (<anonymous>:304:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)"
+      ],
+      "ok": false
+    },
+    {
+      "route": "/molecules",
+      "status": 0,
+      "title": "Error",
+      "isLoginPage": false,
+      "hasErrors": true,
+      "errors": [
+        "page.evaluate: SecurityError: Failed to read the 'localStorage' property from 'Window': Access is denied for this document.\n    at UtilityScript.evaluate (<anonymous>:304:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)"
+      ],
+      "ok": false
+    },
+    {
+      "route": "/my-goals",
+      "status": 0,
+      "title": "Error",
+      "isLoginPage": false,
+      "hasErrors": true,
+      "errors": [
+        "page.evaluate: SecurityError: Failed to read the 'localStorage' property from 'Window': Access is denied for this document.\n    at UtilityScript.evaluate (<anonymous>:304:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)"
+      ],
+      "ok": false
+    },
+    {
+      "route": "/p049",
+      "status": 0,
+      "title": "Error",
+      "isLoginPage": false,
+      "hasErrors": true,
+      "errors": [
+        "page.evaluate: SecurityError: Failed to read the 'localStorage' property from 'Window': Access is denied for this document.\n    at UtilityScript.evaluate (<anonymous>:304:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)"
+      ],
+      "ok": false
+    },
+    {
+      "route": "/p049/login",
+      "status": 0,
+      "title": "Error",
+      "isLoginPage": false,
+      "hasErrors": true,
+      "errors": [
+        "page.evaluate: SecurityError: Failed to read the 'localStorage' property from 'Window': Access is denied for this document.\n    at UtilityScript.evaluate (<anonymous>:304:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)"
+      ],
+      "ok": false
+    },
+    {
+      "route": "/p049/members",
+      "status": 0,
+      "title": "Error",
+      "isLoginPage": false,
+      "hasErrors": true,
+      "errors": [
+        "page.evaluate: SecurityError: Failed to read the 'localStorage' property from 'Window': Access is denied for this document.\n    at UtilityScript.evaluate (<anonymous>:304:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)"
+      ],
+      "ok": false
+    },
+    {
+      "route": "/p049/profile",
+      "status": 0,
+      "title": "Error",
+      "isLoginPage": false,
+      "hasErrors": true,
+      "errors": [
+        "page.evaluate: SecurityError: Failed to read the 'localStorage' property from 'Window': Access is denied for this document.\n    at UtilityScript.evaluate (<anonymous>:304:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)"
+      ],
+      "ok": false
+    },
+    {
+      "route": "/pepi",
+      "status": 0,
+      "title": "Error",
+      "isLoginPage": false,
+      "hasErrors": true,
+      "errors": [
+        "page.evaluate: SecurityError: Failed to read the 'localStorage' property from 'Window': Access is denied for this document.\n    at UtilityScript.evaluate (<anonymous>:304:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)"
+      ],
+      "ok": false
+    },
+    {
+      "route": "/perception",
+      "status": 0,
+      "title": "Error",
+      "isLoginPage": false,
+      "hasErrors": true,
+      "errors": [
+        "page.evaluate: SecurityError: Failed to read the 'localStorage' property from 'Window': Access is denied for this document.\n    at UtilityScript.evaluate (<anonymous>:304:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)"
+      ],
+      "ok": false
+    },
+    {
+      "route": "/perception-monitor",
+      "status": 0,
+      "title": "Error",
+      "isLoginPage": false,
+      "hasErrors": true,
+      "errors": [
+        "page.evaluate: SecurityError: Failed to read the 'localStorage' property from 'Window': Access is denied for this document.\n    at UtilityScript.evaluate (<anonymous>:304:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)"
+      ],
+      "ok": false
+    },
+    {
+      "route": "/personal",
+      "status": 0,
+      "title": "Error",
+      "isLoginPage": false,
+      "hasErrors": true,
+      "errors": [
+        "page.evaluate: SecurityError: Failed to read the 'localStorage' property from 'Window': Access is denied for this document.\n    at UtilityScript.evaluate (<anonymous>:304:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)"
+      ],
+      "ok": false
+    },
+    {
+      "route": "/personal/2",
+      "status": 0,
+      "title": "Error",
+      "isLoginPage": false,
+      "hasErrors": true,
+      "errors": [
+        "page.evaluate: SecurityError: Failed to read the 'localStorage' property from 'Window': Access is denied for this document.\n    at UtilityScript.evaluate (<anonymous>:304:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)"
+      ],
+      "ok": false
+    },
+    {
+      "route": "/personal/3",
+      "status": 0,
+      "title": "Error",
+      "isLoginPage": false,
+      "hasErrors": true,
+      "errors": [
+        "page.evaluate: SecurityError: Failed to read the 'localStorage' property from 'Window': Access is denied for this document.\n    at UtilityScript.evaluate (<anonymous>:304:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)"
+      ],
+      "ok": false
+    },
+    {
+      "route": "/personal/4",
+      "status": 0,
+      "title": "Error",
+      "isLoginPage": false,
+      "hasErrors": true,
+      "errors": [
+        "page.evaluate: SecurityError: Failed to read the 'localStorage' property from 'Window': Access is denied for this document.\n    at UtilityScript.evaluate (<anonymous>:304:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)"
+      ],
+      "ok": false
+    },
+    {
+      "route": "/project-design",
+      "status": 0,
+      "title": "Error",
+      "isLoginPage": false,
+      "hasErrors": true,
+      "errors": [
+        "page.evaluate: SecurityError: Failed to read the 'localStorage' property from 'Window': Access is denied for this document.\n    at UtilityScript.evaluate (<anonymous>:304:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)"
+      ],
+      "ok": false
+    },
+    {
+      "route": "/projects",
+      "status": 0,
+      "title": "Error",
+      "isLoginPage": false,
+      "hasErrors": true,
+      "errors": [
+        "page.evaluate: SecurityError: Failed to read the 'localStorage' property from 'Window': Access is denied for this document.\n    at UtilityScript.evaluate (<anonymous>:304:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)"
+      ],
+      "ok": false
+    },
+    {
+      "route": "/reactions",
+      "status": 0,
+      "title": "Error",
+      "isLoginPage": false,
+      "hasErrors": true,
+      "errors": [
+        "page.evaluate: SecurityError: Failed to read the 'localStorage' property from 'Window': Access is denied for this document.\n    at UtilityScript.evaluate (<anonymous>:304:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)"
+      ],
+      "ok": false
+    },
+    {
+      "route": "/research",
+      "status": 0,
+      "title": "Error",
+      "isLoginPage": false,
+      "hasErrors": true,
+      "errors": [
+        "page.evaluate: SecurityError: Failed to read the 'localStorage' property from 'Window': Access is denied for this document.\n    at UtilityScript.evaluate (<anonymous>:304:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)"
+      ],
+      "ok": false
+    },
+    {
+      "route": "/resources",
+      "status": 0,
+      "title": "Error",
+      "isLoginPage": false,
+      "hasErrors": true,
+      "errors": [
+        "page.evaluate: SecurityError: Failed to read the 'localStorage' property from 'Window': Access is denied for this document.\n    at UtilityScript.evaluate (<anonymous>:304:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)"
+      ],
+      "ok": false
+    },
+    {
+      "route": "/review",
+      "status": 0,
+      "title": "Error",
+      "isLoginPage": false,
+      "hasErrors": true,
+      "errors": [
+        "page.evaluate: SecurityError: Failed to read the 'localStorage' property from 'Window': Access is denied for this document.\n    at UtilityScript.evaluate (<anonymous>:304:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)"
+      ],
+      "ok": false
+    },
+    {
+      "route": "/self-driving",
+      "status": 0,
+      "title": "Error",
+      "isLoginPage": false,
+      "hasErrors": true,
+      "errors": [
+        "page.evaluate: SecurityError: Failed to read the 'localStorage' property from 'Window': Access is denied for this document.\n    at UtilityScript.evaluate (<anonymous>:304:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)"
+      ],
+      "ok": false
+    },
+    {
+      "route": "/settings",
+      "status": 0,
+      "title": "Error",
+      "isLoginPage": false,
+      "hasErrors": true,
+      "errors": [
+        "page.evaluate: SecurityError: Failed to read the 'localStorage' property from 'Window': Access is denied for this document.\n    at UtilityScript.evaluate (<anonymous>:304:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)"
+      ],
+      "ok": false
+    },
+    {
+      "route": "/skills",
+      "status": 0,
+      "title": "Error",
+      "isLoginPage": false,
+      "hasErrors": true,
+      "errors": [
+        "page.evaluate: SecurityError: Failed to read the 'localStorage' property from 'Window': Access is denied for this document.\n    at UtilityScript.evaluate (<anonymous>:304:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)"
+      ],
+      "ok": false
+    },
+    {
+      "route": "/stocks",
+      "status": 0,
+      "title": "Error",
+      "isLoginPage": false,
+      "hasErrors": true,
+      "errors": [
+        "page.evaluate: SecurityError: Failed to read the 'localStorage' property from 'Window': Access is denied for this document.\n    at UtilityScript.evaluate (<anonymous>:304:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)"
+      ],
+      "ok": false
+    },
+    {
+      "route": "/strategic-map",
+      "status": 0,
+      "title": "Error",
+      "isLoginPage": false,
+      "hasErrors": true,
+      "errors": [
+        "page.evaluate: SecurityError: Failed to read the 'localStorage' property from 'Window': Access is denied for this document.\n    at UtilityScript.evaluate (<anonymous>:304:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)"
+      ],
+      "ok": false
+    },
+    {
+      "route": "/system-monitor",
+      "status": 0,
+      "title": "Error",
+      "isLoginPage": false,
+      "hasErrors": true,
+      "errors": [
+        "page.evaluate: SecurityError: Failed to read the 'localStorage' property from 'Window': Access is denied for this document.\n    at UtilityScript.evaluate (<anonymous>:304:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)"
+      ],
+      "ok": false
+    },
+    {
+      "route": "/tasks",
+      "status": 0,
+      "title": "Error",
+      "isLoginPage": false,
+      "hasErrors": true,
+      "errors": [
+        "page.evaluate: SecurityError: Failed to read the 'localStorage' property from 'Window': Access is denied for this document.\n    at UtilityScript.evaluate (<anonymous>:304:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)"
+      ],
+      "ok": false
+    },
+    {
+      "route": "/users",
+      "status": 0,
+      "title": "Error",
+      "isLoginPage": false,
+      "hasErrors": true,
+      "errors": [
+        "page.evaluate: SecurityError: Failed to read the 'localStorage' property from 'Window': Access is denied for this document.\n    at UtilityScript.evaluate (<anonymous>:304:16)\n    at UtilityScript.<anonymous> (<anonymous>:1:44)"
+      ],
+      "ok": false
+    }
+  ],
+  "apis": [
+    {
+      "endpoint": "/api/tasks?page=1&per_page=1",
+      "status": 200,
+      "ok": true,
+      "error": null
+    },
+    {
+      "endpoint": "/api/sds/stats",
+      "status": 200,
+      "ok": true,
+      "error": null
+    },
+    {
+      "endpoint": "/api/sds/history",
+      "status": 200,
+      "ok": true,
+      "error": null
+    },
+    {
+      "endpoint": "/api/projects",
+      "status": 200,
+      "ok": true,
+      "error": null
+    },
+    {
+      "endpoint": "/api/meetings",
+      "status": 200,
+      "ok": true,
+      "error": null
+    },
+    {
+      "endpoint": "/api/users",
+      "status": 200,
+      "ok": true,
+      "error": null
+    },
+    {
+      "endpoint": "/api/health",
+      "status": 200,
+      "ok": true,
+      "error": null
+    },
+    {
+      "endpoint": "/api/goals",
+      "status": 200,
+      "ok": true,
+      "error": null
+    },
+    {
+      "endpoint": "/api/dashboard/stats",
+      "status": 200,
+      "ok": true,
+      "error": null
+    },
+    {
+      "endpoint": "/api/system-monitor",
+      "status": 200,
+      "ok": true,
+      "error": null
+    }
+  ],
+  "summary": {
+    "pass": 0,
+    "fail": 0,
+    "loginRequired": 0,
+    "error": 45
+  }
+}

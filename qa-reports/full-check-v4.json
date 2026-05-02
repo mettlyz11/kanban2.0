@@ -1,0 +1,431 @@
+{
+  "pages": [
+    {
+      "route": "/",
+      "title": "看板系统 v3.0",
+      "isLoginPage": false,
+      "hasContent": true,
+      "contentLength": 581,
+      "ok": true
+    },
+    {
+      "route": "/architecture",
+      "title": "看板系统 v3.0",
+      "isLoginPage": false,
+      "hasContent": true,
+      "contentLength": 749,
+      "ok": true
+    },
+    {
+      "route": "/brain",
+      "title": "看板系统 v3.0",
+      "isLoginPage": false,
+      "hasContent": true,
+      "contentLength": 10970,
+      "ok": true
+    },
+    {
+      "route": "/calc-tasks",
+      "title": "看板系统 v3.0",
+      "isLoginPage": false,
+      "hasContent": true,
+      "contentLength": 729,
+      "ok": true
+    },
+    {
+      "route": "/calendar",
+      "title": "看板系统 v3.0",
+      "isLoginPage": false,
+      "hasContent": true,
+      "contentLength": 825,
+      "ok": true
+    },
+    {
+      "route": "/chat",
+      "title": "看板系统 v3.0",
+      "isLoginPage": false,
+      "hasContent": true,
+      "contentLength": 1068,
+      "ok": true
+    },
+    {
+      "route": "/communication",
+      "title": "看板系统 v3.0",
+      "isLoginPage": false,
+      "hasContent": true,
+      "contentLength": 526,
+      "ok": true
+    },
+    {
+      "route": "/company",
+      "title": "看板系统 v3.0",
+      "isLoginPage": false,
+      "hasContent": true,
+      "contentLength": 417,
+      "ok": true
+    },
+    {
+      "route": "/company/helight",
+      "title": "看板系统 v3.0",
+      "isLoginPage": false,
+      "hasContent": true,
+      "contentLength": 332,
+      "ok": true
+    },
+    {
+      "route": "/cron",
+      "title": "看板系统 v3.0",
+      "isLoginPage": false,
+      "hasContent": true,
+      "contentLength": 634,
+      "ok": true
+    },
+    {
+      "route": "/daily-reviews",
+      "title": "看板系统 v3.0",
+      "isLoginPage": false,
+      "hasContent": true,
+      "contentLength": 389,
+      "ok": true
+    },
+    {
+      "route": "/dashboard",
+      "title": "看板系统 v3.0",
+      "isLoginPage": false,
+      "hasContent": true,
+      "contentLength": 581,
+      "ok": true
+    },
+    {
+      "route": "/emails",
+      "title": "看板系统 v3.0",
+      "isLoginPage": true,
+      "hasContent": false,
+      "contentLength": 17074,
+      "ok": false
+    },
+    {
+      "route": "/goals",
+      "title": "看板系统 v3.0",
+      "isLoginPage": false,
+      "hasContent": true,
+      "contentLength": 845,
+      "ok": true
+    },
+    {
+      "route": "/health",
+      "title": "看板系统 v3.0",
+      "isLoginPage": false,
+      "hasContent": true,
+      "contentLength": 788,
+      "ok": true
+    },
+    {
+      "route": "/llm-configs",
+      "title": "看板系统 v3.0",
+      "isLoginPage": false,
+      "hasContent": true,
+      "contentLength": 86620,
+      "ok": true
+    },
+    {
+      "route": "/login",
+      "title": "看板系统 v3.0",
+      "isLoginPage": true,
+      "hasContent": false,
+      "contentLength": 122,
+      "ok": false
+    },
+    {
+      "route": "/meetings",
+      "title": "看板系统 v3.0",
+      "isLoginPage": false,
+      "hasContent": true,
+      "contentLength": 3147,
+      "ok": true
+    },
+    {
+      "route": "/molecules",
+      "title": "看板系统 v3.0",
+      "isLoginPage": false,
+      "hasContent": true,
+      "contentLength": 526,
+      "ok": true
+    },
+    {
+      "route": "/my-goals",
+      "title": "看板系统 v3.0",
+      "isLoginPage": false,
+      "hasContent": true,
+      "contentLength": 859,
+      "ok": true
+    },
+    {
+      "route": "/p049",
+      "title": "看板系统 v3.0",
+      "isLoginPage": false,
+      "hasContent": true,
+      "contentLength": 38,
+      "ok": true
+    },
+    {
+      "route": "/p049/login",
+      "title": "看板系统 v3.0",
+      "isLoginPage": false,
+      "hasContent": true,
+      "contentLength": 29,
+      "ok": true
+    },
+    {
+      "route": "/p049/members",
+      "title": "看板系统 v3.0",
+      "isLoginPage": false,
+      "hasContent": true,
+      "contentLength": 35,
+      "ok": true
+    },
+    {
+      "route": "/p049/profile",
+      "title": "看板系统 v3.0",
+      "isLoginPage": false,
+      "hasContent": true,
+      "contentLength": 22,
+      "ok": true
+    },
+    {
+      "route": "/pepi",
+      "title": "看板系统 v3.0",
+      "isLoginPage": false,
+      "hasContent": true,
+      "contentLength": 425,
+      "ok": true
+    },
+    {
+      "route": "/perception",
+      "title": "看板系统 v3.0",
+      "isLoginPage": false,
+      "hasContent": true,
+      "contentLength": 489,
+      "ok": true
+    },
+    {
+      "route": "/perception-monitor",
+      "title": "看板系统 v3.0",
+      "isLoginPage": false,
+      "hasContent": true,
+      "contentLength": 12492,
+      "ok": true
+    },
+    {
+      "route": "/personal",
+      "title": "看板系统 v3.0",
+      "isLoginPage": false,
+      "hasContent": true,
+      "contentLength": 3269,
+      "ok": true
+    },
+    {
+      "route": "/personal/2",
+      "title": "看板系统 v3.0",
+      "isLoginPage": false,
+      "hasContent": true,
+      "contentLength": 323,
+      "ok": true
+    },
+    {
+      "route": "/personal/3",
+      "title": "看板系统 v3.0",
+      "isLoginPage": false,
+      "hasContent": true,
+      "contentLength": 322,
+      "ok": true
+    },
+    {
+      "route": "/personal/4",
+      "title": "看板系统 v3.0",
+      "isLoginPage": false,
+      "hasContent": true,
+      "contentLength": 405,
+      "ok": true
+    },
+    {
+      "route": "/project-design",
+      "title": "看板系统 v3.0",
+      "isLoginPage": false,
+      "hasContent": true,
+      "contentLength": 3037,
+      "ok": true
+    },
+    {
+      "route": "/projects",
+      "title": "看板系统 v3.0",
+      "isLoginPage": false,
+      "hasContent": true,
+      "contentLength": 4719,
+      "ok": true
+    },
+    {
+      "route": "/reactions",
+      "title": "看板系统 v3.0",
+      "isLoginPage": false,
+      "hasContent": true,
+      "contentLength": 378,
+      "ok": true
+    },
+    {
+      "route": "/research",
+      "title": "看板系统 v3.0",
+      "isLoginPage": false,
+      "hasContent": true,
+      "contentLength": 385,
+      "ok": true
+    },
+    {
+      "route": "/resources",
+      "title": "看板系统 v3.0",
+      "isLoginPage": false,
+      "hasContent": true,
+      "contentLength": 443,
+      "ok": true
+    },
+    {
+      "route": "/review",
+      "title": "看板系统 v3.0",
+      "isLoginPage": false,
+      "hasContent": true,
+      "contentLength": 716,
+      "ok": true
+    },
+    {
+      "route": "/self-driving",
+      "title": "看板系统 v3.0",
+      "isLoginPage": false,
+      "hasContent": true,
+      "contentLength": 512,
+      "ok": true
+    },
+    {
+      "route": "/settings",
+      "title": "看板系统 v3.0",
+      "isLoginPage": false,
+      "hasContent": true,
+      "contentLength": 267,
+      "ok": true
+    },
+    {
+      "route": "/skills",
+      "title": "看板系统 v3.0",
+      "isLoginPage": false,
+      "hasContent": true,
+      "contentLength": 464,
+      "ok": true
+    },
+    {
+      "route": "/stocks",
+      "title": "看板系统 v3.0",
+      "isLoginPage": false,
+      "hasContent": true,
+      "contentLength": 423,
+      "ok": true
+    },
+    {
+      "route": "/strategic-map",
+      "title": "看板系统 v3.0",
+      "isLoginPage": false,
+      "hasContent": true,
+      "contentLength": 517,
+      "ok": true
+    },
+    {
+      "route": "/system-monitor",
+      "title": "看板系统 v3.0",
+      "isLoginPage": false,
+      "hasContent": true,
+      "contentLength": 1005,
+      "ok": true
+    },
+    {
+      "route": "/tasks",
+      "title": "看板系统 v3.0",
+      "isLoginPage": false,
+      "hasContent": true,
+      "contentLength": 3640,
+      "ok": true
+    },
+    {
+      "route": "/users",
+      "title": "看板系统 v3.0",
+      "isLoginPage": false,
+      "hasContent": true,
+      "contentLength": 264,
+      "ok": true
+    }
+  ],
+  "apis": [
+    {
+      "endpoint": "/api/tasks?page=1&per_page=1",
+      "status": 200,
+      "ok": true,
+      "error": null
+    },
+    {
+      "endpoint": "/api/sds/stats",
+      "status": 200,
+      "ok": true,
+      "error": null
+    },
+    {
+      "endpoint": "/api/sds/history",
+      "status": 200,
+      "ok": true,
+      "error": null
+    },
+    {
+      "endpoint": "/api/projects",
+      "status": 200,
+      "ok": true,
+      "error": null
+    },
+    {
+      "endpoint": "/api/meetings",
+      "status": 200,
+      "ok": true,
+      "error": null
+    },
+    {
+      "endpoint": "/api/users",
+      "status": 200,
+      "ok": true,
+      "error": null
+    },
+    {
+      "endpoint": "/api/health",
+      "status": 200,
+      "ok": true,
+      "error": null
+    },
+    {
+      "endpoint": "/api/goals",
+      "status": 200,
+      "ok": true,
+      "error": null
+    },
+    {
+      "endpoint": "/api/dashboard/stats",
+      "status": 200,
+      "ok": true,
+      "error": null
+    },
+    {
+      "endpoint": "/api/system-monitor",
+      "status": 200,
+      "ok": true,
+      "error": null
+    }
+  ],
+  "summary": {
+    "pass": 43,
+    "login": 2,
+    "fail": 0
+  }
+}
