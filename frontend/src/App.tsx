@@ -1,10 +1,11 @@
+import * as Sentry from "@sentry/react"
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './hooks/useAuth'
 import { Layout } from './components/Layout'
 import { Login } from './pages/Login'
 import { Dashboard } from './pages/Dashboard'
 import { Projects } from './pages/Projects'
-import { Tasks } from './pages/Tasks'
+import Tasks from './pages/Tasks'
 import { Cron } from './pages/Cron'
 import { Stocks } from './pages/Stocks'
 import { ManualReview } from './pages/ManualReview'
@@ -27,7 +28,7 @@ import { ResearchNotes } from './pages/ResearchNotes'
 import { MeetingNotes } from './pages/MeetingNotes'
 import { DailyReviews } from './pages/DailyReviews'
 import { Resources } from './pages/Resources'
-import { Calendar } from './pages/Calendar'
+import Calendar from './pages/CalendarPage'
 import { CalendarSettings } from './pages/CalendarSettings'
 import { PerceptionAgent } from './pages/Perception'
 import { PerceptionMonitor } from './pages/PerceptionMonitor'
@@ -35,11 +36,13 @@ import { CommunicationHub } from './pages/CommunicationHub'
 import { Health } from './pages/Health'
 import { PersonalInfo } from './pages/PersonalInfo'
 import { LiuYuzhou } from './pages/LiuYuzhou'
-import { CompanyInfo } from './pages/CompanyInfo'
+import { CompanyalInfo as CompanyInfo } from './pages/CompanyInfo'
 import { Helight } from './pages/Helight'
 import { ProjectDesign } from './pages/ProjectDesign'
 import { ProjectDocuments } from './pages/ProjectDocuments'
 import SelfDrivingSystem from './pages/SelfDrivingSystem'
+import Cockpit from './pages/Cockpit'
+import './App.css'
 import './components/Layout.css'
 
 // 路由守卫组件
@@ -91,7 +94,8 @@ function AppRoutes() {
       <Route path="/personal/:id" element={<PrivateRoute><Layout><PersonalInfo /></Layout></PrivateRoute>} />
       <Route path="/personal/liuyuzhou" element={<PrivateRoute><Layout><LiuYuzhou /></Layout></PrivateRoute>} />
 
-      <Route path="/self-driving" element={<PrivateRoute><Layout><SelfDrivingSystem /></Layout></PrivateRoute>} />
+      <Route path="/self-driving" element={<Layout><SelfDrivingSystem /></Layout>} />
+      <Route path="/cockpit" element={<Layout><Cockpit /></Layout>} />
       <Route path="/company/:companyId" element={<PrivateRoute><Layout><Helight /></Layout></PrivateRoute>} />
       <Route path="/company" element={<PrivateRoute><Layout><CompanyInfo /></Layout></PrivateRoute>} />
 
@@ -101,6 +105,11 @@ function AppRoutes() {
 }
 
 function App() {
+  Sentry.addBreadcrumb({
+    category: "lifecycle",
+    message: "App component mounted",
+    level: "info"
+  })
   return (
     <BrowserRouter>
       <AuthProvider>
@@ -110,4 +119,5 @@ function App() {
   )
 }
 
+// BUILD_VERIFICATION_TOKEN_20260423_ABCDEF123
 export default App
