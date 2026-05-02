@@ -174,7 +174,7 @@ const Tasks: React.FC = () => {
       if (statusFilter) params.append('status', statusFilter);
       if (projectStatusFilter) params.append('project_status', projectStatusFilter);
       
-      params.append("per_page", "50");
+      params.append("per_page", "200");
       params.append('sort_field', sortField);
       params.append('sort_order', sortOrder);
       const res = await fetch(`/api/tasks?${params}`);
