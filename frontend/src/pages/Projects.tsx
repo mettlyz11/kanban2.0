@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react'
+import * as Sentry from "@sentry/react"
+import { useState, useEffect, useMemo } from 'react'
 import { TaskAttachments } from "../components/TaskAttachments"
 import { TaskAccordion } from "../components/TaskAccordion"
 import "../components/TaskAttachments.css"
 import { api, projectFilesApi } from '../utils/api'
-import { ChevronDown, ChevronUp, Target, ListTodo, Edit2, Trash2, Plus, X, Save, Upload, Download, FileText, AlertCircle, Loader2 } from 'lucide-react'
+import { ChevronDown, ChevronUp, Target, ListTodo, Edit2, Trash2, Plus, X, Save, Upload, Download, FileText, AlertCircle, Loader2, Maximize2 } from 'lucide-react'
 
 interface Task {
   id: number
@@ -62,6 +63,7 @@ export function Projects() {
   const [editingProject, setEditingProject] = useState<Project | null>(null)
   const [expandedProjects, setExpandedProjects] = useState<Set<number>>(new Set())
   const [projectTasks, setProjectTasks] = useState<Record<number, Task[]>>({})
+  const [projectTasksLoading, setProjectTasksLoading] = useState<Record<number, boolean>>({})
   const [projectFiles, setProjectFiles] = useState<Record<number, ProjectFile[]>>({})
   const [showAddTaskModal, setShowAddTaskModal] = useState(false)
   const [taskProjectId, setTaskProjectId] = useState<number | null>(null)
@@ -70,36 +72,36 @@ export function Projects() {
     description: '',
     priority: 'medium'
   })
-  const [formData, setFormData] = useState({ 
-    name: '', 
-    description: '', 
-    goal: '', 
-    priority: 'medium' 
+  const [formData, setFormData] = useState({
+    name: '',
+    description: '',
+    goal: '',
+    priority: 'medium'
   })
-  const [editFormData, setEditFormData] = useState({ 
-    name: '', 
-    description: '', 
-    goal: '', 
+  const [editFormData, setEditFormData] = useState({
+    name: '',
+    description: '',
+    goal: '',
     priority: 'medium',
     status: 'todo'
   })
+  const [maximizedProject, setMaximizedProject] = useState<ProjectWithTasks | null>(null)
+  const [taskSearch, setTaskSearch] = useState('')
+  const [taskStatusFilter, setTaskStatusFilter] = useState<string>('all')
 
-  // 加载折叠状态（但不立即加载任务，等待项目列表加载完成）
   useEffect(() => {
     const saved = localStorage.getItem('kanban_expanded_projects')
     if (saved) {
       try {
         const ids = JSON.parse(saved)
-        const expandedIds = new Set(ids)
+        const expandedIds = new Set<number>(ids)
         setExpandedProjects(expandedIds)
-        // 注意：任务加载移到 loadProjects 完成后进行
       } catch (e) {
         console.error('Failed to load expanded state:', e)
       }
     }
   }, [])
 
-  // 保存折叠状态
   useEffect(() => {
     localStorage.setItem('kanban_expanded_projects', JSON.stringify(Array.from(expandedProjects)))
   }, [expandedProjects])
@@ -108,11 +110,85 @@ export function Projects() {
     loadProjects()
   }, [])
 
+  useEffect(() => {
+    if (projects.length === 0 || expandedProjects.size === 0) return
+
+    const loadExpandedProjectData = async () => {
+      const expandedIds = Array.from(expandedProjects)
+
+      const tasksToLoad = expandedIds.filter(id => !(id in projectTasks))
+      if (tasksToLoad.length > 0) {
+        tasksToLoad.forEach(id => {
+          setProjectTasksLoading(prev => ({ ...prev, [id]: true }))
+        })
+        await Promise.all(
+          tasksToLoad.map(async (projectId) => {
+            try {
+              const data = await api.getProjectTasks(projectId)
+              if (data.success) {
+                setProjectTasks(prev => ({ ...prev, [projectId]: data.tasks || [] }))
+              } else {
+                setProjectTasks(prev => ({ ...prev, [projectId]: [] }))
+              }
+            } catch (e) {
+              setProjectTasks(prev => ({ ...prev, [projectId]: [] }))
+              console.error('Auto-load failed:', e)
+            } finally {
+              setProjectTasksLoading(prev => ({ ...prev, [projectId]: false }))
+            }
+          })
+        )
+      }
+
+      const filesToLoad = expandedIds.filter(id => !(id in projectFiles))
+      if (filesToLoad.length > 0) {
+        await Promise.all(
+          filesToLoad.map(async (projectId) => {
+            try {
+              const data = await projectFilesApi.getFiles(projectId)
+              if (data.success) {
+                setProjectFiles(prev => ({ ...prev, [projectId]: data.documents || [] }))
+              }
+            } catch (e) {
+              console.error('Auto-load failed:', e)
+            }
+          })
+        )
+      }
+    }
+
+    loadExpandedProjectData()
+  }, [projects, expandedProjects])
+
+  useEffect(() => {
+    if (!maximizedProject) return
+    const pid = maximizedProject.id
+    if (!projectTasks[pid]) {
+      setProjectTasksLoading(prev => ({ ...prev, [pid]: true }))
+      api.getProjectTasks(pid).then(data => {
+        if (data.success) {
+          setProjectTasks(prev => ({ ...prev, [pid]: data.tasks || [] }))
+        } else {
+          setProjectTasks(prev => ({ ...prev, [pid]: [] }))
+        }
+      }).catch(() => {
+        setProjectTasks(prev => ({ ...prev, [pid]: [] }))
+      }).finally(() => {
+        setProjectTasksLoading(prev => ({ ...prev, [pid]: false }))
+      })
+    }
+  }, [maximizedProject])
+
   const loadProjects = async () => {
+    const watchdog = setTimeout(() => {
+      Sentry.captureMessage("🔴 Projects 页面加载超过 10 秒，可能卡住了！", {
+        level: "error",
+        tags: { page: "projects", issue: "loading_watchdog" }
+      })
+    }, 10000)
     try {
       const data = await api.getProjects()
       if (data.success) {
-        // 为每个项目加载任务统计
         const projectsWithStats = await Promise.all(
           data.projects.map(async (p: Project) => {
             try {
@@ -137,8 +213,7 @@ export function Projects() {
           })
         )
         setProjects(projectsWithStats)
-        
-        // 清理已删除项目的展开状态
+
         const validIds = new Set(projectsWithStats.map((p: ProjectWithTasks) => p.id))
         const currentExpanded = Array.from(expandedProjects)
         const validExpanded = currentExpanded.filter(id => validIds.has(id))
@@ -150,7 +225,14 @@ export function Projects() {
     } catch (e) {
       console.error(e)
     } finally {
+      clearTimeout(watchdog)
       setLoading(false)
+      console.log("[Projects] loadProjects finished, setLoading(false)")
+      Sentry.addBreadcrumb({
+        category: "navigation",
+        message: "Projects page load completed",
+        level: "info"
+      })
     }
   }
 
@@ -160,8 +242,8 @@ export function Projects() {
       newExpanded.delete(projectId)
     } else {
       newExpanded.add(projectId)
-      // 如果没有加载过任务，加载任务
       if (!projectTasks[projectId]) {
+        setProjectTasksLoading(prev => ({ ...prev, [projectId]: true }))
         try {
           const data = await api.getProjectTasks(projectId)
           if (data.success) {
@@ -169,12 +251,16 @@ export function Projects() {
               ...prev,
               [projectId]: data.tasks || []
             }))
+          } else {
+            setProjectTasks(prev => ({...prev, [projectId]: []}))
           }
         } catch (e) {
+          setProjectTasks(prev => ({...prev, [projectId]: []}));
           console.error('Failed to load project tasks:', e)
+        } finally {
+          setProjectTasksLoading(prev => ({ ...prev, [projectId]: false }))
         }
       }
-      // 加载文件列表
       if (!projectFiles[projectId]) {
         try {
           const data = await projectFilesApi.getFiles(projectId)
@@ -235,28 +321,16 @@ export function Projects() {
   }
 
   const handleAddTask = (projectId: number) => {
-    console.log('handleAddTask called with projectId:', projectId)
     setTaskProjectId(projectId)
     setShowAddTaskModal(true)
-    console.log('showAddTaskModal set to true')
   }
 
   const handleTaskSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    console.log('handleTaskSubmit called')
-    console.log('taskProjectId:', taskProjectId)
-    console.log('taskFormData:', taskFormData)
-    if (!taskProjectId) {
-      console.log('No taskProjectId, returning')
-      return
-    }
+    if (!taskProjectId) return
     const project = projects.find(p => p.id === taskProjectId)
-    console.log('found project:', project)
-    if (!project) {
-      console.log('No project found, returning')
-      return
-    }
-    
+    if (!project) return
+
     const res = await api.createTask({
       ...taskFormData,
       project_id: taskProjectId,
@@ -266,7 +340,6 @@ export function Projects() {
       setShowAddTaskModal(false)
       setTaskFormData({ title: '', description: '', priority: 'medium' })
       setTaskProjectId(null)
-      // 刷新任务列表
       const tasksData = await api.getProjectTasks(taskProjectId)
       if (tasksData.success) {
         setProjectTasks(prev => ({
@@ -283,9 +356,7 @@ export function Projects() {
       try {
         const res = await api.deleteTask(taskId)
         if (res.success) {
-          // 刷新项目列表
           loadProjects()
-          // 如果指定了 projectId，刷新该项目的任务列表
           if (projectId) {
             const tasksData = await api.getProjectTasks(projectId)
             if (tasksData.success) {
@@ -308,7 +379,6 @@ export function Projects() {
     try {
       const res = await projectFilesApi.uploadFile(projectId, file, description, 'User')
       if (res.success) {
-        // 刷新文件列表
         const filesData = await projectFilesApi.getFiles(projectId)
         if (filesData.success) {
           setProjectFiles(prev => ({
@@ -330,7 +400,6 @@ export function Projects() {
       try {
         const res = await projectFilesApi.deleteFile(projectId, fileId)
         if (res.success) {
-          // 刷新文件列表
           const filesData = await projectFilesApi.getFiles(projectId)
           if (filesData.success) {
             setProjectFiles(prev => ({
@@ -356,12 +425,18 @@ export function Projects() {
     return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i]
   }
 
+  const openMaximizedView = (project: ProjectWithTasks) => {
+    setMaximizedProject(project)
+    setTaskSearch('')
+    setTaskStatusFilter('all')
+  }
+
   if (loading) return <div className="loading">加载中...</div>
 
   return (
     <div className="page-container" style={{ maxWidth: "100%", padding: "0 32px" }}>
-      <h2 className="page-title">📁 项目管理</h2>
-      
+      <h2 className="page-title">&#x1f4c1; 项目管理</h2>
+
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
         <div style={{ color: '#666' }}>
           共 {projects.length} 个项目
@@ -380,9 +455,8 @@ export function Projects() {
         ) : (
           projects.map(p => (
             <div key={p.id} className="card" style={{ padding: 0, overflow: 'hidden' }}>
-              {/* 项目头部 - 始终可见 */}
-              <div 
-                style={{ 
+              <div
+                style={{
                   padding: '16px',
                   background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
                   color: 'white',
@@ -394,10 +468,10 @@ export function Projects() {
                 onClick={() => toggleExpand(p.id)}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1 }}>
-                  <div style={{ 
-                    background: 'rgba(255,255,255,0.2)', 
-                    padding: '8px', 
-                    borderRadius: '8px' 
+                  <div style={{
+                    background: 'rgba(255,255,255,0.2)',
+                    padding: '8px',
+                    borderRadius: '8px'
                   }}>
                     <Target size={24} />
                   </div>
@@ -410,7 +484,7 @@ export function Projects() {
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <span className={`badge ${
-                    p.priority === 'high' ? 'badge-red' : 
+                    p.priority === 'high' ? 'badge-red' :
                     p.priority === 'medium' ? 'badge-orange' : 'badge-green'
                   }`} style={{ background: 'rgba(255,255,255,0.3)', color: 'white' }}>
                     {p.priority === 'high' ? '高' : p.priority === 'medium' ? '中' : '低'}
@@ -445,6 +519,23 @@ export function Projects() {
                   >
                     <Trash2 size={16} />
                   </button>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); openMaximizedView(p); }}
+                    style={{
+                      background: 'rgba(255,255,255,0.2)',
+                      border: 'none',
+                      color: 'white',
+                      cursor: 'pointer',
+                      padding: '6px',
+                      borderRadius: '4px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      transition: 'background 0.2s'
+                    }}
+                    title="最大化查看"
+                  >
+                    <Maximize2 size={16} />
+                  </button>
                   <div style={{
                     background: 'rgba(255,255,255,0.2)',
                     padding: '6px',
@@ -457,14 +548,12 @@ export function Projects() {
                 </div>
               </div>
 
-              {/* 项目详情 - 可折叠 */}
               <div style={{
                 maxHeight: expandedProjects.has(p.id) ? '2000px' : '0',
                 overflow: 'hidden',
                 transition: 'max-height 0.3s ease-out'
               }}>
                 <div style={{ padding: '16px' }}>
-                  {/* 项目描述 */}
                   <div style={{ marginBottom: '16px' }}>
                     <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#666', marginBottom: '8px' }}>
                       项目描述
@@ -474,16 +563,15 @@ export function Projects() {
                     </div>
                   </div>
 
-                  {/* 任务统计 */}
-                  <div style={{ 
-                    display: 'grid', 
-                    gridTemplateColumns: 'repeat(4, 1fr)', 
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(4, 1fr)',
                     gap: '12px',
                     marginBottom: '16px'
                   }}>
-                    <div style={{ 
-                      background: '#f8f9fa', 
-                      padding: '12px', 
+                    <div style={{
+                      background: '#f8f9fa',
+                      padding: '12px',
                       borderRadius: '8px',
                       textAlign: 'center'
                     }}>
@@ -492,9 +580,9 @@ export function Projects() {
                       </div>
                       <div style={{ fontSize: '0.75rem', color: '#666' }}>总任务</div>
                     </div>
-                    <div style={{ 
-                      background: '#e3fcef', 
-                      padding: '12px', 
+                    <div style={{
+                      background: '#e3fcef',
+                      padding: '12px',
                       borderRadius: '8px',
                       textAlign: 'center'
                     }}>
@@ -503,9 +591,9 @@ export function Projects() {
                       </div>
                       <div style={{ fontSize: '0.75rem', color: '#666' }}>已完成</div>
                     </div>
-                    <div style={{ 
-                      background: '#fff7e6', 
-                      padding: '12px', 
+                    <div style={{
+                      background: '#fff7e6',
+                      padding: '12px',
                       borderRadius: '8px',
                       textAlign: 'center'
                     }}>
@@ -514,9 +602,9 @@ export function Projects() {
                       </div>
                       <div style={{ fontSize: '0.75rem', color: '#666' }}>进行中</div>
                     </div>
-                    <div style={{ 
-                      background: '#f0f0f0', 
-                      padding: '12px', 
+                    <div style={{
+                      background: '#f0f0f0',
+                      padding: '12px',
                       borderRadius: '8px',
                       textAlign: 'center'
                     }}>
@@ -527,15 +615,14 @@ export function Projects() {
                     </div>
                   </div>
 
-                  {/* 操作按钮 */}
-                  <div style={{ 
-                    display: 'flex', 
+                  <div style={{
+                    display: 'flex',
                     gap: '8px',
                     marginBottom: '16px',
                     paddingBottom: '16px',
                     borderBottom: '1px solid #e0e0e0'
                   }}>
-                    <button 
+                    <button
                       className="btn btn-primary"
                       onClick={() => handleAddTask(p.id)}
                       style={{ fontSize: '0.85rem', padding: '8px 16px' }}
@@ -544,21 +631,19 @@ export function Projects() {
                     </button>
                   </div>
 
-                  {/* 任务列表 */}
                   <div style={{ marginBottom: '24px' }}>
-                    <ProjectTaskList 
-                      tasks={projectTasks[p.id] || []} 
-                      loading={!projectTasks[p.id]}
+                    <ProjectTaskList
+                      tasks={projectTasks[p.id] || []}
+                      loading={projectTasksLoading[p.id] || false}
                       onDeleteTask={(taskId) => handleDeleteTask(taskId, p.id)}
                     />
                   </div>
 
-                  {/* 重要文件 */}
                   <div>
-                    <div style={{ 
-                      fontSize: '0.9rem', 
-                      fontWeight: 600, 
-                      color: '#333', 
+                    <div style={{
+                      fontSize: '0.9rem',
+                      fontWeight: 600,
+                      color: '#333',
                       marginBottom: '12px',
                       display: 'flex',
                       alignItems: 'center',
@@ -584,7 +669,27 @@ export function Projects() {
         )}
       </div>
 
-      {/* 新建项目弹窗 */}
+      {maximizedProject && (
+        <MaximizedProjectModal
+          project={maximizedProject}
+          tasks={projectTasks[maximizedProject.id] || []}
+          tasksLoading={projectTasksLoading[maximizedProject.id] || false}
+          taskSearch={taskSearch}
+          onTaskSearchChange={setTaskSearch}
+          taskStatusFilter={taskStatusFilter}
+          onTaskStatusFilterChange={setTaskStatusFilter}
+          onClose={() => setMaximizedProject(null)}
+          onDeleteTask={(taskId) => handleDeleteTask(taskId, maximizedProject.id)}
+          onAddTask={() => {
+            setMaximizedProject(null)
+            setTimeout(() => handleAddTask(maximizedProject.id), 100)
+          }}
+          projects={projects}
+          setProjects={setProjects}
+          loadProjects={loadProjects}
+        />
+      )}
+
       {showModal && (
         <div className="modal-overlay" onClick={() => setShowModal(false)}>
           <div className="modal" onClick={e => e.stopPropagation()}>
@@ -634,7 +739,6 @@ export function Projects() {
         </div>
       )}
 
-      {/* 编辑项目弹窗 */}
       {showEditModal && editingProject && (
         <div className="modal-overlay" onClick={() => setShowEditModal(false)}>
           <div className="modal" onClick={e => e.stopPropagation()}>
@@ -697,7 +801,6 @@ export function Projects() {
         </div>
       )}
 
-      {/* 删除确认弹窗 */}
       {showDeleteModal && deletingProject && (
         <div className="modal-overlay" onClick={() => setShowDeleteModal(false)}>
           <div className="modal" onClick={e => e.stopPropagation()}>
@@ -710,16 +813,16 @@ export function Projects() {
               此操作将同时删除所有关联的任务和文件，且不可恢复。
             </p>
             <div className="modal-actions">
-              <button 
-                type="button" 
-                className="btn btn-secondary" 
+              <button
+                type="button"
+                className="btn btn-secondary"
                 onClick={() => setShowDeleteModal(false)}
               >
                 取消
               </button>
-              <button 
-                type="button" 
-                className="btn" 
+              <button
+                type="button"
+                className="btn"
                 style={{ background: '#c62828', color: 'white' }}
                 onClick={handleDeleteConfirm}
               >
@@ -730,7 +833,6 @@ export function Projects() {
         </div>
       )}
 
-      {/* 添加任务弹窗 */}
       {showAddTaskModal && (
         <div className="modal-overlay" onClick={() => setShowAddTaskModal(false)}>
           <div className="modal" onClick={e => e.stopPropagation()}>
@@ -779,9 +881,390 @@ export function Projects() {
   )
 }
 
+// 项目最大化模态框组件
+function MaximizedProjectModal({
+  project,
+  tasks,
+  tasksLoading,
+  taskSearch,
+  onTaskSearchChange,
+  taskStatusFilter,
+  onTaskStatusFilterChange,
+  onClose,
+  onDeleteTask,
+  onAddTask,
+  projects,
+  setProjects,
+  loadProjects,
+}: {
+  project: ProjectWithTasks
+  tasks: Task[]
+  tasksLoading: boolean
+  taskSearch: string
+  onTaskSearchChange: (v: string) => void
+  taskStatusFilter: string
+  onTaskStatusFilterChange: (v: string) => void
+  onClose: () => void
+  onDeleteTask: (taskId: number) => void
+  onAddTask: () => void
+  projects: ProjectWithTasks[]
+  setProjects: (p: ProjectWithTasks[]) => void
+  loadProjects: () => void
+}) {
+  const filteredTasks = useMemo(() => {
+    let result = tasks
+    if (taskSearch) {
+      const q = taskSearch.toLowerCase()
+      result = result.filter(t =>
+        t.title.toLowerCase().includes(q) ||
+        t.number.toLowerCase().includes(q) ||
+        (t.description || '').toLowerCase().includes(q)
+      )
+    }
+    if (taskStatusFilter !== 'all') {
+      result = result.filter(t => t.status === taskStatusFilter)
+    }
+    return result
+  }, [tasks, taskSearch, taskStatusFilter])
+
+  const statusLabel = (s: string) => {
+    switch (s) {
+      case 'todo': return '待办'
+      case 'progress': return '进行中'
+      case 'done': return '已完成'
+      default: return s
+    }
+  }
+
+  const priorityLabel = (p: string) => {
+    switch (p) {
+      case 'high': return '高'
+      case 'medium': return '中'
+      case 'low': return '低'
+      default: return p
+    }
+  }
+
+  const priorityBadgeClass = (p: string) => {
+    switch (p) {
+      case 'high': return 'badge-red'
+      case 'medium': return 'badge-orange'
+      case 'low': return 'badge-green'
+      default: return 'badge-green'
+    }
+  }
+
+  return (
+    <div style={{
+      position: 'fixed',
+      inset: 0,
+      zIndex: 9999,
+      background: '#f5f5f5',
+      display: 'flex',
+      flexDirection: 'column'
+    }}>
+      {/* 顶部工具栏 */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: '12px 24px',
+        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+        color: 'white',
+        flexShrink: 0
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <Target size={24} />
+          <h2 style={{ margin: 0, fontSize: '1.2rem' }}>{project.name}</h2>
+          <span style={{
+            fontSize: '0.8rem',
+            opacity: 0.8,
+            background: 'rgba(255,255,255,0.2)',
+            padding: '2px 8px',
+            borderRadius: '4px'
+          }}>{project.number}</span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span className={`badge ${priorityBadgeClass(project.priority)}`} style={{ background: 'rgba(255,255,255,0.3)', color: 'white' }}>
+            {priorityLabel(project.priority)}
+          </span>
+          <button
+            onClick={onClose}
+            style={{
+              background: 'rgba(255,255,255,0.2)',
+              border: 'none',
+              color: 'white',
+              cursor: 'pointer',
+              padding: '8px',
+              borderRadius: '6px',
+              display: 'flex',
+              alignItems: 'center',
+              transition: 'background 0.2s'
+            }}
+            onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.3)'}
+            onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.2)'}
+            title="关闭最大化视图"
+          >
+            <X size={20} />
+          </button>
+        </div>
+      </div>
+
+      {/* 主体内容区 - 左右分栏 */}
+      <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+        {/* 左侧：项目信息 */}
+        <div style={{
+          width: '360px',
+          flexShrink: 0,
+          background: 'white',
+          borderRight: '1px solid #e0e0e0',
+          overflowY: 'auto',
+          padding: '24px'
+        }}>
+          <h3 style={{ margin: '0 0 16px 0', fontSize: '1rem', color: '#333' }}>项目信息</h3>
+
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(2, 1fr)',
+            gap: '12px',
+            marginBottom: '24px'
+          }}>
+            <div style={{
+              background: '#f8f9fa',
+              padding: '16px',
+              borderRadius: '10px',
+              textAlign: 'center'
+            }}>
+              <div style={{ fontSize: '1.8rem', fontWeight: 700, color: '#667eea' }}>
+                {project.task_stats?.total || 0}
+              </div>
+              <div style={{ fontSize: '0.8rem', color: '#666' }}>总任务</div>
+            </div>
+            <div style={{
+              background: '#e3fcef',
+              padding: '16px',
+              borderRadius: '10px',
+              textAlign: 'center'
+            }}>
+              <div style={{ fontSize: '1.8rem', fontWeight: 700, color: '#00a854' }}>
+                {project.task_stats?.completed || 0}
+              </div>
+              <div style={{ fontSize: '0.8rem', color: '#666' }}>已完成</div>
+            </div>
+            <div style={{
+              background: '#fff7e6',
+              padding: '16px',
+              borderRadius: '10px',
+              textAlign: 'center'
+            }}>
+              <div style={{ fontSize: '1.8rem', fontWeight: 700, color: '#fa8c16' }}>
+                {project.task_stats?.in_progress || 0}
+              </div>
+              <div style={{ fontSize: '0.8rem', color: '#666' }}>进行中</div>
+            </div>
+            <div style={{
+              background: '#f0f0f0',
+              padding: '16px',
+              borderRadius: '10px',
+              textAlign: 'center'
+            }}>
+              <div style={{ fontSize: '1.8rem', fontWeight: 700, color: '#666' }}>
+                {project.task_stats?.todo || 0}
+              </div>
+              <div style={{ fontSize: '0.8rem', color: '#666' }}>待办</div>
+            </div>
+          </div>
+
+          <div style={{ marginBottom: '20px' }}>
+            <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#666', marginBottom: '8px' }}>
+              项目描述
+            </div>
+            <div style={{ fontSize: '0.9rem', color: '#333', lineHeight: '1.7' }}>
+              {project.description || '暂无描述'}
+            </div>
+          </div>
+
+          <div style={{ marginBottom: '20px' }}>
+            <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#666', marginBottom: '8px' }}>
+              项目目标
+            </div>
+            <div style={{ fontSize: '0.9rem', color: '#333', lineHeight: '1.7' }}>
+              {project.goal || '暂无目标'}
+            </div>
+          </div>
+
+          <div style={{ marginBottom: '20px' }}>
+            <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#666', marginBottom: '8px' }}>
+              项目状态
+            </div>
+            <span className={`status-badge status-${project.status}`}>
+              {statusLabel(project.status)}
+            </span>
+          </div>
+
+          <div style={{ marginBottom: '20px' }}>
+            <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#666', marginBottom: '8px' }}>
+              创建时间
+            </div>
+            <div style={{ fontSize: '0.9rem', color: '#333' }}>
+              {new Date(project.created_at).toLocaleString('zh-CN')}
+            </div>
+          </div>
+
+          <div style={{ marginBottom: '20px' }}>
+            <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#666', marginBottom: '8px' }}>
+              更新时间
+            </div>
+            <div style={{ fontSize: '0.9rem', color: '#333' }}>
+              {new Date(project.updated_at).toLocaleString('zh-CN')}
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', gap: '8px', marginTop: '24px' }}>
+            <button className="btn btn-primary" onClick={onAddTask}>
+              <Plus size={16} /> 添加任务
+            </button>
+          </div>
+        </div>
+
+        {/* 右侧：任务表格 + 搜索 + 筛选 */}
+        <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '12px',
+            padding: '16px 24px',
+            background: 'white',
+            borderBottom: '1px solid #e0e0e0',
+            flexShrink: 0
+          }}>
+            <div style={{ position: 'relative', flex: 1 }}>
+              <input
+                type="text"
+                placeholder="搜索任务编号、标题或描述..."
+                value={taskSearch}
+                onChange={e => onTaskSearchChange(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '10px 14px 10px 36px',
+                  border: '1px solid #ddd',
+                  borderRadius: '8px',
+                  fontSize: '0.9rem',
+                  outline: 'none',
+                  boxSizing: 'border-box'
+                }}
+              />
+              <svg
+                style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#999' }}
+                width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+              >
+                <circle cx="11" cy="11" r="8" />
+                <path d="M21 21l-4.35-4.35" />
+              </svg>
+            </div>
+            <select
+              value={taskStatusFilter}
+              onChange={e => onTaskStatusFilterChange(e.target.value)}
+              style={{
+                padding: '10px 14px',
+                border: '1px solid #ddd',
+                borderRadius: '8px',
+                fontSize: '0.9rem',
+                outline: 'none',
+                background: 'white',
+                cursor: 'pointer',
+                minWidth: '120px'
+              }}
+            >
+              <option value="all">全部状态</option>
+              <option value="todo">待办</option>
+              <option value="progress">进行中</option>
+              <option value="done">已完成</option>
+            </select>
+            <div style={{ fontSize: '0.85rem', color: '#999', whiteSpace: 'nowrap' }}>
+              {filteredTasks.length} / {tasks.length} 个任务
+            </div>
+          </div>
+
+          <div style={{ flex: 1, overflow: 'auto', padding: '0' }}>
+            {tasksLoading ? (
+              <div style={{ textAlign: 'center', padding: '40px', color: '#999' }}>
+                <Loader2 size={32} style={{ animation: 'spin 1s linear infinite', marginBottom: '8px' }} />
+                <div>加载中...</div>
+              </div>
+            ) : filteredTasks.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '40px', color: '#999' }}>
+                <ListTodo size={40} style={{ marginBottom: '12px', opacity: 0.4 }} />
+                <div>{taskSearch || taskStatusFilter !== 'all' ? '没有匹配的任务' : '暂无任务'}</div>
+              </div>
+            ) : (
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ background: '#f8f9fa', borderBottom: '2px solid #e0e0e0' }}>
+                    <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '0.8rem', fontWeight: 600, color: '#666', position: 'sticky', top: 0, background: '#f8f9fa' }}>编号</th>
+                    <th style={{ padding: '12px 16px', textAlign: 'left', fontSize: '0.8rem', fontWeight: 600, color: '#666', position: 'sticky', top: 0, background: '#f8f9fa' }}>标题</th>
+                    <th style={{ padding: '12px 16px', textAlign: 'center', fontSize: '0.8rem', fontWeight: 600, color: '#666', position: 'sticky', top: 0, background: '#f8f9fa', width: '100px' }}>状态</th>
+                    <th style={{ padding: '12px 16px', textAlign: 'center', fontSize: '0.8rem', fontWeight: 600, color: '#666', position: 'sticky', top: 0, background: '#f8f9fa', width: '100px' }}>优先级</th>
+                    <th style={{ padding: '12px 16px', textAlign: 'center', fontSize: '0.8rem', fontWeight: 600, color: '#666', position: 'sticky', top: 0, background: '#f8f9fa', width: '80px' }}>操作</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredTasks.map(task => (
+                    <tr
+                      key={task.id}
+                      style={{ borderBottom: '1px solid #f0f0f0', transition: 'background 0.15s' }}
+                      onMouseEnter={e => e.currentTarget.style.background = '#fafafa'}
+                      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                    >
+                      <td style={{ padding: '12px 16px', fontSize: '0.85rem', color: '#667eea', fontFamily: 'monospace' }}>
+                        {task.number}
+                      </td>
+                      <td style={{ padding: '12px 16px', fontSize: '0.9rem', color: '#333' }}>
+                        {task.title}
+                      </td>
+                      <td style={{ padding: '12px 16px', textAlign: 'center' }}>
+                        <span className={`status-badge status-${task.status}`}>
+                          {statusLabel(task.status)}
+                        </span>
+                      </td>
+                      <td style={{ padding: '12px 16px', textAlign: 'center' }}>
+                        <span className={`badge ${priorityBadgeClass(task.priority)}`}>
+                          {priorityLabel(task.priority)}
+                        </span>
+                      </td>
+                      <td style={{ padding: '12px 16px', textAlign: 'center' }}>
+                        <button
+                          onClick={() => onDeleteTask(task.id)}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            color: '#c62828',
+                            cursor: 'pointer',
+                            padding: '4px',
+                            borderRadius: '4px',
+                            display: 'inline-flex',
+                            alignItems: 'center'
+                          }}
+                          title="删除任务"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // 项目任务列表组件
-function ProjectTaskList({ tasks, loading, onDeleteTask }: { 
-  tasks: Task[]; 
+function ProjectTaskList({ tasks, loading, onDeleteTask }: {
+  tasks: Task[];
   loading: boolean;
   onDeleteTask: (taskId: number) => void;
 }) {
@@ -795,9 +1278,9 @@ function ProjectTaskList({ tasks, loading, onDeleteTask }: {
 
   if (tasks.length === 0) {
     return (
-      <div style={{ 
-        textAlign: 'center', 
-        padding: '20px', 
+      <div style={{
+        textAlign: 'center',
+        padding: '20px',
         color: '#999',
         background: '#f8f9fa',
         borderRadius: '8px'
@@ -819,7 +1302,7 @@ function ProjectTaskList({ tasks, loading, onDeleteTask }: {
 }
 
 // 项目文件区域组件
-function ProjectFilesSection({ 
+function ProjectFilesSection({
   projectId,
   files,
   loading,
@@ -881,7 +1364,6 @@ function ProjectFilesSection({
 
   return (
     <div>
-      {/* 上传按钮 */}
       {!showUpload ? (
         <button
           onClick={() => setShowUpload(true)}
@@ -905,8 +1387,7 @@ function ProjectFilesSection({
             e.currentTarget.style.borderColor = '#667eea'
             e.currentTarget.style.color = '#667eea'
           }}
-          onClick={() => setSelectedTask(task)}
-            onMouseLeave={e => {
+          onMouseLeave={e => {
             e.currentTarget.style.borderColor = '#ddd'
             e.currentTarget.style.color = '#666'
           }}
@@ -915,7 +1396,7 @@ function ProjectFilesSection({
           上传文件
         </button>
       ) : (
-        <div 
+        <div
           style={{
             padding: '16px',
             background: '#f8f9fa',
@@ -1004,11 +1485,10 @@ function ProjectFilesSection({
         </div>
       )}
 
-      {/* 文件列表 */}
       {files.length === 0 ? (
-        <div style={{ 
-          textAlign: 'center', 
-          padding: '20px', 
+        <div style={{
+          textAlign: 'center',
+          padding: '20px',
           color: '#999',
           background: '#f8f9fa',
           borderRadius: '8px'
@@ -1035,8 +1515,7 @@ function ProjectFilesSection({
                 e.currentTarget.style.borderColor = '#667eea'
                 e.currentTarget.style.background = '#f8f9fa'
               }}
-              onClick={() => setSelectedTask(task)}
-            onMouseLeave={e => {
+              onMouseLeave={e => {
                 e.currentTarget.style.borderColor = '#e0e0e0'
                 e.currentTarget.style.background = '#fff'
               }}
@@ -1118,7 +1597,7 @@ function TaskDetailPopup({ task, onClose }: { task: Task | null; onClose: () => 
             <X size={20} color="#999" />
           </button>
         </div>
-        
+
         <div style={{ marginBottom: '16px' }}>
           <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#666', marginBottom: '8px' }}>
             任务编号
@@ -1142,7 +1621,7 @@ function TaskDetailPopup({ task, onClose }: { task: Task | null; onClose: () => 
             优先级
           </div>
           <span className={`badge ${
-            task.priority === 'high' ? 'badge-red' : 
+            task.priority === 'high' ? 'badge-red' :
             task.priority === 'medium' ? 'badge-orange' : 'badge-green'
           }`}>
             {task.priority === 'high' ? '高' : task.priority === 'medium' ? '中' : '低'}
@@ -1163,8 +1642,7 @@ function TaskDetailPopup({ task, onClose }: { task: Task | null; onClose: () => 
         <div style={{ fontSize: '0.75rem', color: '#999' }}>
           创建时间：{new Date(task.created_at).toLocaleString('zh-CN')}
         </div>
-        
-        {/* 附件文档 */}
+
         <TaskAttachments taskId={task.id} />
         </div>
       </div>
