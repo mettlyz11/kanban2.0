@@ -16,7 +16,7 @@ interface HistoryPoint {
 }
 
 // 通过 Nginx 反向代理连接中继服务
-const WS_URL = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/monitor/`
+const WS_URL = `ws://47.93.184.128/monitor/`
 
 export function useLocalSystemMonitor() {
   const [connected, setConnected] = useState(false)
