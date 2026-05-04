@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { useLocalSystemMonitor } from "../hooks/useLocalSystemMonitor"
 import { Line, Doughnut } from 'react-chartjs-2'
 import {
   Chart as ChartJS,
@@ -72,91 +73,40 @@ const ServerIcon = () => (
 )
 
 export function SystemMonitor() {
-  const [metrics, setMetrics] = useState<any>(null)
-  const [history, setHistory] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
+  // Mac mini 本地监控 WebSocket
+  const {
+    connected: localConnected,
+    metrics: localMetrics,
+    history: localHistory,
+    error: localError,
+    formatUptime: formatLocalUptime,
+    reconnect: localReconnect,
+  } = useLocalSystemMonitor()
+
+  // 转换为兼容格式
+  const metrics = localMetrics ? {
+    cpu: localMetrics.cpu.percent,
+    memory: localMetrics.memory.percent,
+    disk: localMetrics.disk.percent,
+    gateway_status: "正常",
+    uptime: localMetrics.uptime ? formatLocalUptime(localMetrics.uptime) : "--",
+    cpu_cores: localMetrics.cpu.cores,
+    memory_total: localMetrics.memory.total_gb,
+    memory_used: localMetrics.memory.used_gb,
+    task_count: localMetrics.processes,
+  } : null
+
+  const history = (localHistory || []).map((h: any) => ({
+    timestamp: h.timestamp,
+    cpu: h.cpu,
+    memory: h.memory,
+    task_count: h.processes
+  }))
+
+  const [loading] = useState(false)
   const [refreshRate, setRefreshRate] = useState(60)
   const [cpuThreshold, setCpuThreshold] = useState(80)
   const [memThreshold, setMemThreshold] = useState(85)
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
-
-  useEffect(() => {
-    loadData()
-    
-    // 设置定时刷新
-    intervalRef.current = setInterval(loadData, refreshRate * 1000)
-    
-    return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current)
-      }
-    }
-  }, [refreshRate])
-
-  const loadData = async () => {
-    try {
-      const [statusRes, historyRes] = await Promise.all([
-        fetch('/api/system/status').then(r => r.json()),
-        fetch('/api/system/history?hours=24').then(r => r.json())
-      ])
-      
-      if (statusRes.success) setMetrics(statusRes.metrics)
-      if (historyRes.success) {
-        // 转换API返回的数据格式为history数组
-        if (historyRes.labels && historyRes.cpuData) {
-          const formattedHistory = historyRes.labels.map((_label: string, index: number) => ({
-            timestamp: new Date().toISOString(),
-            created_at: new Date().toISOString(),
-            cpu: historyRes.cpuData[index] || 0,
-            cpu_percent: historyRes.cpuData[index] || 0,
-            memory: historyRes.memData[index] || 0,
-            memory_percent: historyRes.memData[index] || 0,
-            task_count: historyRes.taskData[index] || 0
-          }))
-          setHistory(formattedHistory)
-        } else {
-          setHistory(historyRes.history || [])
-        }
-      }
-    } catch (e) {
-      console.error(e)
-      // 使用模拟数据
-      setMockData()
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const setMockData = () => {
-    // 模拟实时数据
-    setMetrics({
-      cpu: Math.floor(Math.random() * 40) + 20,
-      memory: Math.floor(Math.random() * 30) + 40,
-      disk: Math.floor(Math.random() * 20) + 60,
-      gateway_status: '正常',
-      uptime: '5天 12小时',
-      cpu_cores: 8,
-      memory_total: 16,
-      memory_used: 6.4,
-      task_count: 127
-    })
-    
-    // 生成24小时历史数据
-    const mockHistory = []
-    for (let i = 23; i >= 0; i--) {
-      const hour = new Date()
-      hour.setHours(hour.getHours() - i)
-      mockHistory.push({
-        timestamp: hour.toISOString(),
-        cpu: Math.floor(Math.random() * 40) + 20,
-        memory: Math.floor(Math.random() * 30) + 40,
-        disk: Math.floor(Math.random() * 20) + 60,
-        task_count: Math.floor(Math.random() * 50) + 100,
-        status: Math.random() > 0.9 ? 'warning' : 'normal'
-      })
-    }
-    setHistory(mockHistory)
-  }
 
   // 准备图表数据
   const chartData = {
