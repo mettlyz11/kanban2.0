@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import { useSDSWebSocket } from '../hooks/useSDSWebSocket'
 
 interface SdsStats {
   pending: number
@@ -62,11 +63,62 @@ interface FileItem {
   modified: string
 }
 
+// WebSocket 事件通知组件
+function WSDEventToast({ event, onClear }: { event: any; onClear: () => void }) {
+  if (!event) return null
+  const isAlert = event.type === 'alert'
+  const isError = event.data?.severity === 'error' || event.data?.severity === 'critical'
+  const isSuccess = event.type === 'task_completed'
+  const bg = isError ? '#fef2f2' : isAlert ? '#fffbeb' : isSuccess ? '#f0fdf4' : '#eff6ff'
+  const border = isError ? '#ef4444' : isAlert ? '#f59e0b' : isSuccess ? '#10b981' : '#3b82f6'
+  
+  let title = ''
+  let message = ''
+  if (event.type === 'task_created') { title = '新任务生成'; message = event.data?.task?.title || event.data?.task?.id }
+  else if (event.type === 'task_executing') { title = '任务执行中'; message = `${event.data?.task_id} - ${event.data?.status_message} (${event.data?.progress}%)` }
+  else if (event.type === 'task_completed') { title = '任务完成'; message = event.data?.result_summary || event.data?.task_id }
+  else if (event.type === 'task_failed') { title = '任务失败'; message = event.data?.error || event.data?.task_id }
+  else if (event.type === 'system_status') { title = '系统状态变更'; message = event.data?.status }
+  else if (event.type === 'alert') { title = event.data?.type || '告警'; message = event.data?.message }
+
+  return (
+    <div style={{
+      position: 'fixed', top: 20, right: 20, zIndex: 9999,
+      background: bg, border: `2px solid ${border}`, borderRadius: 8,
+      padding: '12px 16px', maxWidth: 360, boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+      animation: 'slideIn 0.3s ease-out'
+    }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
+        <div>
+          <div style={{ fontWeight: 600, fontSize: 14, color: border }}>{title}</div>
+          <div style={{ fontSize: 12, color: '#374151', marginTop: 4 }}>{message}</div>
+        </div>
+        <button onClick={onClear} style={{
+          background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, color: '#9ca3af', padding: '0 0 0 8px'
+        }}>×</button>
+      </div>
+    </div>
+  )
+}
+
 export default function SelfDrivingSystem() {
   const [activeTab, setActiveTab] = useState('dashboard')
   const [loading, setLoading] = useState(true)
   
-  // Data states
+  // WebSocket 集成
+  const {
+    connected: wsConnected,
+    taskCreated,
+    taskExecuting,
+    taskCompleted,
+    taskFailed,
+    systemStatus,
+    alert: wsAlert,
+    clearEvent,
+    clearAllEvents,
+  } = useSDSWebSocket()
+  
+  // 数据 states
   const [stats, setStats] = useState<SdsStats | null>(null)
   const [goals, setGoals] = useState<GoalConfig[]>([])
   const [projects, setProjects] = useState<ProjectConfig[]>([])
@@ -79,6 +131,10 @@ export default function SelfDrivingSystem() {
   const [dbSchemas, setDbSchemas] = useState<Record<string, string>>({})
   const [exportData, setExportData] = useState<string>('')
   const [historyData, setHistoryData] = useState<any[]>([])
+  
+  // WebSocket 实时数据
+  const [liveStats, setLiveStats] = useState<SdsStats | null>(null)
+  const [activeNotifications, setActiveNotifications] = useState<any[]>([])
 
   // Editing states
   const [editingGoal, setEditingGoal] = useState<number | null>(null)
@@ -96,6 +152,39 @@ export default function SelfDrivingSystem() {
   const [fileContent, setFileContent] = useState('')
   const [fileLoading, setFileLoading] = useState(false)
   const [fileSaving, setFileSaving] = useState(false)
+
+  // WebSocket 事件处理
+  useEffect(() => {
+    const events = [
+      { type: 'task_created', data: taskCreated },
+      { type: 'task_executing', data: taskExecuting },
+      { type: 'task_completed', data: taskCompleted },
+      { type: 'task_failed', data: taskFailed },
+      { type: 'system_status', data: systemStatus },
+      { type: 'alert', data: wsAlert },
+    ]
+    for (const e of events) {
+      if (e.data) {
+        setActiveNotifications(prev => [{ ...e, id: Date.now() }, ...prev].slice(0, 10))
+        // 如果是任务相关事件，刷新 stats
+        if (e.type.startsWith('task_')) {
+          fetch('/api/sds/stats').then(r => r.json()).then(json => {
+            if (json.success) {
+              const ts = json.data.task_stats || {}
+              setLiveStats({
+                pending: ts.pending || 0,
+                running: ts.in_progress || 0,
+                completed: ts.completed || 0,
+                failed: (ts.failed || 0) + (ts.failed_retryable || 0),
+                failed_retryable: ts.failed_retryable || 0,
+                archived: ts.archived || 0,
+              })
+            }
+          }).catch(() => {})
+        }
+      }
+    }
+  }, [taskCreated, taskExecuting, taskCompleted, taskFailed, systemStatus, wsAlert])
 
   const fetchConfig = useCallback(async (key: string) => {
     try {
@@ -118,6 +207,14 @@ export default function SelfDrivingSystem() {
         if (json.success) {
           const ts = json.data.task_stats || {}
           setStats({
+            pending: ts.pending || 0,
+            running: ts.in_progress || 0,
+            completed: ts.completed || 0,
+            failed: (ts.failed || 0) + (ts.failed_retryable || 0),
+            failed_retryable: ts.failed_retryable || 0,
+            archived: ts.archived || 0,
+          })
+          setLiveStats({
             pending: ts.pending || 0,
             running: ts.in_progress || 0,
             completed: ts.completed || 0,
@@ -159,22 +256,19 @@ export default function SelfDrivingSystem() {
         else setDbSchemas(schemasRes)
       }
 
-      // 加载历史趋势数据
       try {
-        const historyRes = await fetch("/api/sds/history")
+        const historyRes = await fetch('/api/sds/history')
         const historyJson = await historyRes.json()
         if (historyJson.success && historyJson.data && historyJson.data.daily) {
           setHistoryData(historyJson.data.daily)
         }
-      } catch (e) { console.error("History error:", e) }
-
+      } catch (e) { console.error('History error:', e) }
 
       setLoading(false)
     }
     loadData()
   }, [fetchConfig])
 
-  // Save goal field
   const saveGoalField = async (goalId: number, field: string, value: string) => {
     try {
       const res = await fetch('/api/sds/config/goals', {
@@ -190,7 +284,6 @@ export default function SelfDrivingSystem() {
     } catch (e) { console.error('Save goal error:', e) }
   }
 
-  // Save project field
   const saveProjectField = async (projectId: number, field: string, value: string) => {
     try {
       const res = await fetch(`/api/sds/config/projects/${projectId}`, {
@@ -206,7 +299,6 @@ export default function SelfDrivingSystem() {
     } catch (e) { console.error('Save project error:', e) }
   }
 
-  // Save rules
   const saveRules = async () => {
     setSavingRules(true)
     try {
@@ -223,7 +315,6 @@ export default function SelfDrivingSystem() {
     setSavingRules(false)
   }
 
-  // File management
   const loadFileList = async () => {
     try {
       const res = await fetch('/api/files/index')
@@ -247,7 +338,6 @@ export default function SelfDrivingSystem() {
   const saveFileContent = async () => {
     setFileSaving(true)
     try {
-      // Note: backend may need a PUT endpoint for file saving
       const blob = new Blob([fileContent], { type: 'text/plain' })
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
@@ -271,8 +361,6 @@ export default function SelfDrivingSystem() {
     URL.revokeObjectURL(url)
   }
 
-
-  // 加载 SDS1 文件列表
   const [sdsFiles, setSdsFiles] = useState<{path: string, url: string, size: number}[]>([])
   const [sdsFilesLoading, setSdsFilesLoading] = useState(false)
   const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set())
@@ -281,11 +369,8 @@ export default function SelfDrivingSystem() {
     fetch('/api/sds1/documents')
       .then(r => r.json())
       .then(data => {
-        if (data.success) {
-          setSdsFiles(data.documents)
-        } else {
-          console.error('加载SDS1文件列表失败:', data.error)
-        }
+        if (data.success) { setSdsFiles(data.documents) }
+        else { console.error('加载SDS1文件列表失败:', data.error) }
       })
       .catch(e => console.error('加载SDS1文件列表失败:', e))
   }, [])
@@ -333,19 +418,32 @@ export default function SelfDrivingSystem() {
     ))
   }
 
+  const displayStats = liveStats || stats
+
   if (loading) return <div style={{ padding: 40, textAlign: 'center' }}>加载中...</div>
 
   const renderDashboard = () => (
     <div>
-      <h2 style={{ marginBottom: 20 }}>📊 SDS1 系统概览</h2>
-      {stats && (
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        <h2 style={{ margin: 0 }}>📊 SDS1 系统概览</h2>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{
+            width: 10, height: 10, borderRadius: '50%',
+            background: wsConnected ? '#10b981' : '#ef4444'
+          }}></div>
+          <span style={{ fontSize: 12, color: wsConnected ? '#10b981' : '#ef4444' }}>
+            {wsConnected ? 'WebSocket 实时连接' : 'WebSocket 未连接'}
+          </span>
+        </div>
+      </div>
+      {displayStats && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 16, marginBottom: 24 }}>
           {[
-            { label: '待处理', value: stats.pending, color: '#3b82f6' },
-            { label: '运行中', value: stats.running, color: '#f59e0b' },
-            { label: '已完成', value: stats.completed, color: '#10b981' },
-            { label: '失败', value: stats.failed, color: '#ef4444' },
-            { label: '已归档', value: stats.archived, color: '#6b7280' },
+            { label: '待处理', value: displayStats.pending, color: '#3b82f6' },
+            { label: '运行中', value: displayStats.running, color: '#f59e0b' },
+            { label: '已完成', value: displayStats.completed, color: '#10b981' },
+            { label: '失败', value: displayStats.failed, color: '#ef4444' },
+            { label: '已归档', value: displayStats.archived, color: '#6b7280' },
           ].map(s => (
             <div key={s.label} style={{ background: s.color, color: '#fff', borderRadius: 8, padding: 16, textAlign: 'center' }}>
               <div style={{ fontSize: 28, fontWeight: 700 }}>{s.value}</div>
@@ -354,6 +452,29 @@ export default function SelfDrivingSystem() {
           ))}
         </div>
       )}
+      
+      {/* WebSocket 实时状态指示 */}
+      {taskExecuting && (
+        <div style={{ background: '#fffbeb', border: '1px solid #f59e0b', borderRadius: 8, padding: 12, marginBottom: 16 }}>
+          <div style={{ fontSize: 13, color: '#92400e' }}>
+            ⚡ 任务执行中: #{taskExecuting.task_id} - {taskExecuting.status_message} ({taskExecuting.progress}%)
+          </div>
+          <div style={{ background: '#f3f4f6', borderRadius: 4, height: 6, marginTop: 8 }}>
+            <div style={{ background: '#f59e0b', borderRadius: 4, height: '100%', width: `${taskExecuting.progress}%`, transition: 'width 0.3s' }}></div>
+          </div>
+        </div>
+      )}
+      
+      {systemStatus && (
+        <div style={{
+          background: systemStatus.status === 'running' ? '#f0fdf4' : systemStatus.status === 'error' ? '#fef2f2' : '#eff6ff',
+          border: `1px solid ${systemStatus.status === 'running' ? '#10b981' : systemStatus.status === 'error' ? '#ef4444' : '#3b82f6'}`,
+          borderRadius: 8, padding: 12, marginBottom: 16, fontSize: 13
+        }}>
+          系统状态: <strong>{systemStatus.status}</strong>
+        </div>
+      )}
+
       <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, padding: 16 }}>
         <h3 style={{ marginBottom: 12 }}>📋 定时任务 ({cronJobs.length}个)</h3>
         {cronJobs.map((job, i) => (
@@ -377,14 +498,10 @@ export default function SelfDrivingSystem() {
           <div key={g.id} style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, padding: 16, marginBottom: 12 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
               {isEditing && editingGoalField === 'title' ? (
-                <input
-                  value={editingGoalValue}
-                  onChange={e => setEditingGoalValue(e.target.value)}
+                <input value={editingGoalValue} onChange={e => setEditingGoalValue(e.target.value)}
                   onBlur={() => saveGoalField(g.id, 'title', editingGoalValue)}
                   onKeyDown={e => e.key === 'Enter' && saveGoalField(g.id, 'title', editingGoalValue)}
-                  autoFocus
-                  style={{ fontSize: 16, fontWeight: 600, border: '2px solid #3b82f6', borderRadius: 4, padding: '2px 8px', flex: 1 }}
-                />
+                  autoFocus style={{ fontSize: 16, fontWeight: 600, border: '2px solid #3b82f6', borderRadius: 4, padding: '2px 8px', flex: 1 }} />
               ) : (
                 <h3 style={{ margin: 0, fontSize: 16, cursor: 'pointer' }}
                   onClick={() => { setEditingGoal(g.id); setEditingGoalField('title'); setEditingGoalValue(g.title) }}>
@@ -398,13 +515,9 @@ export default function SelfDrivingSystem() {
               }}>{def.priority || 'P2'}</span>
             </div>
             {isEditing && editingGoalField === 'description' ? (
-              <textarea
-                value={editingGoalValue}
-                onChange={e => setEditingGoalValue(e.target.value)}
+              <textarea value={editingGoalValue} onChange={e => setEditingGoalValue(e.target.value)}
                 onBlur={() => saveGoalField(g.id, 'description', editingGoalValue)}
-                autoFocus
-                style={{ width: '100%', minHeight: 60, border: '2px solid #3b82f6', borderRadius: 4, padding: 8, fontSize: 13, marginBottom: 8 }}
-              />
+                autoFocus style={{ width: '100%', minHeight: 60, border: '2px solid #3b82f6', borderRadius: 4, padding: 8, fontSize: 13, marginBottom: 8 }} />
             ) : (
               <p style={{ margin: '4px 0 8px', fontSize: 13, color: '#666', cursor: 'pointer' }}
                 onClick={() => { setEditingGoal(g.id); setEditingGoalField('description'); setEditingGoalValue(g.description) }}>
@@ -453,11 +566,8 @@ export default function SelfDrivingSystem() {
           </div>
           <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, padding: 16 }}>
             <h3 style={{ marginBottom: 12 }}>📝 任务生成规则</h3>
-            <textarea
-              value={editingRules || JSON.stringify(sdsCore, null, 2)}
-              onChange={e => setEditingRules(e.target.value)}
-              style={{ width: '100%', minHeight: 200, fontFamily: 'monospace', fontSize: 12, padding: 8, border: '1px solid #e5e7eb', borderRadius: 4 }}
-            />
+            <textarea value={editingRules || JSON.stringify(sdsCore, null, 2)} onChange={e => setEditingRules(e.target.value)}
+              style={{ width: '100%', minHeight: 200, fontFamily: 'monospace', fontSize: 12, padding: 8, border: '1px solid #e5e7eb', borderRadius: 4 }} />
             <button onClick={saveRules} disabled={savingRules} style={{
               marginTop: 8, padding: '8px 16px', background: '#3b82f6', color: '#fff',
               border: 'none', borderRadius: 4, cursor: savingRules ? 'not-allowed' : 'pointer', opacity: savingRules ? 0.6 : 1
@@ -471,12 +581,9 @@ export default function SelfDrivingSystem() {
   const renderProjects = () => {
     const thresholds = projectThresholds.thresholds || []
     const globalConfig = projectThresholds.global || {}
-    
     return (
     <div>
       <h2 style={{ marginBottom: 20 }}>📁 项目阈值</h2>
-      
-      {/* 全局配置 */}
       {globalConfig.max_total_tasks && (
         <div style={{ background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: 8, padding: 16, marginBottom: 16 }}>
           <h3 style={{ marginBottom: 8, color: '#0369a1' }}>🌍 全局配置</h3>
@@ -488,19 +595,15 @@ export default function SelfDrivingSystem() {
           </div>
         </div>
       )}
-      
-      {/* 项目阈值表格 */}
       {thresholds.length > 0 && (
         <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, overflow: 'hidden', marginBottom: 20 }}>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr style={{ background: '#f8f9fa' }}>
-                <th style={{ padding: '10px 12px', textAlign: 'left', borderBottom: '1px solid #e5e7eb', fontSize: 13 }}>项目</th>
-                <th style={{ padding: '10px 12px', textAlign: 'center', borderBottom: '1px solid #e5e7eb', fontSize: 13 }}>最大任务</th>
-                <th style={{ padding: '10px 12px', textAlign: 'center', borderBottom: '1px solid #e5e7eb', fontSize: 13 }}>最小任务</th>
-                <th style={{ padding: '10px 12px', textAlign: 'center', borderBottom: '1px solid #e5e7eb', fontSize: 13 }}>权重</th>
-              </tr>
-            </thead>
+            <thead><tr style={{ background: '#f8f9fa' }}>
+              <th style={{ padding: '10px 12px', textAlign: 'left', borderBottom: '1px solid #e5e7eb', fontSize: 13 }}>项目</th>
+              <th style={{ padding: '10px 12px', textAlign: 'center', borderBottom: '1px solid #e5e7eb', fontSize: 13 }}>最大任务</th>
+              <th style={{ padding: '10px 12px', textAlign: 'center', borderBottom: '1px solid #e5e7eb', fontSize: 13 }}>最小任务</th>
+              <th style={{ padding: '10px 12px', textAlign: 'center', borderBottom: '1px solid #e5e7eb', fontSize: 13 }}>权重</th>
+            </tr></thead>
             <tbody>
               {thresholds.map((t: any) => (
                 <tr key={t.project_id}>
@@ -527,7 +630,6 @@ export default function SelfDrivingSystem() {
           </table>
         </div>
       )}
-      
       <p style={{ color: '#666', marginBottom: 16 }}>{projects.length}个项目 - 点击字段可编辑</p>
       {projects.map(p => {
         const isEditing = editingProject === p.id
@@ -536,14 +638,10 @@ export default function SelfDrivingSystem() {
             <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
               <span style={{ fontWeight: 600, color: '#3b82f6' }}>{p.number}</span>
               {isEditing && editingProjectField === 'name' ? (
-                <input
-                  value={editingProjectValue}
-                  onChange={e => setEditingProjectValue(e.target.value)}
+                <input value={editingProjectValue} onChange={e => setEditingProjectValue(e.target.value)}
                   onBlur={() => saveProjectField(p.id, 'name', editingProjectValue)}
                   onKeyDown={e => e.key === 'Enter' && saveProjectField(p.id, 'name', editingProjectValue)}
-                  autoFocus
-                  style={{ flex: 1, border: '2px solid #3b82f6', borderRadius: 4, padding: '2px 8px' }}
-                />
+                  autoFocus style={{ flex: 1, border: '2px solid #3b82f6', borderRadius: 4, padding: '2px 8px' }} />
               ) : (
                 <span style={{ flex: 1, cursor: 'pointer' }}
                   onClick={() => { setEditingProject(p.id); setEditingProjectField('name'); setEditingProjectValue(p.name) }}>
@@ -566,11 +664,17 @@ export default function SelfDrivingSystem() {
   const renderRealtime = () => (
     <div>
       <h2 style={{ marginBottom: 20 }}>📡 实时监控</h2>
-      {stats && (
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+        <div style={{ width: 10, height: 10, borderRadius: '50%', background: wsConnected ? '#10b981' : '#ef4444' }}></div>
+        <span style={{ fontSize: 14, color: wsConnected ? '#10b981' : '#ef4444' }}>
+          {wsConnected ? 'WebSocket 已连接 - 实时数据推送中' : 'WebSocket 未连接'}
+        </span>
+      </div>
+      {displayStats && (
         <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, padding: 16 }}>
           <h3>任务状态分布</h3>
           <div style={{ display: 'flex', gap: 16, marginTop: 12 }}>
-            {Object.entries(stats).map(([k, v]) => (
+            {Object.entries(displayStats).map(([k, v]) => (
               <div key={k} style={{ textAlign: 'center' }}>
                 <div style={{ fontSize: 24, fontWeight: 700 }}>{v}</div>
                 <div style={{ fontSize: 12, color: '#666' }}>{k}</div>
@@ -579,13 +683,42 @@ export default function SelfDrivingSystem() {
           </div>
         </div>
       )}
+      {activeNotifications.length > 0 && (
+        <div style={{ marginTop: 16 }}>
+          <h3>实时事件 ({activeNotifications.length})</h3>
+          {activeNotifications.slice(0, 10).map((n: any) => (
+            <div key={n.id} style={{
+              background: n.type === 'task_failed' ? '#fef2f2' : n.type === 'task_completed' ? '#f0fdf4' : '#eff6ff',
+              border: `1px solid ${n.type === 'task_failed' ? '#fecaca' : n.type === 'task_completed' ? '#bbf7d0' : '#bfdbfe'}`,
+              borderRadius: 8, padding: 12, marginBottom: 8, fontSize: 13
+            }}>
+              <div style={{ fontWeight: 600 }}>
+                {n.type === 'task_created' && '🆕 新任务'}
+                {n.type === 'task_executing' && '⚡ 执行中'}
+                {n.type === 'task_completed' && '✅ 已完成'}
+                {n.type === 'task_failed' && '❌ 失败'}
+                {n.type === 'system_status' && '🔄 状态变更'}
+                {n.type === 'alert' && '⚠️ 告警'}
+              </div>
+              <div style={{ color: '#374151', marginTop: 4 }}>
+                {n.data?.task?.title || n.data?.task_id || n.data?.message || JSON.stringify(n.data)}
+              </div>
+            </div>
+          ))}
+          {activeNotifications.length > 0 && (
+            <button onClick={() => clearAllEvents()} style={{
+              marginTop: 8, padding: '6px 12px', background: '#f3f4f6', border: '1px solid #e5e7eb',
+              borderRadius: 4, cursor: 'pointer', fontSize: 12
+            }}>清除通知</button>
+          )}
+        </div>
+      )}
     </div>
   )
 
   const renderHistory = () => {
     const maxCreated = Math.max(...historyData.map((d: any) => d.created || 0), 1)
     const maxCompleted = Math.max(...historyData.map((d: any) => d.completed || 0), 1)
-    
     return (
     <div>
       <h2 style={{ marginBottom: 20 }}>📈 历史趋势</h2>
@@ -593,37 +726,16 @@ export default function SelfDrivingSystem() {
         <div style={{ textAlign: 'center', padding: 40, color: '#999' }}>加载中...</div>
       ) : (
         <div>
-          {/* 趋势图 */}
           <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, padding: 16, marginBottom: 16 }}>
             <h3 style={{ marginBottom: 16 }}>任务创建与完成趋势（最近30天）</h3>
             <div style={{ display: 'flex', alignItems: 'flex-end', gap: 4, height: 200, padding: '0 8px', borderBottom: '1px solid #e5e7eb' }}>
               {historyData.map((row: any) => (
                 <div key={row.date} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
                   <div style={{ display: 'flex', gap: 1, alignItems: 'flex-end', width: '100%' }}>
-                    <div 
-                      style={{ 
-                        flex: 1, 
-                        background: '#3b82f6', 
-                        borderRadius: '2px 2px 0 0',
-                        minHeight: 2,
-                        height: `${(row.created / maxCreated) * 160}px`
-                      }}
-                      title={`${row.date}: 创建 ${row.created}`}
-                    />
-                    <div 
-                      style={{ 
-                        flex: 1, 
-                        background: '#10b981', 
-                        borderRadius: '2px 2px 0 0',
-                        minHeight: 2,
-                        height: `${(row.completed / maxCompleted) * 160}px`
-                      }}
-                      title={`${row.date}: 完成 ${row.completed}`}
-                    />
+                    <div style={{ flex: 1, background: '#3b82f6', borderRadius: '2px 2px 0 0', minHeight: 2, height: `${(row.created / maxCreated) * 160}px` }} title={`${row.date}: 创建 ${row.created}`} />
+                    <div style={{ flex: 1, background: '#10b981', borderRadius: '2px 2px 0 0', minHeight: 2, height: `${(row.completed / maxCompleted) * 160}px` }} title={`${row.date}: 完成 ${row.completed}`} />
                   </div>
-                  <div style={{ fontSize: 9, color: '#999', transform: 'rotate(-45deg)', whiteSpace: 'nowrap', marginTop: 8 }}>
-                    {row.date.slice(5)}
-                  </div>
+                  <div style={{ fontSize: 9, color: '#999', transform: 'rotate(-45deg)', whiteSpace: 'nowrap', marginTop: 8 }}>{row.date.slice(5)}</div>
                 </div>
               ))}
             </div>
@@ -638,8 +750,6 @@ export default function SelfDrivingSystem() {
               </div>
             </div>
           </div>
-          
-          {/* 数据表格 */}
           <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, padding: 16 }}>
             <h3>详细数据</h3>
             <table style={{ width: '100%', marginTop: 12, borderCollapse: 'collapse' }}>
@@ -668,25 +778,22 @@ export default function SelfDrivingSystem() {
   const renderArchitecture = () => (
     <div>
       <h2 style={{ marginBottom: 20 }}>🏗️ 架构编辑</h2>
-      <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 8, padding: 16 }}>
+      <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, padding: 16 }}>
         <h3>系统架构配置</h3>
         {sdsCore ? (
-          <pre style={{ background: "#f8f9fa", padding: 12, borderRadius: 4, overflow: "auto", maxHeight: 400 }}>
+          <pre style={{ background: '#f8f9fa', padding: 12, borderRadius: 4, overflow: 'auto', maxHeight: 400 }}>
             {JSON.stringify(sdsCore, null, 2)}
           </pre>
         ) : (
-          <div style={{ textAlign: "center", padding: 40, color: "#999" }}>暂无架构数据</div>
+          <div style={{ textAlign: 'center', padding: 40, color: '#999' }}>暂无架构数据</div>
         )}
       </div>
     </div>
   )
 
-
   const renderDocuments = () => (
     <div>
       <h2 style={{ marginBottom: 20 }}>📄 文档管理</h2>
-      
-      {/* 导出配置 */}
       <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, padding: 16, marginBottom: 24 }}>
         <h3 style={{ marginBottom: 12 }}>📥 导出配置</h3>
         <button onClick={exportConfig} style={{
@@ -697,8 +804,6 @@ export default function SelfDrivingSystem() {
           导出完整SDS1配置JSON。即使Mac mini被完全重置，也可从此配置恢复所有目标、项目、任务规则和脚本清单。
         </p>
       </div>
-
-      {/* SDS1 文件列表 */}
       <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, padding: 16 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
           <h3 style={{ margin: 0 }}>📁 SDS1 系统文件 ({sdsFiles.length}个)</h3>
@@ -712,7 +817,6 @@ export default function SelfDrivingSystem() {
             </div>
           )}
         </div>
-        {/* 筛选按钮 */}
         <div style={{ display: 'flex', gap: 6, marginBottom: 12, flexWrap: 'wrap' }}>
           <button onClick={() => setSelectedFiles(new Set())} style={{
             padding: '4px 12px', background: '#f3f4f6', border: '1px solid #e5e7eb',
@@ -732,23 +836,17 @@ export default function SelfDrivingSystem() {
             <div style={{ padding: 20, textAlign: 'center', color: '#999' }}>加载中...</div>
           ) : (
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-              <thead>
-                <tr style={{ borderBottom: '2px solid #e5e7eb' }}>
-                  <th style={{ textAlign: 'left', padding: '8px 12px', color: '#666', width: 40 }}>☑️</th>
-                  <th style={{ textAlign: 'left', padding: '8px 12px', color: '#666' }}>文件名</th>
-                  <th style={{ textAlign: 'right', padding: '8px 12px', color: '#666', width: 100 }}>大小</th>
-                  <th style={{ textAlign: 'center', padding: '8px 12px', color: '#666', width: 80 }}>操作</th>
-                </tr>
-              </thead>
+              <thead><tr style={{ borderBottom: '2px solid #e5e7eb' }}>
+                <th style={{ textAlign: 'left', padding: '8px 12px', color: '#666', width: 40 }}>☑️</th>
+                <th style={{ textAlign: 'left', padding: '8px 12px', color: '#666' }}>文件名</th>
+                <th style={{ textAlign: 'right', padding: '8px 12px', color: '#666', width: 100 }}>大小</th>
+                <th style={{ textAlign: 'center', padding: '8px 12px', color: '#666', width: 80 }}>操作</th>
+              </tr></thead>
               <tbody>
                 {sdsFiles.map((f, i) => (
-                  <tr key={i} style={{
-                    borderBottom: '1px solid #f0f0f0',
-                    background: selectedFiles.has(f.path) ? '#eff6ff' : 'transparent'
-                  }}>
+                  <tr key={i} style={{ borderBottom: '1px solid #f0f0f0', background: selectedFiles.has(f.path) ? '#eff6ff' : 'transparent' }}>
                     <td style={{ padding: '8px 12px', textAlign: 'center' }}>
-                      <input type='checkbox' checked={selectedFiles.has(f.path)}
-                        onChange={() => toggleSelectFile(f.path)}
+                      <input type='checkbox' checked={selectedFiles.has(f.path)} onChange={() => toggleSelectFile(f.path)}
                         style={{ cursor: 'pointer', width: 16, height: 16 }} />
                     </td>
                     <td style={{ padding: '8px 12px', fontFamily: 'monospace', fontSize: 12 }}>{f.path}</td>
@@ -791,10 +889,20 @@ export default function SelfDrivingSystem() {
     }
   }
 
+  // 获取最高优先级通知
+  const topNotification = activeNotifications[0] || null
+
   return (
-    <div className="page-container" style={{ maxWidth: '100%', padding: '0 32px' }}>
-      <div className="page-header">
-        <h2 className="page-title">🤖 SDS1 自我驱动系统</h2>
+    <div className='page-container' style={{ maxWidth: '100%', padding: '0 32px' }}>
+      {/* WebSocket 实时通知 */}
+      {topNotification && (
+        <WSDEventToast event={topNotification} onClear={() => {
+          setActiveNotifications(prev => prev.slice(1))
+          clearAllEvents()
+        }} />
+      )}
+      <div className='page-header'>
+        <h2 className='page-title'>🤖 SDS1 自我驱动系统</h2>
       </div>
       <div style={{ display: 'flex', gap: 8, marginBottom: 24, flexWrap: 'wrap' }}>
         {tabs.map(tab => (
