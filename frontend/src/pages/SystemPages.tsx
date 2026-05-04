@@ -14,7 +14,6 @@ import {
   Filler
 } from 'chart.js'
 
-// 注册Chart.js组件
 ChartJS.register(
   CategoryScale,
   LinearScale,
@@ -27,53 +26,65 @@ ChartJS.register(
   Filler
 )
 
-// 图标组件
+// 图标组件 - 缩小尺寸
 const CPUIcon = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <rect x="4" y="4" width="16" height="16" rx="2" ry="2"/>
     <rect x="9" y="9" width="6" height="6"/>
-    <line x1="9" y1="1" x2="9" y2="4"/>
-    <line x1="15" y1="1" x2="15" y2="4"/>
-    <line x1="9" y1="20" x2="9" y2="23"/>
-    <line x1="15" y1="20" x2="15" y2="23"/>
-    <line x1="20" y1="9" x2="23" y2="9"/>
-    <line x1="20" y1="14" x2="23" y2="14"/>
-    <line x1="1" y1="9" x2="4" y2="9"/>
-    <line x1="1" y1="14" x2="4" y2="14"/>
+    <line x1="9" y1="1" x2="9" y2="4"/><line x1="15" y1="1" x2="15" y2="4"/>
+    <line x1="9" y1="20" x2="9" y2="23"/><line x1="15" y1="20" x2="15" y2="23"/>
+    <line x1="20" y1="9" x2="23" y2="9"/><line x1="20" y1="14" x2="23" y2="14"/>
+    <line x1="1" y1="9" x2="4" y2="9"/><line x1="1" y1="14" x2="4" y2="14"/>
   </svg>
 )
 
 const MemoryIcon = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <rect x="2" y="4" width="20" height="16" rx="2" ry="2"/>
-    <line x1="6" y1="8" x2="6" y2="16"/>
-    <line x1="10" y1="8" x2="10" y2="16"/>
-    <line x1="14" y1="8" x2="14" y2="16"/>
-    <line x1="18" y1="8" x2="18" y2="16"/>
+    <line x1="6" y1="8" x2="6" y2="16"/><line x1="10" y1="8" x2="10" y2="16"/>
+    <line x1="14" y1="8" x2="14" y2="16"/><line x1="18" y1="8" x2="18" y2="16"/>
   </svg>
 )
 
-const TaskIcon = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-    <polyline points="14 2 14 8 20 8"/>
-    <line x1="16" y1="13" x2="8" y2="13"/>
-    <line x1="16" y1="17" x2="8" y2="17"/>
-    <polyline points="10 9 9 9 8 9"/>
+const DiskIcon = () => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <ellipse cx="12" cy="12" rx="10" ry="4"/><path d="M2 12v4a10 4 0 0 0 20 0v-4"/>
+    <line x1="12" y1="12" x2="12" y2="16"/><circle cx="12" cy="14" r="1"/>
   </svg>
 )
 
-const ServerIcon = () => (
-  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-    <rect x="2" y="2" width="20" height="8" rx="2" ry="2"/>
-    <rect x="2" y="14" width="20" height="8" rx="2" ry="2"/>
-    <line x1="6" y1="6" x2="6.01" y2="6"/>
-    <line x1="6" y1="18" x2="6.01" y2="18"/>
+const ProcessIcon = () => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
+    <rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
   </svg>
+)
+
+const UptimeIcon = () => (
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+  </svg>
+)
+
+// 进度条组件
+const ProgressBar = ({ value, color = "#3b82f6", label }: { value: number; color?: string; label?: string }) => (
+  <div style={{ width: '100%' }}>
+    {label && <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4, fontSize: 12 }}>
+      <span>{label}</span><span>{value.toFixed(1)}%</span>
+    </div>}
+    <div style={{ background: 'rgba(255,255,255,0.2)', borderRadius: 4, height: 6 }}>
+      <div style={{ 
+        background: color, 
+        borderRadius: 4, 
+        height: '100%', 
+        width: `${Math.min(value, 100)}%`,
+        transition: 'width 0.3s ease'
+      }}></div>
+    </div>
+  </div>
 )
 
 export function SystemMonitor() {
-  // Mac mini 本地监控 WebSocket
   const {
     connected: localConnected,
     metrics: localMetrics,
@@ -83,7 +94,6 @@ export function SystemMonitor() {
     reconnect: localReconnect,
   } = useLocalSystemMonitor()
 
-  // 转换为兼容格式
   const metrics = localMetrics ? {
     cpu: localMetrics.cpu.percent,
     memory: localMetrics.memory.percent,
@@ -94,6 +104,9 @@ export function SystemMonitor() {
     memory_total: localMetrics.memory.total_gb,
     memory_used: localMetrics.memory.used_gb,
     task_count: localMetrics.processes,
+    disk_used: localMetrics.disk.used_gb,
+    disk_total: localMetrics.disk.total_gb,
+    freq_mhz: localMetrics.cpu.freq_mhz,
   } : null
 
   const history = (localHistory || []).map((h: any) => ({
@@ -104,367 +117,156 @@ export function SystemMonitor() {
   }))
 
   const [loading] = useState(false)
-  const [refreshRate, setRefreshRate] = useState(60)
-  const [cpuThreshold, setCpuThreshold] = useState(80)
-  const [memThreshold, setMemThreshold] = useState(85)
 
-  // 准备图表数据
+  const chartOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { display: true, position: 'top' as const, labels: { boxWidth: 12, padding: 12 } }
+    },
+    scales: {
+      y: { beginAtZero: true, max: 100, grid: { color: 'rgba(0,0,0,0.05)' } },
+      x: { grid: { color: 'rgba(0,0,0,0.05)' } }
+    }
+  }
+
   const chartData = {
-    labels: history.map(h => {
-      const date = new Date(h.timestamp || h.created_at)
-      return date.getHours() + ':00'
+    labels: history.slice(-30).map((h, i) => {
+      const date = new Date(h.timestamp)
+      return `${date.getHours().toString().padStart(2,'0')}:${date.getMinutes().toString().padStart(2,'0')}`
     }),
     datasets: [
       {
         label: 'CPU %',
-        data: history.map(h => h.cpu || h.cpu_percent || 0),
-        borderColor: 'rgb(102, 126, 234)',
-        backgroundColor: 'rgba(102, 126, 234, 0.1)',
+        data: history.slice(-30).map(h => h.cpu || 0),
+        borderColor: '#3b82f6',
+        backgroundColor: 'rgba(59, 130, 246, 0.1)',
         fill: true,
-        tension: 0.4
+        tension: 0.4,
+        borderWidth: 2,
+        pointRadius: 0,
       },
       {
         label: '内存 %',
-        data: history.map(h => h.memory || h.memory_percent || 0),
-        borderColor: 'rgb(17, 153, 142)',
-        backgroundColor: 'rgba(17, 153, 142, 0.1)',
+        data: history.slice(-30).map(h => h.memory || 0),
+        borderColor: '#10b981',
+        backgroundColor: 'rgba(16, 185, 129, 0.1)',
         fill: true,
-        tension: 0.4
+        tension: 0.4,
+        borderWidth: 2,
+        pointRadius: 0,
       }
     ]
-  }
-
-  const cpuChartData = {
-    labels: chartData.labels,
-    datasets: [{
-      label: 'CPU使用率 %',
-      data: history.map(h => h.cpu || h.cpu_percent || 0),
-      borderColor: 'rgb(102, 126, 234)',
-      backgroundColor: 'rgba(102, 126, 234, 0.1)',
-      fill: true,
-      tension: 0.4
-    }]
-  }
-
-  const memoryChartData = {
-    labels: chartData.labels,
-    datasets: [{
-      label: '内存使用率 %',
-      data: history.map(h => h.memory || h.memory_percent || 0),
-      borderColor: 'rgb(17, 153, 142)',
-      backgroundColor: 'rgba(17, 153, 142, 0.1)',
-      fill: true,
-      tension: 0.4
-    }]
-  }
-
-  const taskChartData = {
-    labels: chartData.labels,
-    datasets: [{
-      label: '任务数',
-      data: history.map(h => h.task_count || Math.floor(Math.random() * 50) + 100),
-      borderColor: 'rgb(252, 74, 26)',
-      backgroundColor: 'rgba(252, 74, 26, 0.1)',
-      fill: true,
-      tension: 0.4
-    }]
-  }
-
-  const idleChartData = {
-    labels: ['空闲', '使用'],
-    datasets: [{
-      data: [metrics ? 100 - metrics.cpu : 50, metrics?.cpu || 50],
-      backgroundColor: ['rgba(40, 167, 69, 0.8)', 'rgba(102, 126, 234, 0.8)'],
-      borderWidth: 0
-    }]
-  }
-
-  const chartOptions = {
-    responsive: true,
-    plugins: {
-      legend: { display: true, position: 'top' as const }
-    },
-    scales: {
-      y: {
-        beginAtZero: true,
-        max: 100
-      }
-    }
-  }
-
-  const doughnutOptions = {
-    responsive: true,
-    plugins: {
-      legend: { display: true, position: 'bottom' as const }
-    }
   }
 
   if (loading) return <div className="loading">加载中...</div>
 
   return (
-    <div>
-      <div className="page-header">
-        <div style={{display:"flex",alignItems:"center",gap:"12px"}}>
-        <h2 className="page-title">📈 Mac mini 系统监控</h2>
-        <div style={{display:"flex",alignItems:"center",gap:"6px",fontSize:"12px",color:localConnected?"#10b981":"#ef4444"}}>
-          <div style={{width:"8px",height:"8px",borderRadius:"50%",background:localConnected?"#10b981":"#ef4444"}}></div>
-          {localConnected?"实时连接":"连接中..."}
+    <div style={{ maxWidth: 1200, margin: '0 auto', padding: '24px 32px' }}>
+      {/* 页面标题 + 连接状态 */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
+        <h2 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 600 }}>📈 Mac mini 系统监控</h2>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 12px', background: localConnected ? '#dcfce7' : '#fef2f2', borderRadius: 20 }}>
+          <div style={{ width: 8, height: 8, borderRadius: '50%', background: localConnected ? '#10b981' : '#ef4444' }}></div>
+          <span style={{ fontSize: 12, color: localConnected ? '#166534' : '#991b1b', fontWeight: 500 }}>
+            {localConnected ? '实时连接' : '连接中...'}
+          </span>
         </div>
-        {localError && <span style={{fontSize:"12px",color:"#ef4444"}}>⚠️ {localError}</span>}
-      </div>
-      </div>
-
-      {/* 实时指标卡片 */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '24px', marginBottom: '32px' }}>
-        <div className="stat-card" style={{ 
-          padding: '32px', 
-          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-          color: 'white',
-          borderRadius: '16px',
-          minHeight: '160px',
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'center'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-            <div style={{ opacity: 0.9, transform: 'scale(1.5)' }}><CPUIcon /></div>
-            <div>
-              <h6 style={{ margin: 0, opacity: 0.9, fontSize: '1.1rem', fontWeight: 500 }}>CPU 使用率</h6>
-              <h2 style={{ margin: '8px 0', fontSize: '3rem', fontWeight: 700 }}>{metrics?.cpu || 0}%</h2>
-              <small style={{ opacity: 0.9, fontSize: '0.95rem' }}>{metrics?.cpu_cores || 8} 核心</small>
-            </div>
-          </div>
-        </div>
-
-        <div className="stat-card" style={{ 
-          padding: '32px', 
-          background: 'linear-gradient(135deg, #11998e 0%, #38ef7d 100%)',
-          color: 'white',
-          borderRadius: '16px',
-          minHeight: '160px',
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'center'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-            <div style={{ opacity: 0.9, transform: 'scale(1.5)' }}><MemoryIcon /></div>
-            <div>
-              <h6 style={{ margin: 0, opacity: 0.9, fontSize: '1.1rem', fontWeight: 500 }}>内存 使用率</h6>
-              <h2 style={{ margin: '8px 0', fontSize: '3rem', fontWeight: 700 }}>{metrics?.memory || 0}%</h2>
-              <small style={{ opacity: 0.9, fontSize: '0.95rem' }}>{metrics?.memory_used?.toFixed(1) || 6.4} / {metrics?.memory_total || 16} GB</small>
-            </div>
-          </div>
-        </div>
-
-        <div className="stat-card" style={{ 
-          padding: '32px', 
-          background: 'linear-gradient(135deg, #fc4a1a 0%, #f7b733 100%)',
-          color: 'white',
-          borderRadius: '16px',
-          minHeight: '160px',
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'center'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-            <div style={{ opacity: 0.9, transform: 'scale(1.5)' }}><TaskIcon /></div>
-            <div>
-              <h6 style={{ margin: 0, opacity: 0.9, fontSize: '1.1rem', fontWeight: 500 }}>运行任务数</h6>
-              <h2 style={{ margin: '8px 0', fontSize: '3rem', fontWeight: 700 }}>{metrics?.task_count || 127}</h2>
-              <small style={{ opacity: 0.9, fontSize: '0.95rem' }}>活跃进程</small>
-            </div>
-          </div>
-        </div>
-
-        <div className="stat-card" style={{ 
-          padding: '32px', 
-          background: 'linear-gradient(135deg, #eb3349 0%, #f45c43 100%)',
-          color: 'white',
-          borderRadius: '16px',
-          minHeight: '160px',
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'center'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-            <div style={{ opacity: 0.9, transform: 'scale(1.5)' }}><ServerIcon /></div>
-            <div>
-              <h6 style={{ margin: 0, opacity: 0.9, fontSize: '1.1rem', fontWeight: 500 }}>服务器状态</h6>
-              <h2 style={{ margin: '8px 0', fontSize: '2rem', color: '#28a745' }}>● 正常</h2>
-              <small style={{ opacity: 0.9, fontSize: '0.95rem' }}>运行 {metrics?.uptime || '5天 12小时'}</small>
-            </div>
-          </div>
-        </div>
+        {localError && (
+          <span style={{ fontSize: 12, color: '#ef4444', background: '#fef2f2', padding: '4px 12px', borderRadius: 20 }}>
+            ⚠️ {localError}
+          </span>
+        )}
       </div>
 
-      {/* 24小时趋势总览 */}
-      <div className="card" style={{ marginBottom: '32px', borderRadius: '16px' }}>
-        <div className="card-header" style={{ padding: '24px 28px' }}>
-          <h5 style={{ fontSize: '1.25rem', margin: 0 }}>📊 24小时系统资源趋势（总览）</h5>
+      {/* 指标卡片 - 5列布局 */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 16, marginBottom: 24 }}>
+        {[
+          { label: 'CPU 使用率', value: `${metrics?.cpu || 0}%`, sub: `${metrics?.cpu_cores || 8} 核心 · ${metrics?.freq_mhz || '--'} MHz`, icon: <CPUIcon />, bg: 'linear-gradient(135deg, #3b82f6, #2563eb)', color: '#fff' },
+          { label: '内存使用率', value: `${metrics?.memory || 0}%`, sub: `${metrics?.memory_used?.toFixed(1) || '--'} / ${metrics?.memory_total || '--'} GB`, icon: <MemoryIcon />, bg: 'linear-gradient(135deg, #10b981, #059669)', color: '#fff' },
+          { label: '磁盘使用率', value: `${metrics?.disk || 0}%`, sub: `${metrics?.disk_used || '--'} / ${metrics?.disk_total || '--'} GB`, icon: <DiskIcon />, bg: 'linear-gradient(135deg, #f59e0b, #d97706)', color: '#fff' },
+          { label: '运行进程', value: `${metrics?.task_count || '--'}`, sub: '活跃进程数', icon: <ProcessIcon />, bg: 'linear-gradient(135deg, #8b5cf6, #7c3aed)', color: '#fff' },
+          { label: '运行时间', value: metrics?.uptime || '--', sub: '系统持续运行', icon: <UptimeIcon />, bg: 'linear-gradient(135deg, #ec4899, #db2777)', color: '#fff' },
+        ].map((card, i) => (
+          <div key={i} style={{
+            background: card.bg,
+            borderRadius: 12,
+            padding: '16px 20px',
+            color: card.color,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 8,
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, opacity: 0.9 }}>
+              {card.icon}
+              <span style={{ fontSize: 13, fontWeight: 500 }}>{card.label}</span>
+            </div>
+            <div style={{ fontSize: '1.75rem', fontWeight: 700, lineHeight: 1 }}>{card.value}</div>
+            <div style={{ fontSize: 11, opacity: 0.8 }}>{card.sub}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* 进度条区域 */}
+      {metrics && (
+        <div style={{ background: '#fff', borderRadius: 12, padding: 20, marginBottom: 24, border: '1px solid #e5e7eb' }}>
+          <h3 style={{ margin: '0 0 16px', fontSize: 14, fontWeight: 600, color: '#374151' }}>资源使用概览</h3>
+          <div style={{ display: 'flex', gap: 24 }}>
+            <div style={{ flex: 1 }}>
+              <ProgressBar value={metrics.cpu} color="#3b82f6" label="CPU" />
+            </div>
+            <div style={{ flex: 1 }}>
+              <ProgressBar value={metrics.memory} color="#10b981" label="内存" />
+            </div>
+            <div style={{ flex: 1 }}>
+              <ProgressBar value={metrics.disk} color="#f59e0b" label="磁盘" />
+            </div>
+          </div>
         </div>
-        <div style={{ padding: '28px', height: '380px' }}>
+      )}
+
+      {/* 趋势图 */}
+      <div style={{ background: '#fff', borderRadius: 12, padding: 20, marginBottom: 24, border: '1px solid #e5e7eb' }}>
+        <h3 style={{ margin: '0 0 16px', fontSize: 14, fontWeight: 600, color: '#374151' }}>最近 30 分钟趋势</h3>
+        <div style={{ height: 300 }}>
           <Line data={chartData} options={chartOptions} />
         </div>
       </div>
 
-      {/* 详细图表 - 左右两列 */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(500px, 1fr))', gap: '28px', marginBottom: '32px' }}>
-        <div className="card" style={{ borderRadius: '16px' }}>
-          <div className="card-header" style={{ padding: '24px 28px' }}>
-            <h5 style={{ fontSize: '1.2rem', margin: 0 }}>💻 CPU 使用率（24小时）</h5>
-          </div>
-          <div style={{ padding: '28px', height: '320px' }}>
-            <Line data={cpuChartData} options={chartOptions} />
-          </div>
-        </div>
-
-        <div className="card" style={{ borderRadius: '16px' }}>
-          <div className="card-header" style={{ padding: '24px 28px' }}>
-            <h5 style={{ fontSize: '1.2rem', margin: 0 }}>🧠 内存使用率（24小时）</h5>
-          </div>
-          <div style={{ padding: '28px', height: '320px' }}>
-            <Line data={memoryChartData} options={chartOptions} />
-          </div>
-        </div>
-
-        <div className="card" style={{ borderRadius: '16px' }}>
-          <div className="card-header" style={{ padding: '24px 28px' }}>
-            <h5 style={{ fontSize: '1.2rem', margin: 0 }}>📋 任务数变化（24小时）</h5>
-          </div>
-          <div style={{ padding: '28px', height: '320px' }}>
-            <Line data={taskChartData} options={{...chartOptions, scales: { y: { beginAtZero: true }}}} />
-          </div>
-        </div>
-
-        <div className="card" style={{ borderRadius: '16px' }}>
-          <div className="card-header" style={{ padding: '24px 28px' }}>
-            <h5 style={{ fontSize: '1.2rem', margin: 0 }}>⏰ 服务器空闲时间分布</h5>
-          </div>
-          <div style={{ padding: '28px', height: '320px', display: 'flex', justifyContent: 'center' }}>
-            <Doughnut data={idleChartData} options={doughnutOptions} />
-          </div>
-        </div>
-      </div>
-
-      {/* 监控设置 */}
-      <div className="card" style={{ borderRadius: '16px', marginBottom: '32px' }}>
-        <div className="card-header" style={{ padding: '24px 28px' }}>
-          <h5 style={{ fontSize: '1.25rem', margin: 0 }}>⚙️ 监控设置</h5>
-        </div>
-        <div style={{ padding: '32px' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '32px' }}>
-            <div>
-              <label style={{ display: 'block', marginBottom: '12px', fontWeight: 600, fontSize: '1.1rem' }}>更新频率</label>
-              <select 
-                value={refreshRate} 
-                onChange={(e) => setRefreshRate(Number(e.target.value))}
-                style={{ width: '100%', padding: '14px', borderRadius: '10px', border: '1px solid #ddd', fontSize: '1rem' }}
-              >
-                <option value={30}>30秒</option>
-                <option value={60}>1分钟</option>
-                <option value={120}>2分钟</option>
-                <option value={300}>5分钟</option>
-              </select>
-            </div>
-
-            <div>
-              <label style={{ display: 'block', marginBottom: '12px', fontWeight: 600, fontSize: '1.1rem' }}>
-                CPU告警阈值: <span style={{ color: '#667eea', fontWeight: 700 }}>{cpuThreshold}%</span>
-              </label>
-              <input
-                type="range"
-                min="50"
-                max="95"
-                value={cpuThreshold}
-                onChange={(e) => setCpuThreshold(Number(e.target.value))}
-                style={{ width: '100%', height: '8px' }}
-              />
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem', color: '#666', marginTop: '8px' }}>
-                <span>50%</span>
-                <span>95%</span>
-              </div>
-            </div>
-
-            <div>
-              <label style={{ display: 'block', marginBottom: '12px', fontWeight: 600, fontSize: '1.1rem' }}>
-                内存告警阈值: <span style={{ color: '#667eea', fontWeight: 700 }}>{memThreshold}%</span>
-              </label>
-              <input
-                type="range"
-                min="50"
-                max="95"
-                value={memThreshold}
-                onChange={(e) => setMemThreshold(Number(e.target.value))}
-                style={{ width: '100%', height: '8px' }}
-              />
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem', color: '#666', marginTop: '8px' }}>
-                <span>50%</span>
-                <span>95%</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
       {/* 历史数据表格 */}
-      <div className="card" style={{ marginTop: '32px', borderRadius: '16px' }}>
-        <div className="card-header" style={{ padding: '24px 28px' }}>
-          <h5 style={{ fontSize: '1.25rem', margin: 0 }}>📋 历史监控数据</h5>
-        </div>
-        <div className="table-container" style={{ padding: '20px' }}>
-          <table className="data-table">
+      {history.length > 0 && (
+        <div style={{ background: '#fff', borderRadius: 12, padding: 20, border: '1px solid #e5e7eb' }}>
+          <h3 style={{ margin: '0 0 16px', fontSize: 14, fontWeight: 600, color: '#374151' }}>最近记录</h3>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
-              <tr>
-                <th>时间</th>
-                <th>CPU</th>
-                <th>内存</th>
-                <th>磁盘</th>
-                <th>状态</th>
+              <tr style={{ borderBottom: '2px solid #e5e7eb' }}>
+                <th style={{ textAlign: 'left', padding: '8px 12px', color: '#666' }}>时间</th>
+                <th style={{ textAlign: 'right', padding: '8px 12px', color: '#666' }}>CPU</th>
+                <th style={{ textAlign: 'right', padding: '8px 12px', color: '#666' }}>内存</th>
+                <th style={{ textAlign: 'right', padding: '8px 12px', color: '#666' }}>进程</th>
               </tr>
             </thead>
             <tbody>
-              {history.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="empty-state">暂无历史数据</td>
-                </tr>
-              ) : (
-                history.slice(0, 10).map((record: any, i: number) => (
-                  <tr key={i}>
-                    <td>{new Date(record.timestamp || record.created_at).toLocaleString('zh-CN')}</td>
-                    <td>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <div style={{ width: '60px', height: '6px', background: '#e9ecef', borderRadius: '3px', overflow: 'hidden' }}>
-                          <div style={{ width: `${record.cpu || record.cpu_percent || 0}%`, height: '100%', background: record.cpu > cpuThreshold ? '#dc3545' : '#667eea' }} />
-                        </div>
-                        <span>{record.cpu || record.cpu_percent || 0}%</span>
-                      </div>
-                    </td>
-                    <td>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <div style={{ width: '60px', height: '6px', background: '#e9ecef', borderRadius: '3px', overflow: 'hidden' }}>
-                          <div style={{ width: `${record.memory || record.memory_percent || 0}%`, height: '100%', background: record.memory > memThreshold ? '#dc3545' : '#11998e' }} />
-                        </div>
-                        <span>{record.memory || record.memory_percent || 0}%</span>
-                      </div>
-                    </td>
-                    <td>{record.disk || record.disk_percent || 0}%</td>
-                    <td>
-                      <span className={`badge ${(record.cpu > cpuThreshold || record.memory > memThreshold) ? 'badge-red' : 'badge-green'}`}>
-                        {(record.cpu > cpuThreshold || record.memory > memThreshold) ? '警告' : '正常'}
-                      </span>
-                    </td>
+              {history.slice(-10).reverse().map((h, i) => {
+                const date = new Date(h.timestamp)
+                const time = `${date.getHours().toString().padStart(2,'0')}:${date.getMinutes().toString().padStart(2,'0')}:${date.getSeconds().toString().padStart(2,'0')}`
+                return (
+                  <tr key={i} style={{ borderBottom: '1px solid #f3f4f6' }}>
+                    <td style={{ padding: '8px 12px', fontFamily: 'monospace', fontSize: 12 }}>{time}</td>
+                    <td style={{ padding: '8px 12px', textAlign: 'right', color: h.cpu > 80 ? '#ef4444' : h.cpu > 50 ? '#f59e0b' : '#10b981' }}>{h.cpu.toFixed(1)}%</td>
+                    <td style={{ padding: '8px 12px', textAlign: 'right', color: h.memory > 80 ? '#ef4444' : h.memory > 50 ? '#f59e0b' : '#10b981' }}>{h.memory.toFixed(1)}%</td>
+                    <td style={{ padding: '8px 12px', textAlign: 'right' }}>{h.task_count}</td>
                   </tr>
-                ))
-              )}
+                )
+              })}
             </tbody>
           </table>
         </div>
-      </div>
+      )}
     </div>
   )
 }
 
-// 访问统计组件
 export function AccessStats() {
   const [stats, setStats] = useState<any>(null)
   const [loading, setLoading] = useState(true)
