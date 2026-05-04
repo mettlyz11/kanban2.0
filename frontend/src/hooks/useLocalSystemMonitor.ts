@@ -15,9 +15,9 @@ interface HistoryPoint {
   timestamp: string; cpu: number; memory: number; disk: number; processes: number
 }
 
-// 自动检测页面协议：HTTPS 用 wss://，HTTP 用 ws://
+// 自动检测协议：HTTPS 用 wss://，HTTP 用 ws://
 const PROTOCOL = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-const WS_URL = `${PROTOCOL}//${window.location.host}/monitor/`
+const WS_URL = `${PROTOCOL}://${window.location.host}/monitor/`
 
 export function useLocalSystemMonitor() {
   const [connected, setConnected] = useState(false)
@@ -28,25 +28,39 @@ export function useLocalSystemMonitor() {
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const reconnectAttemptsRef = useRef(0)
   const maxReconnectAttempts = 30
+  const errorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const connect = useCallback(() => {
     if (wsRef.current?.readyState === WebSocket.OPEN) return
+    if (wsRef.current?.readyState === WebSocket.CONNECTING) return
 
     try {
       console.log('🖥️ 连接 Mac mini 监控:', WS_URL)
+      setError(null)
       const ws = new WebSocket(WS_URL)
       wsRef.current = ws
+
+      // 5秒超时检测
+      if (errorTimerRef.current) clearTimeout(errorTimerRef.current)
+      errorTimerRef.current = setTimeout(() => {
+        if (ws.readyState !== WebSocket.OPEN) {
+          setError('连接超时')
+          ws.close()
+        }
+      }, 5000)
 
       ws.onopen = () => {
         console.log('✅ 已连接 Mac mini 监控')
         setConnected(true)
-        setError(null)
+        setError(null)  // 确保清除错误
         reconnectAttemptsRef.current = 0
+        if (errorTimerRef.current) clearTimeout(errorTimerRef.current)
       }
 
       ws.onclose = () => {
         console.log('❌ Mac mini 监控断开')
         setConnected(false)
+        if (errorTimerRef.current) clearTimeout(errorTimerRef.current)
         if (reconnectAttemptsRef.current < maxReconnectAttempts) {
           const delay = Math.min(1000 * Math.pow(1.5, reconnectAttemptsRef.current), 30000)
           reconnectTimerRef.current = setTimeout(() => {
@@ -59,7 +73,12 @@ export function useLocalSystemMonitor() {
       }
 
       ws.onerror = () => {
-        setError('无法创建连接')
+        // 关键修复：忽略握手阶段的 error 事件
+        // 浏览器在 WebSocket 握手期间会触发 error，但后续 onopen 仍会成功
+        // 只有 CLOSED 状态才认为是真正的失败
+        if (ws.readyState === WebSocket.CLOSED) {
+          setError('无法创建连接')
+        }
       }
 
       ws.onmessage = (event) => {
@@ -74,12 +93,14 @@ export function useLocalSystemMonitor() {
         }
       }
     } catch (e) {
+      if (errorTimerRef.current) clearTimeout(errorTimerRef.current)
       setError('无法创建连接')
     }
   }, [])
 
   const disconnect = useCallback(() => {
     if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current)
+    if (errorTimerRef.current) clearTimeout(errorTimerRef.current)
     if (wsRef.current) wsRef.current.close()
     wsRef.current = null
     setConnected(false)

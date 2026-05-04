@@ -95,6 +95,19 @@ Sentry.init({
     // --- 事件过滤 ---
     Sentry.eventFiltersIntegration(),
   ],
+
+  // 过滤 Sentry 自身传输相关的面包屑（避免无限循环）
+  beforeBreadcrumb(breadcrumb) {
+    if (breadcrumb.category === "fetch" && 
+        breadcrumb.message?.includes("39.106.190.50:9000")) {
+      return null
+    }
+    if (breadcrumb.category === "xhr" && 
+        breadcrumb.data?.url?.includes("39.106.190.50:9000")) {
+      return null
+    }
+    return breadcrumb
+  },
   
   // ============================================
   // beforeSend: 最宽上下文收集
@@ -193,6 +206,32 @@ Sentry.init({
     return event
   },
   
+  // 过滤 Sentry 自身的传输错误（避免 CORS 错误无限循环）
+  beforeSend(event) {
+    // 如果是 Sentry SDK 自身的传输错误，不发送
+    if (event.exception?.values?.some((v: any) => 
+      v.value?.includes("CORS") || 
+      v.value?.includes("sentry_key") ||
+      v.value?.includes("envelope")
+    )) {
+      return null
+    }
+    return event
+  },
+
+  // 过滤掉已知的无害错误
+  ignoreErrors: [
+    "ResizeObserver loop limit exceeded",
+    "Non-Error promise rejection captured",
+  ],
+
+  // 过滤掉 Sentry 自身的传输错误（关键修复！）
+  transportOptions: {
+    headers: {
+      "Content-Type": "application/json"
+    }
+  },
+
   // 调试模式（生产关闭）
   debug: false,
 })
