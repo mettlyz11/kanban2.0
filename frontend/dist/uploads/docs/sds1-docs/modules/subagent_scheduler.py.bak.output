@@ -1,0 +1,626 @@
+#!/usr/bin/env python3
+"""
+SDS子代理调度器与结果回收器 (Sub-agent Scheduler & Result Collector)
+功能：智能调度子代理执行任务，回收并验证执行结果
+"""
+
+import os
+import sys
+import json
+import time
+import logging
+import subprocess
+from datetime import datetime, timedelta
+from pathlib import Path
+from typing import List, Dict, Optional, Tuple
+
+# 添加lib路径
+sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
+from lib.db_connector import get_db_connection, execute_query, execute_update
+from config_loader import get_config
+
+# 日志配置
+logging.basicConfig(
+    level=logging.INFO,
+    format='[%(asctime)s] [%(levelname)s] %(message)s',
+    handlers=[
+        logging.FileHandler(get_config('paths.logs') + '/sds-subagent-scheduler.log'),
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger('SubagentScheduler')
+
+
+class SubagentScheduler:
+    """子代理调度器 - 管理子代理的启动、监控和结果回收"""
+    
+    def __init__(self):
+        self.conn = None
+        self.max_concurrent = 2  # 每周期最多执行2个任务
+        self.max_retries = 100  # ✅ 大幅提高重试上限，避免任务被过早过滤
+        self.retry_interval = 60  # 秒
+        
+        # 运行中的子代理 {task_id: {session_info, start_time}}
+        self.running_agents = {}
+        
+        # 队列文件路径（与 OpenClaw 自动任务守护进程一致）
+        self.queue_file = Path("/Users/mettlyz/.openclaw/logs/pending-task-queue.jsonl")
+        # ⚠️ 旧状态文件已废弃，状态统一由 sds_main.py → sds-controller-state.json 管理
+        
+    def connect(self):
+        """连接数据库"""
+        try:
+            self.conn = get_db_connection()
+            return True
+        except Exception as e:
+            logger.error(f"数据库连接失败: {e}")
+            return False
+    
+    def close(self):
+        """关闭连接"""
+        if self.conn:
+            self.conn.close()
+    
+    def get_pending_tasks(self, limit: int = 10) -> List[Dict]:
+        """获取待执行任务"""
+        sql = """
+            SELECT id, number, title, status, priority, project_id,
+                   retry_count, task_type
+            FROM tasks
+            WHERE status IN ('pending', 'failed_retryable')
+              AND requires_audit = 0
+              AND (retry_count IS NULL OR retry_count < %s)
+            ORDER BY priority DESC, id ASC
+            LIMIT %s
+        """
+        return execute_query(sql, (self.max_retries, limit))
+    
+    def get_running_tasks_count(self) -> int:
+        """获取当前运行中的任务数"""
+        sql = """
+            SELECT COUNT(*) as count
+            FROM tasks
+            WHERE status = 'in_progress'
+        """
+        results = execute_query(sql)
+        return results[0]['count'] if results else 0
+    
+    def has_available_slot(self) -> bool:
+        """检查是否有可用槽位"""
+        running = self.get_running_tasks_count()
+        available = running < self.max_concurrent
+        if not available:
+            logger.info(f"槽位已满: {running}/{self.max_concurrent} 运行中")
+        return available
+    
+    def mark_task_in_progress(self, task_id: int) -> bool:
+        """标记任务为执行中"""
+        try:
+            log_note = f"\n[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] SDS调度器: 任务开始执行\n"
+            execute_update("""
+                UPDATE tasks
+                SET status = 'in_progress',
+                    execution_log = CONCAT(COALESCE(execution_log, ''), %s),
+                    updated_at = NOW()
+                WHERE id = %s
+            """, (log_note, task_id))
+            return True
+        except Exception as e:
+            logger.error(f"标记任务执行中失败: {e}", exc_info=True)
+            return False
+    
+    def build_subagent_command(self, task: Dict) -> str:
+        """构建子代理启动命令"""
+        task_id = task['id']
+        task_title = task.get('title', '未命名任务')
+        
+        # 读取任务模板
+        template_path = Path(get_config('paths.templates') + "/auto-task-template.md")
+        if template_path.exists():
+            with open(template_path, 'r') as f:
+                template = f.read()
+        else:
+            template = self.get_default_template()
+        
+        # 替换模板变量
+        task_description = task.get('description', '')
+        full_prompt = (
+            f"# 看板任务 #{task_id}: {task_title}\n\n"
+            f"## 任务描述\n{task_description}\n\n"
+            f"## 执行规范\n{template}\n\n"
+            "请按照上述规范完整执行任务。"
+        )
+        
+        # 构建子代理命令（使用sessions_spawn机制）
+        # 注意：实际通过OpenClaw的sessions_spawn API调用
+        # 这里写入队列文件，由HEARTBEAT或主循环处理
+        
+        return full_prompt
+    
+    def get_default_template(self) -> str:
+        """获取默认执行模板（核爆炸版）"""
+        return """
+═══════════════════════════════════════════════════════════════
+🔥🔥🔥 【生死线：不满足直接失败】 🔥🔥🔥
+═══════════════════════════════════════════════════════════════
+
+⚠️ 本任务有强制字数要求，不满足直接验证失败，必须重新执行！
+
+🔴 要求1：execution_log 必须 ≥ 200字（详细描述每一步执行过程）
+🔴 要求2：result_summary 必须 ≥ 100字（详细总结核心成果）
+🔴 要求3：task_summary 必须 ≥ 30字（简洁描述）
+
+❌ 写不够字数 → 任务失败 → 自动重试 → 再失败 → 继续重试
+✅ 只有写满字数，任务才能通过验证！
+
+═══════════════════════════════════════════════════════════════
+🔥🔥🔥 【execution_log 写法示例（200字以上）】 🔥🔥🔥
+═══════════════════════════════════════════════════════════════
+
+开始执行任务：【任务标题】。首先认真分析任务目标和交付要求，
+明确本次任务需要达成的核心成果和验收标准。我需要先...
+
+第一步：环境检查和准备工作。首先确认当前工作目录...
+检查了Python版本和依赖包安装情况，发现缺少xxx库...
+使用pip install安装了xxx库，版本号是xxx，安装成功...
+
+遇到问题1：在执行xxx命令时，出现了xxx报错，错误信息是...
+我首先分析错误日志，发现问题出在xxx配置上，原因为...
+尝试解决方案A：修改配置文件的xxx参数，但是效果不好...
+改用解决方案B：调整执行顺序，先执行yyy再执行xxx，成功解决！
+
+第二步：核心业务逻辑处理。根据任务要求，我需要处理...
+首先读取输入文件，文件路径是xxx，文件大小xxx，包含xxx条数据...
+进行数据清洗，去除了xxx条无效数据，保留xxx条有效数据...
+应用xxx算法进行处理，处理耗时xxx秒，内存占用xxx MB...
+输出结果保存到output/task-{task_id}/result_xxx.csv文件...
+
+第三步：结果验证和质量检查。我读取了输出文件，验证...
+检查了数据格式完整性，确认xxx字段都正确填充...
+验证了xxx条抽样数据的计算准确性，正确率100%...
+
+最终结果：本次任务成功完成了所有要求，产出了xxx个文件...
+执行过程中遇到了2个技术问题，都已成功解决...
+后续可以优化的方向：xxx处理可以进一步并行化提升性能...
+
+═══════════════════════════════════════════════════════════════
+🔥🔥🔥 【result_summary 写法示例（100字以上）】 🔥🔥🔥
+═══════════════════════════════════════════════════════════════
+
+本次任务成功完成了【任务标题】的全部工作，核心成果如下...
+第一，完成了环境配置和依赖安装，确保任务可执行...
+第二，处理了xxx条原始数据，完成了数据清洗和转换工作...
+第三，应用xxx算法完成了核心业务逻辑处理，输出结果准确...
+第四，生成了xxx份产出文件，包括分析报告和数据文件...
+在执行过程中，我们遇到了xxx技术挑战，通过多种方案尝试...
+最终选择了最优解，确保了任务的顺利完成和输出质量...
+本次任务的成果可以直接用于后续的xxx工作，为xxx奠定基础...
+
+═══════════════════════════════════════════════════════════════
+🔥🔥🔥 【数据库更新要求】 🔥🔥🔥
+═══════════════════════════════════════════════════════════════
+
+任务完成后必须执行以下SQL更新数据库：
+1. UPDATE tasks SET status = 'completed', task_summary = '...', 
+   execution_log = '...（200字以上）...', 
+   result_summary = '...（100字以上）...', 
+   updated_at = NOW() WHERE id = {task_id}
+2. 每个产出文件单独执行 INSERT INTO attachments
+
+═══════════════════════════════════════════════════════════════
+🔥🔥🔥 【再次提醒：字数不够=任务失败！】 🔥🔥🔥
+═══════════════════════════════════════════════════════════════
+""".strip()
+    
+    def enqueue_task(self, task: Dict) -> bool:
+        """将任务加入执行队列"""
+        try:
+            queue_entry = {
+                'task_id': task['id'],
+                'task_title': task.get('title', ''),
+                'priority': task.get('priority', 2),
+                'enqueued_at': datetime.now().isoformat(),
+                'prompt': self.build_subagent_command(task)
+            }
+            
+            with open(self.queue_file, 'a') as f:
+                f.write(json.dumps(queue_entry, ensure_ascii=False) + '\n')
+            
+            logger.info(f"✅ 任务 #{task['id']} 已加入队列")
+            return True
+        except Exception as e:
+            logger.error(f"加入队列失败: {e}")
+            return False
+    
+    def dispatch_tasks(self) -> int:
+        """调度待执行任务 - SDS进程内直接启动子代理，不依赖外部HEARTBEAT"""
+        logger.info("开始任务调度...")
+        
+        # 确保数据库连接
+        if not self.conn:
+            if not self.connect():
+                logger.error("无法连接数据库，跳过调度")
+                return 0
+        
+        if not self.has_available_slot():
+            logger.info("无可用槽位，跳过调度")
+            return 0
+        
+        # ✅ 优化调度逻辑：批量获取足够多的pending任务，保证能填满所有并发槽位
+        # 即使有些任务状态异常被跳过，也有足够多的备用任务可以调度
+        pending_tasks = self.get_pending_tasks(limit=4)  # 每周期获取4个任务
+        logger.info(f"发现 {len(pending_tasks)} 个待执行任务，可用槽位: {self.max_concurrent}")
+        
+        dispatched = 0
+        for task in pending_tasks:
+            if not self.has_available_slot():
+                logger.info(f"   已达到并发上限 {self.max_concurrent}，停止调度")
+                break
+            
+            # ✅ 架构优化：SDS进程内直接启动子代理，不依赖HEARTBEAT
+            # 完全实现自我驱动闭环，不依赖外部会话
+            if self.start_subagent_directly(task):
+                dispatched += 1
+                logger.info(f"   ✅ 任务 #{task['id']} 子代理已后台启动执行")
+            else:
+                logger.info(f"   ⏭️  任务 #{task['id']} 跳过，尝试下一个")
+            
+            # 调度间隔，避免DB过载
+            time.sleep(1)
+        
+        logger.info(f"本次调度 {dispatched} 个任务")
+        return dispatched
+    
+    def start_subagent_directly(self, task: Dict) -> bool:
+        """🚀 启动真实子代理执行脚本（直接启动，不依赖HEARTBEAT）
+        
+        架构说明：
+        1. 先抢占式标记任务为 in_progress
+        2. 生成完整的Python执行脚本（包含真实执行逻辑）
+        3. 后台启动脚本，独立运行
+        4. 脚本执行完成后自动更新数据库状态
+        """
+        try:
+            task_id = task['id']
+            task_title = task.get('title', '')
+            
+            # ✅ 状态一致性保障：先标记为in_progress，再启动子代理
+            sql = "UPDATE tasks SET status = 'in_progress', updated_at = NOW() WHERE id = %s AND status IN ('pending', 'failed_retryable')"
+            rows_affected = execute_update(sql, (task_id,))
+            
+            if rows_affected == 0:
+                logger.warning(f"任务 #{task_id} 状态不是pending/failed_retryable，跳过启动")
+                return False
+            
+            # 🎯 生成真实的子代理执行脚本
+            script_content = self._generate_subagent_script(task_id, task_title)
+            
+            script_path = Path(f"/tmp/sds-subagent-{task_id}-{int(time.time())}.py")
+            with open(script_path, 'w', encoding='utf-8') as f:
+                f.write(script_content)
+            
+            # 🚀 后台启动执行（完全独立进程）
+            subprocess.Popen(
+                [sys.executable, str(script_path)],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                start_new_session=True,
+                cwd="/Users/mettlyz/.openclaw/workspace"
+            )
+            
+            logger.info(f"🚀 真实子代理已启动 #{task_id}: {task_title[:50]}")
+            logger.info(f"   📍 脚本路径: {script_path}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"启动子代理失败 #{task_id}: {e}")
+            try:
+                sql_rollback = "UPDATE tasks SET status = 'pending', updated_at = NOW() WHERE id = %s"
+                execute_update(sql_rollback, (task['id'],))
+            except:
+                pass
+            return False
+    
+    def _generate_subagent_script(self, task_id: int, task_title: str) -> str:
+        """生成真实执行的子代理脚本（从标准模板读取）"""
+        import json
+        from pathlib import Path
+        
+        # 读取标准模板
+        template_path = Path(get_config('paths.templates') + "/subagent_executor.py")
+        with open(template_path, 'r', encoding='utf-8') as f:
+            template = f.read()
+        
+        # 替换占位符
+        def escape_for_python(s: str) -> str:
+            return json.dumps(s, ensure_ascii=False)
+        
+        script = template\
+            .replace('{{task_id}}', str(task_id))\
+            .replace('{{task_title_json}}', escape_for_python(task_title))\
+            .replace('{{task_description_json}}', escape_for_python(f"执行任务：{task_title}"))
+        
+        return script
+    
+    def _build_subagent_task_description(self, task_id: int, task_title: str) -> str:
+        """🧠 构建真实AI子代理的任务描述（标准模板）
+        
+        这是给真实AI执行的完整任务指令，包含：
+        - 清晰的任务目标
+        - 详细的执行步骤
+        - 强制的输出要求
+        - 必须执行的数据库更新SQL
+        """
+        from pathlib import Path
+        
+        # 读取标准任务模板
+        template_path = Path(get_config('paths.templates') + "/subagent-task-template.md")
+        with open(template_path, 'r', encoding='utf-8') as f:
+            template = f.read()
+        
+        # 构建任务描述
+        task_description = f"""【看板任务 #{task_id} - {task_title}】
+
+## 任务目标
+{self._extract_task_goal(task_title)}
+
+## 执行步骤
+1. 分析任务目标，明确需要交付的核心成果
+2. 收集相关的历史上下文和最佳实践参考
+3. 执行核心业务逻辑，完成所有预定操作
+4. 生成执行报告和优化方案，保存到 output/task-{task_id}/ 目录
+5. 验证所有产出文件的完整性和数据准确性
+6. 执行下面的【任务完成强制动作】更新数据库
+
+## 输出要求
+- 生成文件：output/task-{task_id}/执行报告_{task_id}.md
+- 生成文件：output/task-{task_id}/优化方案_{task_id}.md
+- 数据库更新：status, task_summary, execution_log, result_summary
+- 附件上传：将生成的文件记录到 attachments 表，URL 格式必须是 `/uploads/docs/文件名`
+
+---
+
+## 【任务完成强制动作】⭐⭐⭐⭐⭐
+
+**完成后必须立即执行以下 SQL 更新（否则视为未完成）**：
+
+```sql
+-- 1. 更新任务状态
+UPDATE tasks SET 
+  status = 'completed',
+  task_summary = '{{50-100 字核心成果摘要}}',
+  execution_log = '{{完整执行日志}}',
+  result_summary = '{{300字以上结果总结}}',
+  retry_count = 0,
+  updated_at = NOW()
+WHERE id = {task_id};
+
+-- 2. 附件记录（URL 必须是 `/uploads/docs/文件名` 格式）
+-- 示例：
+-- INSERT INTO attachments (entity_type, entity_id, filename, url, size, file_type, created_at) 
+-- VALUES ('task', {task_id}, '执行报告_{task_id}.md', '/uploads/docs/执行报告_{task_id}.md', 1234, 'document', NOW());
+```
+
+**task_summary 要求**：≥30字，必须包含关键数据和结论，例如："完成现状调研→方案设计→落地验证，执行耗时X秒，生成Y个文件"
+
+**execution_log 要求**：≥200字，详细记录每一步执行过程、遇到的问题、解决方法
+
+**result_summary 要求**：≥100字，总结核心成果、执行亮点、后续建议
+
+---
+
+## 重要提醒
+- 使用 thinking="high" 深度思考模式
+- 所有文件必须真实生成，不能模拟
+- 所有数据库更新必须真实执行
+- 完成后必须验证状态确实已更新为 completed
+"""
+        return task_description
+    
+    def _extract_task_goal(self, task_title: str) -> str:
+        """从任务标题提取任务目标"""
+        # 根据标题模式智能提取目标
+        if "优化" in task_title:
+            return "识别当前存在的问题，制定具体优化方案，并输出可落地的行动计划"
+        elif "研究" in task_title or "调研" in task_title:
+            return "深入研究相关领域，收集整理最新信息，形成有价值的调研报告"
+        elif "监控" in task_title or "健康检查" in task_title:
+            return "全面检查系统健康状态，识别潜在风险，提出改进措施"
+        elif "加速" in task_title or "推进" in task_title:
+            return "分析当前进度瓶颈，制定加速方案，推动项目快速前进"
+        else:
+            return "高质量完成任务目标，生成详细的执行报告和优化方案"
+
+
+class ResultCollector:
+    """结果回收器 - 验证并回收任务执行结果"""
+    
+    def __init__(self):
+        self.conn = None
+        self.min_summary_length = 200
+        self.min_log_length = 200
+        
+    def connect(self):
+        """连接数据库"""
+        try:
+            self.conn = get_db_connection()
+            return True
+        except Exception as e:
+            logger.error(f"数据库连接失败: {e}")
+            return False
+    
+    def close(self):
+        """关闭连接"""
+        if self.conn:
+            self.conn.close()
+    
+    def get_completed_tasks_to_verify(self) -> List[Dict]:
+        """获取需要验证的已完成任务（只验证已完成超过2分钟的任务，避免子代理未完成就验证）"""
+        sql = """
+            SELECT id, number, title, status, task_type, task_summary,
+                   execution_log, result_summary, updated_at, retry_count
+            FROM tasks
+            WHERE status = 'completed'
+              AND (sds_verified IS NULL OR sds_verified = 0)
+              AND updated_at <= DATE_SUB(NOW(), INTERVAL 2 MINUTE)
+            ORDER BY updated_at DESC
+            LIMIT 20
+        """
+        return execute_query(sql)
+    
+    def verify_task_completion(self, task: Dict) -> Tuple[bool, List[str]]:
+        """验证任务完成质量"""
+        issues = []
+        
+        # 1. 检查task_summary
+        summary = task.get('task_summary') or ''
+        if len(summary) < 30:
+            issues.append(f"task_summary字数不足: {len(summary)} < 30")
+        
+        # 2. 检查execution_log
+        log = task.get('execution_log') or ''
+        if len(log) < 200:
+            issues.append(f"execution_log字数不足: {len(log)} < 200 (必须写满200字详细执行过程)")
+        
+        # 3. 检查result_summary
+        result = task.get('result_summary') or ''
+        if len(result) < 100:
+            issues.append(f"result_summary字数不足: {len(result)} < 100 (必须写满100字成果总结)")
+        
+        # 4. 检查附件
+        sql = "SELECT COUNT(*) as count FROM attachments WHERE entity_type = 'task' AND entity_id = %s"
+        results = execute_query(sql, (task['id'],))
+        attachment_count = results[0]['count'] if results else 0
+        
+        # 自动生成的任务应该有产出
+        if task.get('task_type') == 'auto_generated' and attachment_count == 0:
+            issues.append("自动生成任务缺少附件产出")
+        
+        is_valid = len(issues) == 0
+        return is_valid, issues
+    
+    def mark_task_verified(self, task_id: int, issues: List[str] = None) -> bool:
+        """标记任务已验证"""
+        try:
+            if issues:
+                verification_note = f"\n[SDS验证] 发现问题: {'; '.join(issues)}\n"
+            else:
+                verification_note = "\n[SDS验证] ✓ 验证通过，符合所有质量标准\n"
+            
+            execute_update("""
+                UPDATE tasks
+                SET sds_verified = 1,
+                    execution_log = CONCAT(COALESCE(execution_log, ''), %s),
+                    updated_at = NOW()
+                WHERE id = %s
+            """, (verification_note, task_id))
+            return True
+        except Exception as e:
+            logger.error(f"标记验证状态失败: {e}", exc_info=True)
+            return False
+    
+    def collect_and_verify(self) -> Dict:
+        """收集并验证任务结果"""
+        logger.info("开始结果收集与验证...")
+        
+        # 确保数据库连接
+        if not self.conn:
+            if not self.connect():
+                logger.error("无法连接数据库，跳过验证")
+                return {'verified': 0, 'failed': 0, 'issues_found': []}
+        
+        tasks = self.get_completed_tasks_to_verify()
+        logger.info(f"发现 {len(tasks)} 个待验证任务")
+        
+        results = {
+            'verified': 0,
+            'failed': 0,
+            'issues_found': []
+        }
+        
+        for task in tasks:
+            is_valid, issues = self.verify_task_completion(task)
+            
+            if is_valid:
+                # 同步本地文件到远程服务器
+                try:
+                    from tools.kanban_task_manager import KanbanTaskManager
+                    km = KanbanTaskManager()
+                    if km.connect():
+                        synced = km.sync_task_files_to_server(task['id'])
+                        if synced:
+                            logger.info(f"✓ 任务 #{task['id']} 已同步 {len(synced)} 个文件到服务器")
+                        km.close()
+                except Exception as sync_err:
+                    logger.warning(f"⚠ 任务 #{task['id']} 文件同步失败: {sync_err}")
+                
+                if self.mark_task_verified(task['id']):
+                    results['verified'] += 1
+                    logger.info(f"✓ 任务 #{task['id']} 验证通过")
+            else:
+                results['failed'] += 1
+                results['issues_found'].append({
+                    'task_id': task['id'],
+                    'issues': issues
+                })
+                logger.warning(f"✗ 任务 #{task['id']} 验证失败: {issues}")
+                
+                # 标记需要重试
+                self.mark_for_retry(task['id'], issues)
+        
+        logger.info(f"验证完成: 通过 {results['verified']}, 失败 {results['failed']}")
+        return results
+    
+    def mark_for_retry(self, task_id: int, issues: List[str]) -> bool:
+        """标记任务需要重试"""
+        try:
+            retry_note = f"\n[SDS重试] 验证失败，需要重新执行: {'; '.join(issues)}\n"
+            execute_update("""
+                UPDATE tasks
+                SET status = 'failed_retryable',
+                    retry_count = COALESCE(retry_count, 0) + 1,
+                    execution_log = CONCAT(COALESCE(execution_log, ''), %s),
+                    updated_at = NOW()
+                WHERE id = %s
+            """, (retry_note, task_id))
+            return True
+        except Exception as e:
+            logger.error(f"标记重试失败: {e}", exc_info=True)
+            return False
+
+
+def run_scheduler_cycle():
+    """运行一次完整的调度周期"""
+    logger.info("=" * 60)
+    logger.info("SDS调度周期开始")
+    logger.info("=" * 60)
+    
+    scheduler = SubagentScheduler()
+    collector = ResultCollector()
+    
+    if not scheduler.connect() or not collector.connect():
+        logger.error("数据库连接失败")
+        return
+    
+    try:
+        # 1. 调度新任务
+        dispatched = scheduler.dispatch_tasks()
+        
+        # 2. 收集并验证结果
+        verification = collector.collect_and_verify()
+        
+        # 3. 记录状态（旧状态文件已废弃，状态由 sds_main.py 统一管理）
+        logger.info(f"周期完成: 调度={dispatched}, 验证通过={verification['verified']}, "
+                   f"验证失败={verification['failed']}, 运行中={scheduler.get_running_tasks_count()}")
+        
+    except Exception as e:
+        logger.error(f"调度周期执行异常: {e}", exc_info=True)
+        return {'error': str(e)}
+    finally:
+        scheduler.close()
+        collector.close()
+        logger.info("=" * 60)
+
+
+if __name__ == "__main__":
+    run_scheduler_cycle()

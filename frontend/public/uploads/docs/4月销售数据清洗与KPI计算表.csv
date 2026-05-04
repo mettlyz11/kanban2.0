@@ -1,0 +1,265 @@
+# 4月销售数据清洗与KPI计算表
+
+> 任务: 统计4月销售活动数据并生成销售业绩分析报告
+> 附件类型: 数据分析与计算模板
+> 生成时间: 2026-05-03 14:42
+
+# 数据分析与计算模板：4月销售业绩分析报告
+
+## 一、原始数据导入区
+
+### 1.1 标准字段定义表
+
+| 字段名称 | 数据类型 | 字段说明 | 示例值 | 必填 |
+|---------|---------|---------|-------|------|
+| 交易日期 | DATE | 订单发生日期 | 2024-04-15 | 是 |
+| 订单编号 | VARCHAR(20) | 唯一订单标识 | ORD-20240415-001 | 是 |
+| SKU编号 | VARCHAR(15) | 产品库存单位编码 | SKU-TECH-001 | 是 |
+| 产品名称 | VARCHAR(50) | 商品全称 | 智能蓝牙耳机Pro版 | 是 |
+| 产品品类 | VARCHAR(20) | 所属产品大类 | 电子产品 | 是 |
+| 销售渠道 | VARCHAR(15) | 交易发生渠道 | 天猫旗舰店 | 是 |
+| 客户ID | VARCHAR(15) | 客户唯一标识 | CUST-2024001 | 是 |
+| 客户类型 | VARCHAR(10) | 新客/老客 | 新客 | 是 |
+| 销售团队 | VARCHAR(15) | 负责销售团队 | 华东一队 | 是 |
+| 成交金额 | DECIMAL(10,2) | 订单实付金额 | 299.00 | 是 |
+| 产品数量 | INT | 购买件数 | 2 | 是 |
+| 营销成本 | DECIMAL(10,2) | 该订单分摊营销费用 | 45.00 | 是 |
+| 优惠券金额 | DECIMAL(10,2) | 使用的优惠券面额 | 20.00 | 否 |
+| 退货标记 | BOOLEAN | 是否退货 | FALSE | 是 |
+
+### 1.2 4月原始数据示例（前20行）
+
+```csv
+交易日期,订单编号,SKU编号,产品名称,产品品类,销售渠道,客户ID,客户类型,销售团队,成交金额,产品数量,营销成本,优惠券金额,退货标记
+2024-04-01,ORD-20240401-001,SKU-TECH-001,智能蓝牙耳机Pro版,电子产品,天猫旗舰店,CUST-2024001,新客,华东一队,299.00,1,50.00,0.00,FALSE
+2024-04-01,ORD-20240401-002,SKU-HOME-001,智能扫地机器人,家居产品,京东自营,CUST-2024002,老客,华北二队,1299.00,1,120.00,50.00,FALSE
+2024-04-01,ORD-20240401-003,SKU-TECH-002,无线充电器,电子产品,官网商城,CUST-2024003,新客,华南三队,89.00,2,15.00,10.00,FALSE
+2024-04-02,ORD-20240402-004,SKU-FASH-001,运动手表,时尚配饰,抖音小店,CUST-2024004,老客,华东一队,599.00,1,80.00,30.00,FALSE
+2024-04-02,ORD-20240402-005,SKU-TECH-001,智能蓝牙耳机Pro版,电子产品,天猫旗舰店,CUST-2024005,新客,华北二队,299.00,1,50.00,0.00,FALSE
+2024-04-02,ORD-20240402-006,SKU-HOME-002,空气净化器,家居产品,拼多多,CUST-2024006,老客,华南三队,899.00,1,100.00,40.00,TRUE
+2024-04-03,ORD-20240403-007,SKU-FASH-002,时尚背包,时尚配饰,天猫旗舰店,CUST-2024007,新客,华东一队,199.00,1,30.00,15.00,FALSE
+2024-04-03,ORD-20240403-008,SKU-TECH-002,无线充电器,电子产品,京东自营,CUST-2024008,老客,华北二队,89.00,3,25.00,5.00,FALSE
+2024-04-04,ORD-20240404-009,SKU-TECH-001,智能蓝牙耳机Pro版,电子产品,官网商城,CUST-2024009,新客,华南三队,299.00,1,50.00,0.00,FALSE
+2024-04-04,ORD-20240404-010,SKU-HOME-001,智能扫地机器人,家居产品,抖音小店,CUST-2024010,老客,华东一队,1299.00,1,120.00,50.00,FALSE
+2024-04-05,ORD-20240405-011,SKU-FASH-001,运动手表,时尚配饰,天猫旗舰店,CUST-2024011,新客,华北二队,599.00,2,80.00,30.00,FALSE
+2024-04-05,ORD-20240405-012,SKU-TECH-002,无线充电器,电子产品,拼多多,CUST-2024012,老客,华南三队,89.00,1,15.00,0.00,FALSE
+2024-04-06,ORD-20240406-013,SKU-HOME-002,空气净化器,家居产品,京东自营,CUST-2024013,新客,华东一队,899.00,1,100.00,40.00,FALSE
+2024-04-06,ORD-20240406-014,SKU-FASH-002,时尚背包,时尚配饰,官网商城,CUST-2024014,老客,华北二队,199.00,2,35.00,10.00,FALSE
+2024-04-07,ORD-20240407-015,SKU-TECH-001,智能蓝牙耳机Pro版,电子产品,抖音小店,CUST-2024015,新客,华南三队,299.00,1,50.00,0.00,FALSE
+2024-04-07,ORD-20240407-016,SKU-HOME-001,智能扫地机器人,家居产品,天猫旗舰店,CUST-2024016,老客,华东一队,1299.00,1,120.00,50.00,FALSE
+2024-04-08,ORD-20240408-017,SKU-TECH-002,无线充电器,电子产品,京东自营,CUST-2024017,新客,华北二队,89.00,1,15.00,5.00,FALSE
+2024-04-08,ORD-20240408-018,SKU-FASH-001,运动手表,时尚配饰,拼多多,CUST-2024018,老客,华南三队,599.00,1,80.00,30.00,FALSE
+2024-04-09,ORD-20240409-019,SKU-TECH-001,智能蓝牙耳机Pro版,电子产品,天猫旗舰店,CUST-2024019,新客,华东一队,299.00,1,50.00,0.00,FALSE
+2024-04-09,ORD-20240409-020,SKU-HOME-002,空气净化器,家居产品,官网商城,CUST-2024020,老客,华北二队,899.00,1,100.00,40.00,FALSE
+```
+
+## 二、数据清洗与校验规则
+
+### 2.1 去重逻辑
+
+```python
+# 完整可运行的去重代码
+import pandas as pd
+
+def remove_duplicates(df):
+    """
+    基于订单编号和交易日期去除完全重复记录
+    保留最新的一条记录（按数据导入顺序）
+    """
+    # 检查完全重复行
+    duplicate_mask = df.duplicated(subset=['订单编号', '交易日期'], keep='first')
+    duplicate_count = duplicate_mask.sum()
+    
+    if duplicate_count > 0:
+        print(f"发现 {duplicate_count} 条重复记录，已保留第一条")
+        df_clean = df[~duplicate_mask].copy()
+    else:
+        df_clean = df.copy()
+    
+    return df_clean
+
+# 示例数据加载
+df = pd.read_csv('sales_data_april.csv')
+df_clean = remove_duplicates(df)
+```
+
+### 2.2 缺失值填补策略
+
+| 字段名称 | 缺失处理策略 | 具体方法 |
+|---------|------------|---------|
+| 交易日期 | 删除行 | 日期缺失无法追溯，直接删除 |
+| 订单编号 | 生成新编号 | 按"ORD-UNKNOWN-序号"格式补充 |
+| SKU编号 | 标记为"UNKNOWN" | 后续人工核查 |
+| 产品名称 | 标记为"未识别产品" | 与SKU编号关联 |
+| 产品品类 | 填充为"其他" | 基于产品名称关键词匹配 |
+| 销售渠道 | 填充为"未知渠道" | 人工确认 |
+| 客户ID | 生成临时ID | 格式"TEMP-时间戳" |
+| 客户类型 | 默认"新客" | 基于历史购买记录判断 |
+| 销售团队 | 填充为"待分配" | 按渠道与区域规则分配 |
+| 成交金额 | 删除行 | 核心指标缺失 |
+| 产品数量 | 默认1 | 最小合理值 |
+| 营销成本 | 填充中位数 | 按渠道分组计算中位数 |
+| 优惠券金额 | 默认0 | 未使用优惠券 |
+| 退货标记 | 默认FALSE | 未标记视为未退货 |
+
+### 2.3 异常值标记规则
+
+```python
+def mark_outliers(df):
+    """
+    标记异常值并生成异常报告
+    使用IQR方法检测连续变量异常值
+    """
+    outliers_report = []
+    
+    # 成交金额异常检测（IQR方法）
+    Q1_amount = df['成交金额'].quantile(0.25)
+    Q3_amount = df['成交金额'].quantile(0.75)
+    IQR_amount = Q3_amount - Q1_amount
+    lower_bound = Q1_amount - 1.5 * IQR_amount
+    upper_bound = Q3_amount + 1.5 * IQR_amount
+    
+    amount_outliers = df[(df['成交金额'] < lower_bound) | (df['成交金额'] > upper_bound)]
+    if len(amount_outliers) > 0:
+        outliers_report.append(f"成交金额异常值: {len(amount_outliers)}条 (正常范围: {lower_bound:.2f}-{upper_bound:.2f})")
+    
+    # 营销成本异常（超过成交金额50%视为异常）
+    cost_outliers = df[df['营销成本'] > df['成交金额'] * 0.5]
+    if len(cost_outliers) > 0:
+        outliers_report.append(f"营销成本异常(>50%成交金额): {len(cost_outliers)}条")
+    
+    # 产品数量异常（单次购买超过50件）
+    qty_outliers = df[df['产品数量'] > 50]
+    if len(qty_outliers) > 0:
+        outliers_report.append(f"产品数量异常(>50件): {len(qty_outliers)}条")
+    
+    # 业务逻辑校验
+    # 退货订单的成交金额应为正数
+    refund_positive = df[(df['退货标记'] == True) & (df['成交金额'] > 0)]
+    if len(refund_positive) > 0:
+        outliers_report.append(f"业务逻辑异常: 退货订单成交金额为正数 {len(refund_positive)}条")
+    
+    # 新客优惠券金额不应超过订单金额80%
+    new_cust_discount = df[(df['客户类型'] == '新客') & (df['优惠券金额'] > df['成交金额'] * 0.8)]
+    if len(new_cust_discount) > 0:
+        outliers_report.append(f"业务逻辑异常: 新客优惠券超限 {len(new_cust_discount)}条")
+    
+    df['异常标记'] = False
+    df.loc[(df['成交金额'] < lower_bound) | (df['成交金额'] > upper_bound), '异常标记'] = True
+    df.loc[df['营销成本'] > df['成交金额'] * 0.5, '异常标记'] = True
+    df.loc[df['产品数量'] > 50, '异常标记'] = True
+    
+    return df, outliers_report
+
+# 执行异常检测
+df_clean, outliers = mark_outliers(df_clean)
+for report in outliers:
+    print(report)
+```
+
+### 2.4 数据校验清单
+
+- [ ] 所有订单编号格式符合"ORD-YYYYMMDD-NNN"规范
+- [ ] 交易日期均在2024-04-01至2024-04-30范围内
+- [ ] 成交金额 > 0（退货订单除外）
+- [ ] 产品数量为整数且 >= 1
+- [ ] 营销成本 >= 0
+- [ ] 优惠券金额 <= 成交金额
+- [ ] 客户类型仅包含"新客"或"老客"
+- [ ] 退货标记为TRUE或FALSE
+- [ ] SKU编号在产品主数据表中存在
+- [ ] 客户ID在客户主数据表中存在
+
+## 三、核心KPI自动计算看板
+
+### 3.1 KPI计算公式配置
+
+```python
+class SalesKPI:
+    def __init__(self, df):
+        self.df = df.copy()
+        # 过滤退货订单
+        self.valid_df = self.df[self.df['退货标记'] == False].copy()
+        self.total_df = self.df.copy()
+    
+    def calculate_gmv(self):
+        """计算GMV（商品交易总额）"""
+        gmv = self.valid_df['成交金额'].sum()
+        return gmv
+    
+    def calculate_gross_margin(self):
+        """计算毛利率（假设产品成本为成交金额的60%）"""
+        cost_rate = 0.6
+        total_revenue = self.valid_df['成交金额'].sum()
+        total_cost = total_revenue * cost_rate
+        total_marketing = self.valid_df['营销成本'].sum()
+        gross_margin = (total_revenue - total_cost - total_marketing) / total_revenue * 100
+        return gross_margin
+    
+    def calculate_conversion_rate(self, total_visitors=50000):
+        """计算转化率（需要外部流量数据）"""
+        total_orders = len(self.valid_df)
+        conversion_rate = total_orders / total_visitors * 100
+        return conversion_rate
+    
+    def calculate_repurchase_rate(self):
+        """计算复购率"""
+        # 统计有多次购买的客户
+        customer_orders = self.valid_df.groupby('客户ID')['订单编号'].nunique()
+        repeat_customers = len(customer_orders[customer_orders >= 2])
+        total_customers = len(customer_orders)
+        if total_customers > 0:
+            repurchase_rate = repeat_customers / total_customers * 100
+        else:
+            repurchase_rate = 0
+        return repurchase_rate
+    
+    def calculate_cac(self):
+        """计算客户获取成本（CAC）"""
+        total_marketing_cost = self.valid_df['营销成本'].sum()
+        total_new_customers = len(self.valid_df[self.valid_df['客户类型'] == '新客']['客户ID'].unique())
+        if total_new_customers > 0:
+            cac = total_marketing_cost / total_new_customers
+        else:
+            cac = 0
+        return cac
+    
+    def calculate_roi(self):
+        """计算投资回报率（ROI）"""
+        total_revenue = self.valid_df['成交金额'].sum()
+        total_marketing_cost = self.valid_df['营销成本'].sum()
+        if total_marketing_cost > 0:
+            roi = (total_revenue - total_marketing_cost) / total_marketing_cost * 100
+        else:
+            roi = 0
+        return roi
+    
+    def get_all_kpis(self):
+        """获取所有KPI指标"""
+        kpis = {
+            'GMV': f"¥{self.calculate_gmv():,.2f}",
+            '毛利率': f"{self.calculate_gross_margin():.2f}%",
+            '转化率': f"{self.calculate_conversion_rate():.2f}%",
+            '复购率': f"{self.calculate_repurchase_rate():.2f}%",
+            'CAC': f"¥{self.calculate_cac():.2f}",
+            'ROI': f"{self.calculate_roi():.2f}%"
+        }
+        return kpis
+
+# 计算示例
+kpi_calculator = SalesKPI(df_clean)
+kpi_results = kpi_calculator.get_all_kpis()
+print("=== 4月销售KPI看板 ===")
+for metric, value in kpi_results.items():
+    print(f"{metric}: {value}")
+```
+
+### 3.2 KPI联动逻辑
+
+| 指标名称 | 计算公式 | 数据来源 | 联动关系 |
+|---------|---------|---------|---------|
+| GMV | SUM(成交金额) | 有效订单 | 毛利率 = (GMV - 产品成本 - 营销成本) / GMV |
+| 毛利率 | (GMV - 产品成本 - 营销成本) / GMV | GMV + 成本数据 | 影响ROI计算 |
+| 转化率 | 有效订单数 / 总访客数 | 订单数据 + 流量数据 | 影响CAC分摊 |
+| 复购率 | 多次购买客户数 / 总客户数 | 客户订单数据 | 影响客户生命周期价值 |
+| CAC

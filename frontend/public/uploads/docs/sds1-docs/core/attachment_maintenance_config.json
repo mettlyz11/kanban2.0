@@ -1,0 +1,12 @@
+{
+  "name": "kanban_attachment_maintenance",
+  "description": "看板系统附件维护 - 统一存储路径后",
+  "schedule": "daily",
+  "server": "47.93.184.128",
+  "script": "/opt/kanban-react/backend/scripts/attachment_maintenance.py",
+  "actions": ["check", "cleanup"],
+  "alert_threshold": {
+    "missing_ratio": 0.1,
+    "orphan_count": 100
+  }
+}

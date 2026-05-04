@@ -1,0 +1,49 @@
+#!/bin/bash
+# SDS 看门狗脚本 - 每分钟检查一次，崩溃自动拉起
+
+SDS_PID_FILE="/tmp/sds.pid"
+SDS_START_SCRIPT="/Users/mettlyz/.openclaw/workspace/sds/scripts/start_sds.sh"
+LOG_FILE="/Users/mettlyz/.openclaw/workspace/logs/sds-watchdog.log"
+
+# 日志函数
+log() {
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1" >> "$LOG_FILE"
+}
+
+# 检查SDS进程是否在运行
+check_sds_running() {
+    # 方法1: 检查PID文件
+    if [ -f "$SDS_PID_FILE" ]; then
+        PID=$(cat "$SDS_PID_FILE")
+        if ps -p "$PID" > /dev/null 2>&1; then
+            return 0  # 运行中
+        fi
+    fi
+    
+    # 方法2: 直接查找进程名
+    if ps aux | grep "sds_main.py" | grep -v grep > /dev/null 2>&1; then
+        return 0  # 运行中
+    fi
+    
+    return 1  # 未运行
+}
+
+# 主逻辑
+log "🔍 开始检查SDS进程状态..."
+
+if check_sds_running; then
+    log "✅ SDS进程运行正常"
+    exit 0
+else
+    log "⚠️  SDS进程未运行，尝试自动拉起..."
+    cd /Users/mettlyz/.openclaw/workspace
+    bash "$SDS_START_SCRIPT"
+    
+    sleep 3
+    
+    if check_sds_running; then
+        log "🎉 SDS进程自动拉起成功！"
+    else
+        log "❌ SDS进程自动拉起失败！"
+    fi
+fi

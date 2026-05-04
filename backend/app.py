@@ -6141,7 +6141,7 @@ def get_sds_history():
     c.execute("""SELECT DATE(created_at) as date, COUNT(*) as created, SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed FROM tasks WHERE created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY) GROUP BY DATE(created_at) ORDER BY date ASC""")
     daily_stats = []
     for row in c.fetchall():
-        daily_stats.append({'date': str(row['date']), 'created': row['created'], 'completed': row['completed'] or 0})
+        daily_stats.append({'date': str(row['date']), 'created': int(row['created']), 'completed': int(row['completed'] or 0)})
     conn.close()
     import datetime
     return jsonify({'success': True, 'data': {'daily': daily_stats, 'timestamp': datetime.datetime.now().isoformat()}})
