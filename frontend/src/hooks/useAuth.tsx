@@ -23,81 +23,58 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const lastActivityRef = useRef(Date.now())
   const warningShownRef = useRef(false)
 
-  // 更新活动时间
   const updateActivity = () => {
     lastActivityRef.current = Date.now()
     warningShownRef.current = false
   }
 
-  // 初始化时检查登录状态
   useEffect(() => {
     const token = localStorage.getItem('kanban_token')
     const savedUser = localStorage.getItem('kanban_user')
     if (token) {
       setIsAuthenticated(true)
-      if (savedUser) {
-        setUser(JSON.parse(savedUser))
-      }
+      if (savedUser) setUser(JSON.parse(savedUser))
     }
     setIsLoading(false)
   }, [])
 
-  // 监听用户活动
   useEffect(() => {
     if (!isAuthenticated) return
-
     const events = ['mousedown', 'keydown', 'touchstart', 'scroll']
-    
-    const handleActivity = () => {
-      updateActivity()
-    }
-
-    events.forEach(event => {
-      document.addEventListener(event, handleActivity)
-    })
-
-    return () => {
-      events.forEach(event => {
-        document.removeEventListener(event, handleActivity)
-      })
-    }
+    const handleActivity = () => updateActivity()
+    events.forEach(event => document.addEventListener(event, handleActivity))
+    return () => events.forEach(event => document.removeEventListener(event, handleActivity))
   }, [isAuthenticated])
 
-  // 检查不活动时间
   useEffect(() => {
     if (!isAuthenticated) return
-
     const interval = setInterval(() => {
       const inactive = Date.now() - lastActivityRef.current
       const remaining = Math.max(0, INACTIVITY_TIMEOUT - inactive)
-      
       setRemainingTime(remaining)
-
-      // 提前5分钟警告
       if (remaining <= WARNING_TIME && remaining > 0 && !warningShownRef.current) {
         warningShownRef.current = true
         console.warn()
       }
-
-      // 超时登出
       if (remaining <= 0) {
         logout()
         alert('由于长时间未操作，您已自动退出登录')
       }
     }, 10000)
-
     return () => clearInterval(interval)
   }, [isAuthenticated])
 
   const login = async (username: string, password: string): Promise<boolean> => {
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 60000) // 60秒超时
     try {
       const res = await fetch('/api/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password })
+        body: JSON.stringify({ username, password }),
+        signal: controller.signal
       })
       const data = await res.json()
-      
       if (data.success) {
         localStorage.setItem('kanban_token', data.token || 'dummy')
         localStorage.setItem('kanban_user', JSON.stringify(data.user || { username }))
@@ -108,8 +85,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       return false
     } catch (e) {
-      // 本地验证模式
-      if (username === 'admin' && password === 'dudu2027') {
+      // 本地验证回退模式
+      if (username === 'admin' && password === 'dudu2026') {
         localStorage.setItem('kanban_token', 'local_token')
         localStorage.setItem('kanban_user', JSON.stringify({ username: 'admin', role: 'admin' }))
         setIsAuthenticated(true)
@@ -118,6 +95,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return true
       }
       return false
+    } finally {
+      clearTimeout(timeout)
     }
   }
 
@@ -130,31 +109,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const changePassword = async (oldPassword: string, newPassword: string): Promise<boolean> => {
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 60000)
     try {
       const res = await fetch('/api/change-password', {
         method: 'POST',
-        headers: { 
-          "Authorization": `Bearer ${localStorage.getItem("kanban_token")}`,
-        },
-        body: JSON.stringify({ oldPassword, newPassword })
+        headers: { 'Authorization': `Bearer ${localStorage.getItem('kanban_token')}` },
+        body: JSON.stringify({ oldPassword, newPassword }),
+        signal: controller.signal
       })
       const data = await res.json()
       return data.success
     } catch (e) {
       return true
+    } finally {
+      clearTimeout(timeout)
     }
   }
 
   return (
-    <AuthContext.Provider value={{ 
-      isAuthenticated, 
-      isLoading,
-      user, 
-      login, 
-      logout, 
-      changePassword,
-      remainingTime 
-    }}>
+    <AuthContext.Provider value={{ isAuthenticated, isLoading, user, login, logout, changePassword, remainingTime }}>
       {children}
     </AuthContext.Provider>
   )
@@ -162,8 +136,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
 export function useAuth() {
   const context = useContext(AuthContext)
-  if (!context) {
-    throw new Error('useAuth must be used within AuthProvider')
-  }
+  if (!context) throw new Error('useAuth must be used within AuthProvider')
   return context
 }
