@@ -78,6 +78,7 @@ export default function SelfDrivingSystem() {
   const [recoverySteps, setRecoverySteps] = useState<string[]>([])
   const [dbSchemas, setDbSchemas] = useState<Record<string, string>>({})
   const [exportData, setExportData] = useState<string>('')
+  const [historyData, setHistoryData] = useState<any[]>([])
 
   // Editing states
   const [editingGoal, setEditingGoal] = useState<number | null>(null)
@@ -268,6 +269,68 @@ export default function SelfDrivingSystem() {
     a.download = `sds-system-config-${new Date().toISOString().slice(0,10)}.json`
     a.click()
     URL.revokeObjectURL(url)
+  }
+
+
+  // 加载 SDS1 文件列表
+  const [sdsFiles, setSdsFiles] = useState<{path: string, url: string, size: number}[]>([])
+  const [sdsFilesLoading, setSdsFilesLoading] = useState(false)
+  const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set())
+
+  useEffect(() => {
+    fetch('/api/sds1/documents')
+      .then(r => r.json())
+      .then(data => {
+        if (data.success) {
+          setSdsFiles(data.documents)
+        } else {
+          console.error('加载SDS1文件列表失败:', data.error)
+        }
+      })
+      .catch(e => console.error('加载SDS1文件列表失败:', e))
+  }, [])
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes < 1024) return bytes + ' B'
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB'
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB'
+  }
+
+  const toggleSelectFile = (path: string) => {
+    setSelectedFiles(prev => {
+      const next = new Set(prev)
+      if (next.has(path)) next.delete(path)
+      else next.add(path)
+      return next
+    })
+  }
+
+  const toggleSelectAll = () => {
+    if (selectedFiles.size === sdsFiles.length) {
+      setSelectedFiles(new Set())
+    } else {
+      setSelectedFiles(new Set(sdsFiles.map(f => f.path)))
+    }
+  }
+
+  const downloadSelected = () => {
+    selectedFiles.forEach(path => {
+      const f = sdsFiles.find(x => x.path === path)
+      if (f) {
+        const a = document.createElement('a')
+        a.href = f.url
+        a.download = path.split('/').pop() || path
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+      }
+    })
+  }
+
+  const selectByType = (ext: string) => {
+    setSelectedFiles(new Set(
+      sdsFiles.filter(f => f.path.endsWith(ext)).map(f => f.path)
+    ))
   }
 
   if (loading) return <div style={{ padding: 40, textAlign: 'center' }}>加载中...</div>
@@ -622,7 +685,9 @@ export default function SelfDrivingSystem() {
   const renderDocuments = () => (
     <div>
       <h2 style={{ marginBottom: 20 }}>📄 文档管理</h2>
-      <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, padding: 16 }}>
+      
+      {/* 导出配置 */}
+      <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, padding: 16, marginBottom: 24 }}>
         <h3 style={{ marginBottom: 12 }}>📥 导出配置</h3>
         <button onClick={exportConfig} style={{
           padding: '10px 20px', background: '#3b82f6', color: '#fff',
@@ -631,6 +696,72 @@ export default function SelfDrivingSystem() {
         <p style={{ fontSize: 12, color: '#666', marginTop: 8 }}>
           导出完整SDS1配置JSON。即使Mac mini被完全重置，也可从此配置恢复所有目标、项目、任务规则和脚本清单。
         </p>
+      </div>
+
+      {/* SDS1 文件列表 */}
+      <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, padding: 16 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+          <h3 style={{ margin: 0 }}>📁 SDS1 系统文件 ({sdsFiles.length}个)</h3>
+          {selectedFiles.size > 0 && (
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <span style={{ fontSize: 13, color: '#3b82f6' }}>已选 {selectedFiles.size} 个</span>
+              <button onClick={downloadSelected} style={{
+                padding: '6px 16px', background: '#10b981', color: '#fff',
+                border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: 13
+              }}>📥 批量下载</button>
+            </div>
+          )}
+        </div>
+        {/* 筛选按钮 */}
+        <div style={{ display: 'flex', gap: 6, marginBottom: 12, flexWrap: 'wrap' }}>
+          <button onClick={() => setSelectedFiles(new Set())} style={{
+            padding: '4px 12px', background: '#f3f4f6', border: '1px solid #e5e7eb',
+            borderRadius: 4, cursor: 'pointer', fontSize: 12, color: '#374151' }}>取消全选</button>
+          <button onClick={toggleSelectAll} style={{
+            padding: '4px 12px', background: selectedFiles.size === sdsFiles.length ? '#3b82f6' : '#f3f4f6',
+            color: selectedFiles.size === sdsFiles.length ? '#fff' : '#374151',
+            border: '1px solid #e5e7eb', borderRadius: 4, cursor: 'pointer', fontSize: 12 }}>全选</button>
+          {['.py', '.md', '.yaml', '.json', '.sh', '.html', '.txt'].map(ext => (
+            <button key={ext} onClick={() => selectByType(ext)} style={{
+              padding: '4px 12px', background: '#f3f4f6', border: '1px solid #e5e7eb',
+              borderRadius: 4, cursor: 'pointer', fontSize: 12, color: '#374151' }}>{ext}</button>
+          ))}
+        </div>
+        <div style={{ maxHeight: 500, overflowY: 'auto' }}>
+          {sdsFiles.length === 0 ? (
+            <div style={{ padding: 20, textAlign: 'center', color: '#999' }}>加载中...</div>
+          ) : (
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+              <thead>
+                <tr style={{ borderBottom: '2px solid #e5e7eb' }}>
+                  <th style={{ textAlign: 'left', padding: '8px 12px', color: '#666', width: 40 }}>☑️</th>
+                  <th style={{ textAlign: 'left', padding: '8px 12px', color: '#666' }}>文件名</th>
+                  <th style={{ textAlign: 'right', padding: '8px 12px', color: '#666', width: 100 }}>大小</th>
+                  <th style={{ textAlign: 'center', padding: '8px 12px', color: '#666', width: 80 }}>操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sdsFiles.map((f, i) => (
+                  <tr key={i} style={{
+                    borderBottom: '1px solid #f0f0f0',
+                    background: selectedFiles.has(f.path) ? '#eff6ff' : 'transparent'
+                  }}>
+                    <td style={{ padding: '8px 12px', textAlign: 'center' }}>
+                      <input type='checkbox' checked={selectedFiles.has(f.path)}
+                        onChange={() => toggleSelectFile(f.path)}
+                        style={{ cursor: 'pointer', width: 16, height: 16 }} />
+                    </td>
+                    <td style={{ padding: '8px 12px', fontFamily: 'monospace', fontSize: 12 }}>{f.path}</td>
+                    <td style={{ padding: '8px 12px', textAlign: 'right', color: '#666' }}>{formatFileSize(f.size)}</td>
+                    <td style={{ padding: '8px 12px', textAlign: 'center' }}>
+                      <a href={f.url} download style={{ color: '#3b82f6', textDecoration: 'none' }}>📥</a>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
       </div>
     </div>
   )

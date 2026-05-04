@@ -293,6 +293,33 @@ class SocketIOManager {
       this.heartbeatInterval = null;
     }
   }
+
+  /**
+   * 通用事件监听
+   */
+  on(event: string, callback: (...args: any[]) => void) {
+    if (this.socket) {
+      this.socket.on(event, callback);
+    }
+  }
+
+  /**
+   * 通用事件发射
+   */
+  emit(event: string, data: any) {
+    if (this.socket && this.connected) {
+      this.socket.emit(event, data);
+    }
+  }
+
+  /**
+   * 移除事件监听
+   */
+  off(event: string, callback?: (...args: any[]) => void) {
+    if (this.socket) {
+      this.socket.off(event, callback);
+    }
+  }
 }
 
 // ============================================

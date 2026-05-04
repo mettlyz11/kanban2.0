@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { socketIO } from '../utils/socket';
+import { useCalendarWebSocket } from '../hooks/useCalendarWebSocket';
 import { Card, Calendar, Badge, List, Tag, Typography, Spin, Alert, Space } from 'antd';
 import { PhoneOutlined, EnvironmentOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
@@ -11,6 +13,22 @@ const CalendarPage = () => {
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize] = useState(20)
   const [error, setError] = useState(null);
+  
+  // User info from localStorage
+  const userStr = localStorage.getItem('user');
+  const user = userStr ? JSON.parse(userStr) : null;
+  const userId = user?.id?.toString();
+  
+  // WebSocket integration
+  const { wsConnected, pendingRefresh, markRefreshed, alert: wsAlert } = useCalendarWebSocket(userId);
+  
+  // Auto-refresh when WebSocket signals changes
+  useEffect(() => {
+    if (pendingRefresh) {
+      fetchEvents();
+      markRefreshed();
+    }
+  }, [pendingRefresh]);
 
   useEffect(() => {
     fetchEvents();
@@ -146,7 +164,18 @@ const CalendarPage = () => {
 
   return (
     <div style={{ padding: 24 }}>
-      <Title level={2}>📅 日历视图</Title>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        <Title level={2} style={{ margin: 0 }}>📅 日历视图</Title>
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 6,
+          padding: '6px 12px', borderRadius: 20,
+          background: wsConnected ? '#dcfce7' : '#fee2e2',
+          color: wsConnected ? '#166534' : '#991b1b',
+          fontSize: '0.85rem', fontWeight: 500,
+        }}>
+          {wsConnected ? '🟢 实时' : '⚪ 离线'}
+        </div>
+      </div>
       
       {error && (
         <Alert

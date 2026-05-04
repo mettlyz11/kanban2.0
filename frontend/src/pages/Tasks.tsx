@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { socketIO } from '../utils/socket';
 import { Plus, Search, Filter, Save, Star, X, Calendar, Tag, Layout, List } from "lucide-react";
 import { TaskAccordion } from '../components/TaskAccordion';
 
@@ -92,7 +93,7 @@ const Tasks: React.FC = () => {
   const [activeStatusTab, setActiveStatusTab] = useState('pending');
   const [tabCurrentPage, setTabCurrentPage] = useState(1);
   
-n  // 任务统计
+  // 任务统计
   const [taskStats, setTaskStats] = useState<Record<string, number>>({});
   // 防抖搜索
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -162,7 +163,7 @@ n  // 任务统计
       console.error('Failed to fetch saved views:', error);
     }
   };
-n  // 获取任务统计
+  // 获取任务统计
   const fetchTaskStats = async () => {
     try {
       const res = await fetch("/api/tasks/stats");
@@ -213,6 +214,48 @@ n  // 获取任务统计
       console.error('Failed to fetch projects:', error);
     }
   };
+
+// WebSocket 实时同步
+  const [wsConnected, setWsConnected] = useState(false);
+  const [highlightedTasks, setHighlightedTasks] = useState<Set<number>>(new Set());
+
+  useEffect(() => {
+    const userStr = localStorage.getItem('user');
+    const user = userStr ? JSON.parse(userStr) : null;
+    
+    socketIO.connect({
+      url: window.location.origin,
+      userId: user?.id?.toString() || "anonymous",
+      username: user?.username || "访客",
+      onConnect: () => {
+        setWsConnected(true);
+        if (projectFilter) {
+          socketIO.joinProjectRoom(projectFilter);
+        }
+      },
+      onDisconnect: () => setWsConnected(false),
+      onTaskCreated: (task) => {
+        const matchesFilter = !statusFilter || statusFilter === task.status;
+        if (matchesFilter) {
+          setTasks(prev => [task, ...prev]);
+          setHighlightedTasks(prev => new Set([...prev, task.id]));
+          setTimeout(() => setHighlightedTasks(prev => { const n = new Set(prev); n.delete(task.id); return n; }), 3000);
+        }
+        fetchTaskStats();
+      },
+      onTaskUpdated: (task) => {
+        setTasks(prev => prev.map(t => t.id === task.id ? { ...t, ...task } : t));
+        setHighlightedTasks(prev => new Set([...prev, task.id]));
+        setTimeout(() => setHighlightedTasks(prev => { const n = new Set(prev); n.delete(task.id); return n; }), 2000);
+        fetchTaskStats();
+      },
+      onTaskDeleted: (taskId) => {
+        setTasks(prev => prev.filter(t => t.id !== parseInt(taskId)));
+        fetchTaskStats();
+      },
+    });
+    return () => { socketIO.disconnect(); };
+  }, [projectFilter, statusFilter]);
 
   useEffect(() => {
     fetchTasks();
@@ -688,14 +731,14 @@ n  // 获取任务统计
                         <span className="text-sm text-gray-500">页</span>
                       </div>
                       <button
-                        onClick={() => setTabCurrentPage(p => Math.max(1, p - 1))}
+                        onClick={() => { setTabCurrentPage(p => Math.max(1, p - 1)); window.scrollTo({ top: 0, behavior: "smooth" }); }}
                         disabled={tabCurrentPage === 1}
                         className="px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium shadow-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-blue-50 hover:border-blue-300 hover:text-blue-600 transition-colors"
                       >
                         上一页
                       </button>
                       <button
-                        onClick={() => setTabCurrentPage(p => Math.min(tabTotalPages, p + 1))}
+                        onClick={() => { setTabCurrentPage(p => Math.min(tabTotalPages, p + 1)); window.scrollTo({ top: 0, behavior: "smooth" }); }}
                         disabled={tabCurrentPage === tabTotalPages}
                         className="px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium shadow-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-blue-50 hover:border-blue-300 hover:text-blue-600 transition-colors"
                       >
@@ -751,14 +794,14 @@ n  // 获取任务统计
                       <span className="text-sm text-gray-500">页</span>
                     </div>
                     <button
-                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                      onClick={() => { setCurrentPage(p => Math.max(1, p - 1)); window.scrollTo({ top: 0, behavior: "smooth" }); }}
                       disabled={currentPage === 1}
                       className="px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium shadow-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-blue-50 hover:border-blue-300 hover:text-blue-600 transition-colors"
                     >
                       上一页
                     </button>
                     <button
-                      onClick={() => setCurrentPage(p => Math.min(listTotalPages, p + 1))}
+                      onClick={() => { setCurrentPage(p => Math.min(listTotalPages, p + 1)); window.scrollTo({ top: 0, behavior: "smooth" }); }}
                       disabled={currentPage === listTotalPages}
                       className="px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium shadow-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-blue-50 hover:border-blue-300 hover:text-blue-600 transition-colors"
                     >
@@ -897,7 +940,13 @@ n  // 获取任务统计
       {showEditModal && editingTask && (
         <div style={modalOverlayStyle}>
           <div className="bg-white rounded-xl p-6 w-[48rem] shadow-2xl">
-            <h3 className="text-lg font-bold mb-4">编辑任务</h3>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold">编辑任务</h3>
+              <EditLockIndicator 
+                taskId={editingTask.id.toString()} 
+                userId={localStorage.getItem("user") ? JSON.parse(localStorage.getItem("user")!).id?.toString() : "anonymous"}
+              />
+            </div>
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-[#31302e] mb-1">任务标题</label>

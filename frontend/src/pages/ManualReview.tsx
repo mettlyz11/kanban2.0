@@ -1,28 +1,55 @@
 import { useState, useEffect } from 'react'
 import { api } from '../utils/api'
+import { useReviewWebSocket } from '../hooks/useReviewWebSocket'
+import { Wifi, WifiOff, Bell, X } from 'lucide-react'
 
 export function ManualReview() {
   const [tasks, setTasks] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('pending') // pending, completed, all
 
+  // Get current user ID from localStorage
+  const userStr = localStorage.getItem('user')
+  const user = userStr ? JSON.parse(userStr) : null
+  const userId = user?.id?.toString()
+
+  // WebSocket integration
+  const {
+    wsConnected,
+    newTaskAlert,
+    resultAlert,
+    clearNewTaskAlert,
+    clearResultAlert,
+    shouldRefresh,
+    markRefreshed,
+  } = useReviewWebSocket(userId)
+
   useEffect(() => {
     loadTasks()
   }, [filter])
 
+  // Auto-refresh when WebSocket signals changes
+  useEffect(() => {
+    if (shouldRefresh) {
+      loadTasks()
+      markRefreshed()
+    }
+  }, [shouldRefresh, markRefreshed])
+
   const loadTasks = async () => {
     try {
+      setLoading(true)
       const res = await api.getManualReviewTasks()
       if (res.success) {
         let filtered = res.tasks || []
-        
+
         // 筛选逻辑
         if (filter === 'long_think') {
           filtered = filtered.filter((t: any) => t.is_from_long_think)
         } else if (filter !== 'all') {
           filtered = filtered.filter((t: any) => t.status === filter)
         }
-        
+
         setTasks(filtered)
       }
     } catch (e) {
@@ -60,7 +87,7 @@ export function ManualReview() {
     return labels[type] || type
   }
 
-  if (loading) return <div className="loading">加载中...</div>
+  if (loading && tasks.length === 0) return <div className="loading">加载中...</div>
 
   // 统计长思考任务（基于所有任务，不只是筛选后的）
   const allTasks = tasks
@@ -69,17 +96,103 @@ export function ManualReview() {
 
   return (
     <div>
-      <div className="page-header">
+      <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <h2 className="page-title">👁️ 手动审核</h2>
+
+        {/* WebSocket 连接状态 */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '6px',
+          padding: '6px 12px',
+          borderRadius: '20px',
+          background: wsConnected ? '#dcfce7' : '#fee2e2',
+          color: wsConnected ? '#166534' : '#991b1b',
+          fontSize: '0.85rem',
+          fontWeight: 500,
+        }}>
+          {wsConnected ? <Wifi size={14} /> : <WifiOff size={14} />}
+          {wsConnected ? '实时' : '离线'}
+        </div>
       </div>
+
+      {/* WebSocket 实时通知 */}
+      {newTaskAlert && (
+        <div style={{
+          padding: '16px 20px',
+          background: '#dbeafe',
+          borderLeft: '4px solid #3b82f6',
+          borderRadius: '8px',
+          marginBottom: '20px',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          animation: 'slideIn 0.3s ease',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <Bell size={20} color="#3b82f6" />
+            <div>
+              <strong>🔔 新任务待审核</strong>
+              <p style={{ margin: '4px 0 0 0', color: '#666', fontSize: '0.9rem' }}>
+                {newTaskAlert.title}
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={clearNewTaskAlert}
+            style={{
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              padding: '4px',
+            }}
+          >
+            <X size={18} />
+          </button>
+        </div>
+      )}
+
+      {resultAlert && (
+        <div style={{
+          padding: '16px 20px',
+          background: resultAlert.result === 'approved' ? '#dcfce7' : '#fee2e2',
+          borderLeft: `4px solid ${resultAlert.result === 'approved' ? '#22c55e' : '#ef4444'}`,
+          borderRadius: '8px',
+          marginBottom: '20px',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+        }}>
+          <div>
+            <strong>
+              {resultAlert.result === 'approved' ? '✅ 任务已批准' : '❌ 任务已拒绝'}
+            </strong>
+            <p style={{ margin: '4px 0 0 0', color: '#666', fontSize: '0.9rem' }}>
+              任务 #{resultAlert.task_id} 已被 {resultAlert.reviewed_by} {resultAlert.result === 'approved' ? '批准' : '拒绝'}
+              {resultAlert.feedback && ` - ${resultAlert.feedback}`}
+            </p>
+          </div>
+          <button
+            onClick={clearResultAlert}
+            style={{
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              padding: '4px',
+            }}
+          >
+            <X size={18} />
+          </button>
+        </div>
+      )}
 
       {/* 统计信息 */}
       {longThinkTasks.length > 0 && (
-        <div style={{ 
-          display: 'grid', 
-          gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', 
-          gap: '16px', 
-          marginBottom: '20px' 
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+          gap: '16px',
+          marginBottom: '20px'
         }}>
           <div className="stat-card purple" style={{ padding: '16px' }}>
             <div style={{ fontSize: '1.5rem', fontWeight: 600 }}>{longThinkTasks.length}</div>
@@ -170,7 +283,7 @@ export function ManualReview() {
                     <td>
                       <strong>{task.title}</strong>
                       {task.is_from_long_think && task.status === 'pending' && (
-                        <span style={{ 
+                        <span style={{
                           display: 'inline-block',
                           marginLeft: '8px',
                           padding: '2px 8px',
@@ -196,15 +309,15 @@ export function ManualReview() {
                     <td>
                       {task.status === 'pending' && (
                         <div style={{ display: 'flex', gap: '8px' }}>
-                          <button 
-                            className="btn btn-success" 
+                          <button
+                            className="btn btn-success"
                             style={{ padding: '6px 12px', fontSize: '12px' }}
                             onClick={() => handleComplete(task.id, true)}
                           >
                             批准
                           </button>
-                          <button 
-                            className="btn btn-danger" 
+                          <button
+                            className="btn btn-danger"
                             style={{ padding: '6px 12px', fontSize: '12px' }}
                             onClick={() => handleComplete(task.id, false)}
                           >

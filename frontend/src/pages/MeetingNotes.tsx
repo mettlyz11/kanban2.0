@@ -1,4 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
+import { useMeetingWebSocket } from '../hooks/useMeetingWebSocket'
+import { Wifi, WifiOff, Users } from 'lucide-react'
 import { Plus, Calendar, Users, FileText, Clock, Tag, X, Search } from 'lucide-react'
 import './MeetingNotes.css'
 
@@ -33,10 +35,36 @@ export function MeetingNotes() {
   const [searchQuery, setSearchQuery] = useState('')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
+  
+  // User info from localStorage
+  const userStr = localStorage.getItem('user')
+  const user = userStr ? JSON.parse(userStr) : null
+  const userId = user?.id?.toString()
+  const username = user?.username || user?.name || '用户'
+  
+  // WebSocket for current meeting (if viewing a specific meeting)
+  const [viewingMeetingId, setViewingMeetingId] = useState<number | null>(null)
+  const {
+    wsConnected,
+    activeEditors,
+    contentUpdate,
+    emitContentChange,
+  } = useMeetingWebSocket(
+    viewingMeetingId?.toString(),
+    userId,
+    username
+  )
 
   useEffect(() => {
     loadMeetings()
   }, [])
+  
+  // Auto-refresh when WebSocket signals changes (new comment or meeting update)
+  useEffect(() => {
+    if (contentUpdate) {
+      loadMeetings()
+    }
+  }, [contentUpdate])
 
   const loadMeetings = async () => {
     try {

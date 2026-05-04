@@ -1,6 +1,7 @@
 import { Link, useLocation, useNavigate, Outlet } from "react-router-dom"
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAuth } from '../hooks/useAuth'
+import { socketIO } from '../utils/socket'
 import './Layout.css'
 
 
@@ -55,6 +56,15 @@ const updateRecords = [
 interface LayoutProps { children: React.ReactNode }
 
 export function Layout({ children }: LayoutProps) {
+  // 全局 WebSocket 连接
+  useEffect(() => {
+    socketIO.connect({
+      url: window.location.origin,
+      onConnect: () => console.log('WS connected'),
+      onDisconnect: () => console.log('WS disconnected'),
+    });
+    return () => { socketIO.disconnect(); };
+  }, []);
   const location = useLocation()
   const navigate = useNavigate()
   const { user, logout, changePassword, remainingTime } = useAuth()

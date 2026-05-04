@@ -1,6 +1,18 @@
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 
+# ============================================
+# WebSocket 实时数据同步 (Socket.IO)
+# ============================================
+try:
+    import sys
+    sys.path.insert(0, '/opt/kanban-react/backend/src')
+    from websocket.index import init_socketio, get_socketio_instance, shutdown_socketio
+    WEBSOCKET_AVAILABLE = True
+except ImportError as e:
+    WEBSOCKET_AVAILABLE = False
+    print(f"⚠️ WebSocket 模块导入失败: {e}")
+
 import os
 import json
 import logging
@@ -43,6 +55,19 @@ except Exception as e:
     print(f"⚠️ Sentry 初始化失败: {e}")
 app.url_map.strict_slashes = False  # 允许带或不带斜杠访问
 CORS(app)
+
+# ============================================
+# WebSocket 初始化
+# ============================================
+if WEBSOCKET_AVAILABLE:
+    try:
+        socketio = init_socketio(app, cors_allowed_origins="*")
+        print("✅ Socket.IO WebSocket 服务已初始化")
+    except Exception as e:
+        print(f"⚠️ Socket.IO 初始化失败: {e}")
+        socketio = None
+else:
+    socketio = None
 
 # ============================================
 # 数据库配置 - 纯 MySQL/RDS
@@ -906,7 +931,39 @@ def create_task():
 
     task_id = c.lastrowid
     conn.commit()
+
+    # Fetch the created task for WebSocket emit
+    c.execute('SELECT id, number, title, description, project_id, status, priority, assignee_id, due_date, tags, created_at, updated_at FROM tasks WHERE id = %s', (task_id,))
+    task_data = c.fetchone()
     conn.close()
+
+    # WebSocket: emit task_created
+    if project_id:
+        try:
+            from websocket.index import get_socketio_instance
+            socketio = get_socketio_instance()
+            if socketio:
+                task_dict = {
+                    'id': task_data['id'],
+                    'number': task_data['number'],
+                    'title': task_data['title'],
+                    'description': task_data['description'],
+                    'project_id': task_data['project_id'],
+                    'status': task_data['status'],
+                    'priority': task_data['priority'],
+                    'assignee_id': task_data.get('assignee_id'),
+                    'due_date': str(task_data.get('due_date', '')) if task_data.get('due_date') else None,
+                    'tags': task_data.get('tags'),
+                    'created_at': str(task_data.get('created_at', '')),
+                    'updated_at': str(task_data.get('updated_at', '')),
+                }
+                socketio.emit('task_created', {
+                    'task': task_dict,
+                    'project_id': project_id
+                }, room=f'project:{project_id}')
+                logger.info(f"📡 WebSocket emit: task_created (task_id={task_id}, project_id={project_id})")
+        except Exception as e:
+            logger.warning(f"⚠️ WebSocket emit failed (task_created): {e}")
 
     return jsonify({'success': True, 'task_id': task_id, 'number': number})
 
@@ -925,13 +982,55 @@ def update_task(task_id):
     conn = get_db()
     c = conn.cursor()
 
+    # Fetch original task state for WebSocket changes diff
+    c.execute('SELECT * FROM tasks WHERE id = %s', (task_id,))
+    original_task = c.fetchone()
+    original_project_id = original_task['project_id'] if original_task else None
+
     set_clause = ', '.join([f"{k} = %s" for k in updates.keys()])
     set_clause += ", updated_at = NOW()"
     values = list(updates.values()) + [task_id]
 
     c.execute(f'UPDATE tasks SET {set_clause} WHERE id = %s', values)
     conn.commit()
+
+    # Fetch updated task for WebSocket emit
+    c.execute('SELECT id, number, title, description, project_id, status, priority, assignee_id, due_date, tags, created_at, updated_at FROM tasks WHERE id = %s', (task_id,))
+    updated_task = c.fetchone()
     conn.close()
+
+    # Build changes dict
+    changes_dict = {k: {'old': str(original_task.get(k)) if original_task and k in original_task else None, 'new': str(v)} for k, v in updates.items()}
+
+    # WebSocket: emit task_updated
+    emit_project_id = updates.get('project_id', original_project_id)
+    if emit_project_id:
+        try:
+            from websocket.index import get_socketio_instance
+            socketio = get_socketio_instance()
+            if socketio:
+                task_dict = {
+                    'id': updated_task['id'],
+                    'number': updated_task['number'],
+                    'title': updated_task['title'],
+                    'description': updated_task['description'],
+                    'project_id': updated_task['project_id'],
+                    'status': updated_task['status'],
+                    'priority': updated_task['priority'],
+                    'assignee_id': updated_task.get('assignee_id'),
+                    'due_date': str(updated_task.get('due_date', '')) if updated_task.get('due_date') else None,
+                    'tags': updated_task.get('tags'),
+                    'created_at': str(updated_task.get('created_at', '')),
+                    'updated_at': str(updated_task.get('updated_at', '')),
+                } if updated_task else None
+                socketio.emit('task_updated', {
+                    'task': task_dict,
+                    'changes': changes_dict,
+                    'project_id': emit_project_id
+                }, room=f'project:{emit_project_id}')
+                logger.info(f"📡 WebSocket emit: task_updated (task_id={task_id}, project_id={emit_project_id})")
+        except Exception as e:
+            logger.warning(f"⚠️ WebSocket emit failed (task_updated): {e}")
 
     return jsonify({'success': True})
 
@@ -940,9 +1039,30 @@ def delete_task(task_id):
     """删除任务"""
     conn = get_db()
     c = conn.cursor()
+    
+    # Fetch task project_id before soft delete
+    c.execute('SELECT project_id FROM tasks WHERE id = %s', (task_id,))
+    row = c.fetchone()
+    project_id = row['project_id'] if row else None
+
     c.execute('UPDATE tasks SET status = %s WHERE id = %s', ('deleted', task_id))
     conn.commit()
     conn.close()
+
+    # WebSocket: emit task_deleted
+    if project_id:
+        try:
+            from websocket.index import get_socketio_instance
+            socketio = get_socketio_instance()
+            if socketio:
+                socketio.emit('task_deleted', {
+                    'task_id': task_id,
+                    'project_id': project_id
+                }, room=f'project:{project_id}')
+                logger.info(f"📡 WebSocket emit: task_deleted (task_id={task_id}, project_id={project_id})")
+        except Exception as e:
+            logger.warning(f"⚠️ WebSocket emit failed (task_deleted): {e}")
+
     return jsonify({'success': True})
 
 @app.route('/api/tasks/<int:task_id>/review', methods=['POST'])
@@ -6141,21 +6261,12 @@ def update_sds_rules():
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')
 def catch_all(path):
-    """
-    捕获所有非API路由，返回前端index.html
-    支持React Router等前端路由
-    """
-    # 排除API路由和静态文件（不应该在这里返回404，让Flask正常处理）
-    # 如果路径以api/开头，说明前面的API路由没有匹配到，这是正常的404
-    if path.startswith('health'):
-        return jsonify({'success': False, 'error': 'Not found'}), 404
-
-    # 检查是否是静态文件请求
+    if path.startswith('socket.io'):
+        from werkzeug.exceptions import NotFound
+        raise NotFound()
     static_file = os.path.join(app.static_folder, path)
     if os.path.isfile(static_file):
         return send_from_directory(app.static_folder, path)
-
-    # 返回index.html让前端路由处理
     return send_from_directory(app.static_folder, 'index.html')
 
 
@@ -7458,9 +7569,12 @@ if __name__ == '__main__':
         print(f"⚠️ 监控告警系统启动失败: {e}")
         alert_manager = None
 
-    # 启动Flask服务
+    # 启动Flask服务 (支持 WebSocket)
     try:
-        app.run(host='0.0.0.0', port=8086, debug=False)
+        if socketio:
+            socketio.run(app, host='0.0.0.0', port=8086, debug=False, allow_unsafe_werkzeug=True)
+        else:
+            app.run(host='0.0.0.0', port=8086, debug=False)
     finally:
         # 确保感知Agent正确停止
         if PERCEPTION_AGENT_AVAILABLE:
@@ -7470,6 +7584,14 @@ if __name__ == '__main__':
         if alert_manager:
             stop_monitoring()
             print("✅ P049-T041 监控告警系统已停止")
+        
+        # 关闭 WebSocket
+        if WEBSOCKET_AVAILABLE:
+            try:
+                shutdown_socketio()
+                print("✅ WebSocket 服务已关闭")
+            except Exception as e:
+                print(f"⚠️ WebSocket 关闭异常: {e}")
 
 
 # ============================================
@@ -8101,11 +8223,19 @@ app.register_blueprint(admin_bp, url_prefix="/api/admin")
 # ============================================
 # 文件下载路由
 # ============================================
-@app.route('/uploads/docs/<path:filename>')
 def serve_upload(filename):
-    '''提供上传文件的下载服务'''
+    """Serve uploaded files with SDS1 document support"""
+    import os
+    from flask import send_from_directory
+    
+    # 优先从 SDS1 文档目录查找
+    sds_docs_dir = '/opt/kanban-react/frontend/public/uploads/docs/sds1-docs'
+    sds_path = os.path.join(sds_docs_dir, filename)
+    if os.path.exists(sds_path):
+        return send_from_directory(sds_docs_dir, filename)
+    
+    # 否则从后端上传目录查找
     return send_from_directory('/opt/kanban-react/backend/uploads', filename)
-
 @app.route('/api/test-sentry', methods=['POST'])
 def test_sentry():
     try:
@@ -8427,3 +8557,97 @@ def create_cockpit_alert():
         'task_id': task_id,
         'message': '驾驶舱警报已创建'
     })
+
+
+
+
+# 生成用户通知
+def create_notification(title, message, notif_type='system', entity_type=None, entity_id=None, user_id=None):
+    try:
+        with get_db_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""INSERT INTO user_notifications 
+                    (user_id, title, message, type, entity_type, entity_id) 
+                    VALUES (%s, %s, %s, %s, %s, %s)""",
+                    (user_id, title, message, notif_type, entity_type, entity_id))
+                conn.commit()
+    except Exception as e:
+        logger.error(f"创建通知失败: {e}")
+
+# ============================================
+# 通知系统 API
+# ============================================
+@app.route('/api/notifications', methods=['GET'])
+def get_notifications():
+    """获取用户通知列表"""
+    try:
+        user_id = request.args.get('user_id')
+        unread_only = request.args.get('unread_only', 'false').lower() == 'true'
+        limit = int(request.args.get('limit', 50))
+        
+        with get_db_connection() as conn:
+            with conn.cursor() as cur:
+                sql = """SELECT * FROM user_notifications 
+                         WHERE (user_id = %s OR user_id IS NULL) """
+                params = [user_id]
+                
+                if unread_only:
+                    sql += " AND is_read = 0"
+                
+                sql += " ORDER BY created_at DESC LIMIT %s"
+                params.append(limit)
+                
+                cur.execute(sql, params)
+                notifications = cur.fetchall()
+                
+                # 获取未读计数
+                cur.execute("""SELECT COUNT(*) as count FROM user_notifications 
+                               WHERE (user_id = %s OR user_id IS NULL) AND is_read = 0""", (user_id,))
+                unread_count = cur.fetchone()['count']
+        
+        return jsonify({
+            'success': True,
+            'notifications': notifications,
+            'unread_count': unread_count
+        })
+    except Exception as e:
+        logger.error(f"获取通知失败: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/notifications/read-all', methods=['POST'])
+def mark_all_notifications_read():
+    """标记所有通知为已读"""
+    try:
+        data = request.get_json() or {}
+        user_id = data.get('user_id')
+        with get_db_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""UPDATE user_notifications SET is_read = 1 
+                               WHERE (user_id = %s OR user_id IS NULL) AND is_read = 0""", (user_id,))
+                conn.commit()
+        
+        return jsonify({'success': True})
+    except Exception as e:
+        logger.error(f"标记所有通知已读失败: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/sds1/documents', methods=['GET'])
+def list_sds_documents():
+    import os
+    from flask import jsonify
+    sds_docs_dir = '/opt/kanban-react/frontend/public/uploads/docs/sds1-docs'
+    docs = []
+    for root, dirs, files in os.walk(sds_docs_dir):
+        for f in files:
+            if f.endswith('.bak') or f.endswith('.DS_Store'):
+                continue
+            full_path = os.path.join(root, f)
+            rel_path = os.path.relpath(full_path, sds_docs_dir)
+            size = os.path.getsize(full_path)
+            docs.append({
+                'path': rel_path,
+                'url': f'/uploads/docs/{rel_path}',
+                'size': size
+            })
+    docs.sort(key=lambda x: x['path'])
+    return jsonify({'success': True, 'documents': docs, 'count': len(docs)})
