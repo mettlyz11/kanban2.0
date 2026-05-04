@@ -15,8 +15,9 @@ interface HistoryPoint {
   timestamp: string; cpu: number; memory: number; disk: number; processes: number
 }
 
-// 通过 Nginx 反向代理连接中继服务
-const WS_URL = `ws://47.93.184.128/monitor/`
+// 自动检测页面协议：HTTPS 用 wss://，HTTP 用 ws://
+const PROTOCOL = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+const WS_URL = `${PROTOCOL}//${window.location.host}/monitor/`
 
 export function useLocalSystemMonitor() {
   const [connected, setConnected] = useState(false)
@@ -57,7 +58,9 @@ export function useLocalSystemMonitor() {
         }
       }
 
-      ws.onerror = () => setError('连接 Mac mini 失败')
+      ws.onerror = () => {
+        setError('无法创建连接')
+      }
 
       ws.onmessage = (event) => {
         try {
