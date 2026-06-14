@@ -16,6 +16,7 @@ from .meeting_events import MeetingEventHandler
 from .calendar_events import CalendarEventHandler
 from .sds_events import SDSEventHandler
 from .system_events import SystemEventHandler
+from .sync_events import SyncEventHandler
 
 # Socket.IO instance
 socketio = None
@@ -82,6 +83,9 @@ def init_socketio(app, cors_allowed_origins="*"):
     def on_heartbeat(data):
         from flask import request
         handle_heartbeat(request.sid, data)
+    
+    # Register sync handlers
+    SyncEventHandler.register_events(socketio)
     
     # Register module handlers
     BoardEventHandler.register_events(socketio)

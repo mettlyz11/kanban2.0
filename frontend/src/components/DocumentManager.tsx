@@ -204,3 +204,5 @@ export function DocumentManager({ projectId }: DocumentManagerProps) {
     </div>
   )
 }
+
+export default DocumentManager;

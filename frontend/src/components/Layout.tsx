@@ -1,39 +1,59 @@
 import { Link, useLocation, useNavigate, Outlet } from "react-router-dom"
 import { useState, useEffect } from 'react'
+import { PageViewTracker } from "../pages/SystemPages"
 import { useAuth } from '../hooks/useAuth'
 import { socketIO } from '../utils/socket'
 import './Layout.css'
 
 
 const menuItems = [
+  { path: '/overview', icon: '\u{1F4CA}', label: '看板总览' },
   { path: '/projects', icon: '📁', label: '项目' },
   { path: '/self-driving', icon: '🤖', label: '自我驱动' },
+  { path: '/remote-control', icon: '🎮', label: '远程控制' },
+  { path: '/audit-log', icon: '🕵️', label: '审核流水' },
+  { path: '/sds-console', icon: '🖥️', label: 'SDS 总控台' },
+  { path: '/remote-desktop', icon: '💻', label: '远程桌面' },
   { path: '/tasks', icon: '✅', label: '任务' },
+  { path: '/audit', icon: '👁️', label: '审计' },
   { path: '/health', icon: '❤️', label: '健康管理' },
+  { path: '/system-sync', icon: '🔄', label: '系统同步' },
   { path: '/goals', icon: '🎯', label: '项目目标' },
   { path: '/strategic-map', icon: '🗺️', label: '战略全景' },
+  { path: '/panorama', icon: '🔮', label: '涟漪全景' },
+  { path: "/evolution-trend", icon: "📈", label: "进化趋势" },
   { path: '/brain', icon: '🧠', label: '知识大脑' },
-  { path: '/cron', icon: '⏰', label: '定时任务' },
+  { path: '/recurring-tasks', icon: '⏰', label: '定期任务' },
+  { path: '/audit-repair', icon: '🔍', label: '审计修复' },
+  { path: '/kt-config', icon: '🌳', label: '知识树配置' },
+  { path: '/system-map', icon: '🗺️', label: '系统角色图' },
   { path: '/stocks', icon: '📈', label: '资产' },
   { path: '/cockpit', icon: '🚀', label: '驾驶舱' },
   { path: '/review', icon: '👁️', label: '审核' },
   { path: '/skills', icon: '🛠️', label: '技能' },
   { path: '/llm-configs', icon: '🤖', label: '大模型配置' },
+  { path: '/llm-global-context', icon: '🤖', label: 'LLM全局上下文' },
   { path: '/perception', icon: '🎯', label: '感知Agent' },
   { path: '/perception-monitor', icon: '📡', label: '感知监控' },
   { path: '/communication', icon: '💬', label: 'Dudu对接' },
   { path: '/daily-reviews', icon: '🔄', label: '每日复盘' },
   { path: '/meetings', icon: '📝', label: '会议纪要' },
   { path: '/research', icon: '📚', label: '调研记录' },
+  { path: '/research-daily', icon: '🔬', label: '材料AI日报' },
   { path: '/architecture', icon: '🏗️', label: '架构图' },
-  { path: '/resources', icon: '📦', label: '资源库' },
+  { path: '/resource-library', icon: '📚', label: '文件资源库' },
   { path: '/calc-tasks', icon: '🔢', label: '计算' },
   { path: '/molecules', icon: '🧪', label: '和光智成' },
   { path: '/reactions', icon: '⚗️', label: '反应' },
   { path: '/emails', icon: '📧', label: '邮件' },
   { path: '/personal', icon: '👤', label: '个人信息' },
   { path: '/company', icon: '🏢', label: '公司信息' },
-  { path: '/project-design', icon: '📐', label: '项目设计' },
+  
+  
+  
+  
+  
+  { path: '/project-design', icon: '📐', label: '项目设计', external: true },
 ]
 
 // 更新记录
@@ -64,11 +84,45 @@ export function Layout({ children }: LayoutProps) {
       onDisconnect: () => console.log('WS disconnected'),
     });
     return () => { socketIO.disconnect(); };
+// 使 Sentry feedback 窗口可拖动
+  const dragTimer = setInterval(() => {
+    const frames = document.querySelectorAll('iframe[title*="feedback"]');
+    frames.forEach(f => {
+      const p = f.parentElement;
+      if (p && !p.dataset.draggable) {
+        p.dataset.draggable = 'true';
+        p.style.cursor = 'grab';
+        let drag = false, sx, sy, ox, oy;
+        p.addEventListener('mousedown', (e) => {
+          if ((e.target as HTMLElement).tagName === 'IFRAME') return;
+          drag = true; sx = e.clientX; sy = e.clientY;
+          const r = p.getBoundingClientRect();
+          ox = r.left; oy = r.top;
+          p.style.position = 'fixed'; p.style.left = ox + 'px'; p.style.top = oy + 'px';
+          p.style.cursor = 'grabbing';
+        });
+        document.addEventListener('mousemove', (e) => {
+          if (!drag) return;
+          p.style.left = (ox + e.clientX - sx) + 'px';
+          p.style.top = (oy + e.clientY - sy) + 'px';
+        });
+        document.addEventListener('mouseup', () => { drag = false; p.style.cursor = 'grab'; });
+      }
+    });
+  }, 2000);
+  return () => { clearInterval(dragTimer); socketIO.disconnect(); };
   }, []);
   const location = useLocation()
   const navigate = useNavigate()
   const { user, logout, changePassword, remainingTime } = useAuth()
   const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768)
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768)
+    window.addEventListener("resize", handleResize)
+    return () => window.removeEventListener("resize", handleResize)
+  }, [])
   const [showUpdates, setShowUpdates] = useState(false)
   const [showUserMenu, setShowUserMenu] = useState(false)
   const [showPasswordModal, setShowPasswordModal] = useState(false)
@@ -121,24 +175,40 @@ export function Layout({ children }: LayoutProps) {
   return (
     <div className="app">
       {/* Sidebar comes first before header so sibling selectors work correctly */}
-      <aside className={`sidebar ${sidebarOpen ? 'open' : 'closed'}`}>
+      <aside className={`sidebar ${sidebarOpen ? 'open' : 'closed'} ${isMobile ? 'mobile' : ''}`}>
         <nav className="sidebar-nav">
-          {menuItems.map(item => (
-            <Link
-              key={item.path}
-              to={item.path}
-              className={`nav-item ${location.pathname === item.path ? 'active' : ''}`}
-            >
-              <span className="nav-icon">{item.icon}</span>
-              {sidebarOpen && <span className="nav-label">{item.label}</span>}
-            </Link>
-          ))}
+          {menuItems.map(item => {
+            if (item.external) {
+              return (
+                <a
+                  key={item.path}
+                  href={item.path}
+                  className="nav-item"
+                >
+                  <span className="nav-icon">{item.icon}</span>
+                  {sidebarOpen && <span className="nav-label">{item.label}</span>}
+                </a>
+              )
+            }
+            return (
+              <Link
+                key={item.path}
+                to={item.path}
+                className={`nav-item ${location.pathname === item.path ? 'active' : ''}`}
+              >
+                <span className="nav-icon">{item.icon}</span>
+                {sidebarOpen && <span className="nav-label">{item.label}</span>}
+              </Link>
+            )
+          })}
         </nav>
       </aside>
       
       <header className="app-header">
         <div className="header-brand">
-          <button className="menu-toggle" onClick={() => setSidebarOpen(!sidebarOpen)}>☰</button>
+          <button className="menu-toggle" onClick={() => setSidebarOpen(!sidebarOpen)}>
+            {sidebarOpen ? '✕' : '☰'}
+          </button>
           <Link to="/" style={{ textDecoration: 'none', color: 'inherit' }}>
             <h1>📊 看板系统 v4.5.1</h1>
           </Link>
@@ -242,7 +312,7 @@ export function Layout({ children }: LayoutProps) {
       )}
       
       <div className="app-body">
-        <main className="main-content"><Outlet /></main>
+        <main className="main-content"><PageViewTracker /><Outlet /></main>
       </div>
 
       {/* 更新记录弹窗 */}

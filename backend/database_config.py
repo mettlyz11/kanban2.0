@@ -19,9 +19,6 @@ MYSQL_CONFIG = {
     'autocommit': False,
 }
 
-# 兼容旧代码的 DB_PATH
-DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'kanban_v5.db')
-
 # 数据库类型定义
 DB_TYPE = 'mysql'
 

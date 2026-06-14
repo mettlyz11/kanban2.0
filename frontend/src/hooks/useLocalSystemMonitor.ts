@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { socketIO, SocketIOConfig } from '../utils/socket'
 
 interface LocalMetrics {
   cpu: { percent: number; cores: number; freq_mhz: number | null; per_cpu: number[] }
@@ -15,98 +16,91 @@ interface HistoryPoint {
   timestamp: string; cpu: number; memory: number; disk: number; processes: number
 }
 
-// 自动检测协议：HTTPS 用 wss://，HTTP 用 ws://
-const PROTOCOL = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-const WS_URL = `${PROTOCOL}://${window.location.host}/monitor/`
-
 export function useLocalSystemMonitor() {
-  const [connected, setConnected] = useState(false)
+  const [connected, setConnected] = useState(socketIO?.connected ?? false)
   const [metrics, setMetrics] = useState<LocalMetrics | null>(null)
   const [history, setHistory] = useState<HistoryPoint[]>([])
   const [error, setError] = useState<string | null>(null)
-  const wsRef = useRef<WebSocket | null>(null)
-  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const reconnectAttemptsRef = useRef(0)
-  const maxReconnectAttempts = 30
-  const errorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const connect = useCallback(() => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) return
-    if (wsRef.current?.readyState === WebSocket.CONNECTING) return
+  // Listen for resource_metrics events from backend Socket.IO broadcast
+  useEffect(() => {
+    if (!socketIO) {
+      setError('Socket.IO not available')
+      return
+    }
 
-    try {
-      console.log('🖥️ 连接 Mac mini 监控:', WS_URL)
+    // Ensure Socket.IO is connected
+    if (!socketIO.connected) {
+      socketIO.connect({
+        userId: 'local',
+        username: 'SystemMonitor'
+      })
+    }
+
+    // Subscribe to monitoring channel
+    const subTimeout = setTimeout(() => {
+      socketIO.emit('monitor_subscribe', { user_id: 'local' })
+    }, 500)
+
+    const handleMetrics = (data: any) => {
+      if (data) {
+        setMetrics({
+          cpu: { percent: data.cpu ?? 0, cores: 0, freq_mhz: null, per_cpu: [] },
+          memory: { percent: data.memory ?? 0, total_gb: 0, used_gb: 0, available_gb: 0 },
+          disk: { percent: data.disk ?? 0, total_gb: 0, used_gb: 0, free_gb: 0 },
+          network: { bytes_sent_mb: 0, bytes_recv_mb: 0 },
+          processes: data.processes ?? 0,
+          battery: { percent: null, power_plugged: null, secsleft: null },
+          uptime: data.uptime ?? 0,
+          timestamp: data.timestamp ?? new Date().toISOString()
+        })
+        
+        // Build history point
+        if (data.timestamp && data.cpu != null) {
+          setHistory(prev => {
+            const point: HistoryPoint = {
+              timestamp: data.timestamp,
+              cpu: data.cpu,
+              memory: data.memory ?? 0,
+              disk: data.disk ?? 0,
+              processes: data.processes ?? 0
+            }
+            const next = [...prev, point]
+            return next.length > 100 ? next.slice(-100) : next
+          })
+        }
+      }
+    }
+
+    const handleConnect = () => {
+      console.log('✅ Socket.IO 已连接 (系统监控)')
+      setConnected(true)
       setError(null)
-      const ws = new WebSocket(WS_URL)
-      wsRef.current = ws
+      socketIO.emit('monitor_subscribe', { user_id: 'local' })
+    }
 
-      // 5秒超时检测
-      if (errorTimerRef.current) clearTimeout(errorTimerRef.current)
-      errorTimerRef.current = setTimeout(() => {
-        if (ws.readyState !== WebSocket.OPEN) {
-          setError('连接超时')
-          ws.close()
-        }
-      }, 5000)
+    const handleDisconnect = () => {
+      console.log('❌ Socket.IO 断开 (系统监控)')
+      setConnected(false)
+    }
 
-      ws.onopen = () => {
-        console.log('✅ 已连接 Mac mini 监控')
-        setConnected(true)
-        setError(null)  // 确保清除错误
-        reconnectAttemptsRef.current = 0
-        if (errorTimerRef.current) clearTimeout(errorTimerRef.current)
-      }
+    // Register handlers
+    socketIO.on('resource_metrics', handleMetrics)
+    socketIO.on('connect', handleConnect)
+    socketIO.on('disconnect', handleDisconnect)
 
-      ws.onclose = () => {
-        console.log('❌ Mac mini 监控断开')
-        setConnected(false)
-        if (errorTimerRef.current) clearTimeout(errorTimerRef.current)
-        if (reconnectAttemptsRef.current < maxReconnectAttempts) {
-          const delay = Math.min(1000 * Math.pow(1.5, reconnectAttemptsRef.current), 30000)
-          reconnectTimerRef.current = setTimeout(() => {
-            reconnectAttemptsRef.current++
-            connect()
-          }, delay)
-        } else {
-          setError('无法连接到 Mac mini 监控服务')
-        }
-      }
+    // If already connected, set state
+    if (socketIO.connected) {
+      setConnected(true)
+    }
 
-      ws.onerror = () => {
-        // 关键修复：忽略握手阶段的 error 事件
-        // 浏览器在 WebSocket 握手期间会触发 error，但后续 onopen 仍会成功
-        // 只有 CLOSED 状态才认为是真正的失败
-        if (ws.readyState === WebSocket.CLOSED) {
-          setError('无法创建连接')
-        }
-      }
-
-      ws.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data)
-          if (data.type === 'metrics') {
-            setMetrics(data.metrics)
-            if (data.history) setHistory(data.history)
-          }
-        } catch (e) {
-          console.error('解析监控数据失败:', e)
-        }
-      }
-    } catch (e) {
-      if (errorTimerRef.current) clearTimeout(errorTimerRef.current)
-      setError('无法创建连接')
+    return () => {
+      socketIO.off('resource_metrics', handleMetrics)
+      socketIO.off('connect', handleConnect)
+      socketIO.off('disconnect', handleDisconnect)
+      socketIO.emit('monitor_unsubscribe', { user_id: 'local' })
     }
   }, [])
-
-  const disconnect = useCallback(() => {
-    if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current)
-    if (errorTimerRef.current) clearTimeout(errorTimerRef.current)
-    if (wsRef.current) wsRef.current.close()
-    wsRef.current = null
-    setConnected(false)
-  }, [])
-
-  useEffect(() => { connect(); return () => disconnect() }, [connect, disconnect])
 
   const formatUptime = (seconds: number) => {
     const days = Math.floor(seconds / 86400)
@@ -115,5 +109,5 @@ export function useLocalSystemMonitor() {
     return `${days}天 ${hours}小时 ${minutes}分钟`
   }
 
-  return { connected, metrics, history, error, formatUptime, reconnect: connect, disconnect }
+  return { connected, metrics, history, error, formatUptime }
 }

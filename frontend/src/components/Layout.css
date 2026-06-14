@@ -540,3 +540,235 @@
   width: 100% !important;
   max-width: none !important;
 }
+
+/* ===== 渐变背景 + 毛玻璃卡片 ===== */
+
+/* 全局渐变背景 */
+.app {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #e0c3fc 0%, #8ec5fc 50%, #f5f7fa 100%);
+  background-attachment: fixed;
+}
+
+.main-content {
+  background: transparent !important;
+}
+
+/* 毛玻璃卡片 */
+.card {
+  background: rgba(255, 255, 255, 0.25) !important;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: 16px !important;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+  transition: all 0.3s ease;
+}
+
+.card:hover {
+  background: rgba(255, 255, 255, 0.35) !important;
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.12);
+  transform: translateY(-2px);
+}
+
+/* 统计卡片 */
+.stat-card {
+  background: rgba(255, 255, 255, 0.25) !important;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: 16px !important;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+}
+
+/* 项目卡片 */
+.project-card {
+  background: rgba(255, 255, 255, 0.25) !important;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: 16px !important;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+}
+
+/* 任务卡片 */
+.task-item {
+  background: rgba(255, 255, 255, 0.25) !important;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: 12px !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+}
+
+/* 侧边栏毛玻璃 */
+.sidebar {
+  background: rgba(44, 62, 80, 0.9) !important;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-right: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+/* 顶栏毛玻璃 */
+.app-header {
+  background: rgba(255, 255, 255, 0.15) !important;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.25);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.06);
+}
+
+.app-header .header-brand h1 {
+  color: #2c3e50 !important;
+  text-shadow: 0 1px 2px rgba(255,255,255,0.5);
+}
+
+/* 侧边栏导航项 */
+.sidebar-nav a {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.sidebar-nav a:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+.sidebar-nav a.active {
+  background: rgba(52, 152, 219, 0.6);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  color: #fff;
+}
+
+/* 表格毛玻璃 */
+.data-table {
+  background: rgba(255, 255, 255, 0.2) !important;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.data-table th {
+  background: rgba(255, 255, 255, 0.15) !important;
+  color: #2c3e50 !important;
+}
+
+/* 模态框 */
+.modal {
+  background: rgba(255, 255, 255, 0.3) !important;
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+}
+
+/* 输入框 */
+.form-group input,
+.form-group textarea,
+.form-group select {
+  background: rgba(255, 255, 255, 0.35) !important;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  border-radius: 10px !important;
+}
+
+.form-group input:focus,
+.form-group textarea:focus,
+.form-group select:focus {
+  border-color: rgba(52, 152, 219, 0.6);
+  box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.15);
+}
+
+/* 筛选按钮 */
+.filter-btn.active {
+  background: rgba(52, 152, 219, 0.5) !important;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border-color: rgba(255, 255, 255, 0.4);
+  color: #fff !important;
+}
+
+/* 移动端适配 */
+@media (max-width: 768px) {
+  .app {
+    background: linear-gradient(135deg, #e0c3fc 0%, #8ec5fc 50%, #f5f7fa 100%);
+  }
+}
+
+/* 移动端汉堡菜单和侧边栏适配 */
+.sidebar.mobile {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 1000;
+  height: 100vh;
+  transition: transform 0.3s ease;
+}
+
+.sidebar.mobile.closed {
+  transform: translateX(-100%);
+}
+
+.sidebar.mobile.open {
+  transform: translateX(0);
+}
+
+/* 移动端菜单切换按钮 */
+.menu-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: none;
+  background: rgba(255, 255, 255, 0.3);
+  backdrop-filter: blur(8px);
+  border-radius: 8px;
+  font-size: 20px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.menu-toggle:hover {
+  background: rgba(255, 255, 255, 0.5);
+}
+
+/* 移动端遮罩层 */
+.sidebar-overlay {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 999;
+}
+
+.sidebar.mobile.open + .sidebar-overlay {
+  display: block;
+}
+
+@media (max-width: 768px) {
+  .app-header {
+    padding: 12px 16px;
+  }
+  
+  .header-brand h1 {
+    font-size: 16px;
+  }
+  
+  .header-nav {
+    display: none;
+  }
+  
+  .main-content {
+    padding: 16px;
+  }
+  
+  .sidebar-nav {
+    padding-top: 60px;
+  }
+}

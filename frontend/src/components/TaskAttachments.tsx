@@ -15,7 +15,7 @@ interface Attachment {
 }
 
 interface TaskAttachmentsProps {
-  taskId: number
+  taskId?: number
   onTaskChange?: (taskId: number) => void
 }
 
@@ -41,17 +41,16 @@ const Modal = ({ isOpen, onClose, title, children, maxWidth = '900px' }: {
       alignItems: 'center',
       justifyContent: 'center',
       zIndex: 1000,
-      padding: '20px'
+      padding: 0
     }} onClick={onClose}>
       <div style={{
         backgroundColor: 'white',
-        borderRadius: '8px',
-        width: '100%',
-        maxWidth: maxWidth,
-        maxHeight: '90vh',
+        borderRadius: 0,
+        width: '100vw',
+        height: '100vh',
         display: 'flex',
         flexDirection: 'column',
-        boxShadow: '0 4px 20px rgba(0, 0, 0, 0.15)'
+        boxShadow: 'none'
       }} onClick={e => e.stopPropagation()}>
         <div style={{
           display: 'flex',
@@ -89,7 +88,8 @@ const Modal = ({ isOpen, onClose, title, children, maxWidth = '900px' }: {
   )
 }
 
-export function TaskAttachments({ taskId, onTaskChange }: TaskAttachmentsProps) {
+export function TaskAttachments({ taskId: initialTaskId, onTaskChange }: TaskAttachmentsProps) {
+  const [taskId, setTaskId] = useState<number>(initialTaskId || 0)
   const [attachments, setAttachments] = useState<Attachment[]>([])
   const [loading, setLoading] = useState(false)
   const [uploading, setUploading] = useState(false)
@@ -99,6 +99,24 @@ export function TaskAttachments({ taskId, onTaskChange }: TaskAttachmentsProps) 
   const [viewContent, setViewContent] = useState('')
   const [saving, setSaving] = useState(false)
   const [isEditMode, setIsEditMode] = useState(false)
+  const [allTaskIds, setAllTaskIds] = useState<number[]>([])
+
+  // Load all task IDs on mount for navigation
+  useEffect(() => {
+    const loadAllTasks = async () => {
+      try {
+        const res = await fetch("/api/tasks?page=1&limit=1000")
+        const data = await res.json()
+        if (data.success && data.tasks) {
+          const ids = data.tasks.map((t: any) => t.id).sort((a: number, b: number) => b - a)
+          setAllTaskIds(ids)
+        }
+      } catch (e) {
+        console.error("Failed to load task list:", e)
+      }
+    }
+    loadAllTasks()
+  }, [])
 
   useEffect(() => {
     loadAttachments()
@@ -107,10 +125,10 @@ export function TaskAttachments({ taskId, onTaskChange }: TaskAttachmentsProps) 
   const loadAttachments = async () => {
     setLoading(true)
     try {
-      const response = await fetch(`/api/tasks/${taskId}/attachments`)
+      const response = await fetch(`/api/tasks/${taskId}/files`)
       const data = await response.json()
       if (data.success) {
-        setAttachments(data.attachments || [])
+        setAttachments(data.files || [])
       }
     } catch (error) {
       console.error('Failed to load attachments:', error)
@@ -146,7 +164,7 @@ export function TaskAttachments({ taskId, onTaskChange }: TaskAttachmentsProps) 
     if (!editingFile) return
     setSaving(true)
     try {
-      const response = await fetch(`/api/tasks/${taskId}/attachments/edit`, {
+      const response = await fetch(`/api/tasks/${taskId}/files/edit`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ filename: editingFile, content: editContent })
@@ -201,18 +219,22 @@ export function TaskAttachments({ taskId, onTaskChange }: TaskAttachmentsProps) 
   }
 
   const handlePrevTask = () => {
-    if (onTaskChange && taskId > 1) {
-      onTaskChange(taskId - 1)
-      // Reset state for new task
+    const currentIndex = allTaskIds.indexOf(taskId)
+    if (currentIndex >= 0 && currentIndex < allTaskIds.length - 1) {
+      const nextId = allTaskIds[currentIndex + 1]
+      setTaskId(nextId)
+      if (onTaskChange) onTaskChange(nextId)
       setCurrentViewIndex(-1)
       setIsEditMode(false)
     }
   }
 
   const handleNextTask = () => {
-    if (onTaskChange) {
-      onTaskChange(taskId + 1)
-      // Reset state for new task
+    const currentIndex = allTaskIds.indexOf(taskId)
+    if (currentIndex > 0) {
+      const prevId = allTaskIds[currentIndex - 1]
+      setTaskId(prevId)
+      if (onTaskChange) onTaskChange(prevId)
       setCurrentViewIndex(-1)
       setIsEditMode(false)
     }
@@ -241,7 +263,7 @@ export function TaskAttachments({ taskId, onTaskChange }: TaskAttachmentsProps) 
     formData.append('file', file)
 
     try {
-      const response = await fetch(`/api/tasks/${taskId}/attachments/upload`, {
+      const response = await fetch(`/api/tasks/${taskId}/files/upload`, {
         method: 'POST',
         body: formData
       })
@@ -444,12 +466,27 @@ export function TaskAttachments({ taskId, onTaskChange }: TaskAttachmentsProps) 
         {/* Content */}
         {isMarkdownFile(currentFileName) ? (
           <div className="markdown-body" style={{ 
-            lineHeight: '1.7', 
-            fontSize: '0.95rem',
-            maxHeight: '60vh',
-            overflow: 'auto'
+            lineHeight: '1.8', 
+            fontSize: '0.9rem',
+            flex: 1,
+            overflow: 'auto',
+            padding: '24px 32px'
           }}>
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>{viewContent}</ReactMarkdown>
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm]}
+              components={{
+                h1: ({children}) => <h1 style={{fontSize: '1.5rem', fontWeight: 700, margin: '1.2em 0 0.6em'}}>{children}</h1>,
+                h2: ({children}) => <h2 style={{fontSize: '1.25rem', fontWeight: 600, margin: '1em 0 0.5em'}}>{children}</h2>,
+                h3: ({children}) => <h3 style={{fontSize: '1.1rem', fontWeight: 600, margin: '0.8em 0 0.4em'}}>{children}</h3>,
+                h4: ({children}) => <h4 style={{fontSize: '1rem', fontWeight: 600, margin: '0.6em 0 0.3em'}}>{children}</h4>,
+                h5: ({children}) => <h5 style={{fontSize: '0.95rem', fontWeight: 600, margin: '0.5em 0 0.3em'}}>{children}</h5>,
+                h6: ({children}) => <h6 style={{fontSize: '0.9rem', fontWeight: 600, margin: '0.5em 0 0.2em'}}>{children}</h6>,
+                p: ({children}) => <p style={{fontSize: '0.9rem', margin: '0.6em 0', lineHeight: '1.8'}}>{children}</p>,
+                li: ({children}) => <li style={{fontSize: '0.9rem', lineHeight: '1.7'}}>{children}</li>,
+                code: ({children}) => <code style={{fontSize: '0.85rem', background: '#f3f4f6', padding: '2px 6px', borderRadius: '4px'}}>{children}</code>,
+                table: ({children}) => <table style={{fontSize: '0.85rem', borderCollapse: 'collapse', width: '100%', margin: '1em 0'}}>{children}</table>,
+              }}
+            >{viewContent}</ReactMarkdown>
           </div>
         ) : (
           <pre style={{ 

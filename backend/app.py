@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, send_from_directory
+from flask import Flask, request, jsonify, send_from_directory, send_file
 from flask_cors import CORS
 
 # ============================================
@@ -20,6 +20,32 @@ from datetime import datetime, timedelta
 from functools import wraps
 
 import pymysql
+# === Phase 1: Extracted route blueprints ===
+from routes.cockpit import bp as cockpit_bp
+from routes.sync import bp as sync_bp
+from changelog_routes import changelog_bp
+from routes.system import bp as system_bp
+from routes.track import bp as track_bp
+from routes.access import bp as access_bp
+from routes.local_files import bp as local_files_bp
+from routes.calendar import bp as calendar_bp
+from routes.sds_api import bp as sds_api_bp
+from routes.cron import bp as cron_bp
+from routes.emails import bp as emails_bp
+from routes.health import bp as health_bp
+from routes.projects_api import bp as projects_api_bp
+from routes.manual_review_api import bp as manual_review_api_bp
+from routes.helpers import get_db, row_to_dict
+from routes.calc_research_api import bp as calc_research_api_bp
+from routes.goals_llm_api import bp as goals_llm_api_bp
+from routes.stocks_api import bp as stocks_api_bp
+from routes.brain_chat_api import bp as brain_chat_api_bp
+from routes.tasks_api import bp as tasks_api_bp
+from routes.resource_library import bp as resource_library_bp
+from routes.strategy_routes import bp as strategy_bp
+from routes.contacts_routes import bp as contacts_bp
+from routes.config_routes import bp as config_bp
+from routes.daemon_status import bp as daemon_status_bp
 # 设置日志
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -38,6 +64,8 @@ def before_send_event(event, hint):
     return event
 
 app = Flask(__name__, static_folder='dist')
+from kanban_improvements import setup_routes
+setup_routes(app)
 
 # Sentry 错误追踪
 try:
@@ -45,6 +73,7 @@ try:
     from sentry_sdk.integrations.flask import FlaskIntegration
     sentry_sdk.init(
         dsn="http://a7cb045230577c839f5b2fddfb1c7026@39.106.190.50:9000/1",
+
         integrations=[FlaskIntegration()],
         traces_sample_rate=1.0,
         send_default_pii=True,
@@ -119,9 +148,9 @@ except ImportError as e:
 ## 导入监控告警路由 (P049-T041)
 ## ============================================
 #try:
-#    # # from monitoring_routes import monitoring_bp, init_monitoring_db  # DISABLED - SQLite dependency  # DISABLED
-#    # # init_monitoring_db(DB_PATH)  # DISABLED  # DISABLED
-#    # # app.register_blueprint(monitoring_bp)  # DISABLED  # DISABLED
+    from monitoring_routes import monitoring_bp, init_monitoring_db
+    init_monitoring_db(DB_PATH)
+    app.register_blueprint(monitoring_bp)
 #    logger.info("✅ 监控告警路由已注册 (P049-T041: 监控告警)")
 #except ImportError as e:
 #    logger.warning(f"⚠️ 监控告警路由导入失败: {e}")
@@ -190,7 +219,32 @@ except ImportError as e:
 # 战略目标关系图路由
 try:
     from strategic_map_routes import strategic_map_bp
+    # Phase 1: Extracted route blueprints
+    app.register_blueprint(cockpit_bp)
+    app.register_blueprint(sync_bp)
+    app.register_blueprint(changelog_bp)
+    app.register_blueprint(system_bp)
+    app.register_blueprint(track_bp)
+    app.register_blueprint(access_bp)
+    app.register_blueprint(local_files_bp)
+    app.register_blueprint(calendar_bp)
+    from routes.llm_usage_api import llm_usage_bp
+    app.register_blueprint(llm_usage_bp)
+
+    app.register_blueprint(cron_bp)
+    app.register_blueprint(emails_bp)
+    app.register_blueprint(health_bp)
+    app.register_blueprint(projects_api_bp)
+    app.register_blueprint(manual_review_api_bp)
+    app.register_blueprint(calc_research_api_bp)
+    app.register_blueprint(goals_llm_api_bp)
+    app.register_blueprint(stocks_api_bp)
+    app.register_blueprint(brain_chat_api_bp)
+    app.register_blueprint(tasks_api_bp)
+
+    app.register_blueprint(resource_library_bp)
     app.register_blueprint(strategic_map_bp)
+#    app.register_blueprint(sds_api_bp)
     logger.info("✅ 战略全景图路由已注册")
 except ImportError as e:
     logger.warning(f"⚠️ 战略全景图路由导入失败：{e}")
@@ -254,38 +308,35 @@ class PerceptionRecorder:
 
 # 全局感知记录器实例
 perception_recorder = PerceptionRecorder()
-def get_db():
-    """获取 MySQL 数据库连接"""
-    # 从环境变量获取完整配置，确保密码正确传递
-    config = {
-        "host": os.environ.get("MYSQL_HOST", "rm-2zew4su9p966e8x2ofo.mysql.rds.aliyuncs.com"),
-        "port": int(os.environ.get("MYSQL_PORT", "3306")),
-        "user": os.environ.get("MYSQL_USER", "kanban"),
-        "password": os.environ.get("MYSQL_PASSWORD", "Irc210Irc210!"),
-        "database": os.environ.get("MYSQL_DATABASE", "kanban"),
-        "charset": "utf8mb4",
-        "cursorclass": pymysql.cursors.DictCursor,
-        "autocommit": False,
-        "connect_timeout": 3,
-        "read_timeout": 10,
-    }
-    conn = pymysql.connect(**config)
-    return conn
-
-    return conn
-
-
 def row_to_dict(row, cursor):
     """将行数据转换为字典，兼容SQLite和MySQL"""
     if row is None:
         return None
+    
+    import json
     if isinstance(row, dict):
-        return row
-    # 元组情况，从cursor获取列名
-    if hasattr(cursor, 'description') and cursor.description:
+        result = dict(row)
+    elif hasattr(cursor, 'description') and cursor.description:
         columns = [desc[0] for desc in cursor.description]
-        return dict(zip(columns, row))
-    return row_to_dict(row, cursor)
+        result = dict(zip(columns, row))
+    else:
+        return row
+    
+    # 🌟 自动解析 JSON 描述
+    desc = result.get('description', '')
+    if desc and isinstance(desc, str) and desc.startswith('{'):
+        try:
+            parsed = json.loads(desc)
+            result['json_description'] = parsed
+            result['text_description'] = parsed.get('context', parsed.get('goal', '')) or desc
+        except json.JSONDecodeError:
+            result['json_description'] = None
+            result['text_description'] = desc
+    else:
+        result['json_description'] = None
+        result['text_description'] = desc if desc else ''
+    
+    return result
 
 
 # ============================================
@@ -408,101 +459,6 @@ def login_required(f):
 # 项目 API
 # ============================================
 
-@app.route('/api/projects/', methods=['GET'])
-@app.route('/api/projects', methods=['GET'])
-def get_projects():
-    """获取所有项目"""
-    conn = get_db()
-    c = conn.cursor()
-    c.execute('''
-        SELECT id, number, name, description, goal, status, priority, 
-               created_at, updated_at, deadline
-        FROM projects 
-        WHERE status != 'deleted'
-        ORDER BY created_at DESC
-    ''')
-    projects = [row_to_dict(row, c) for row in c.fetchall()]
-    conn.close()
-    return jsonify({'success': True, 'projects': projects})
-
-@app.route('/api/projects', methods=['POST'])
-def create_project():
-    """创建新项目"""
-    data = request.get_json()
-    name = data.get('name', '').strip()
-    description = data.get('description', '')
-    goal = data.get('goal', '')
-    priority = data.get('priority', 'medium')
-    status = data.get('status', 'todo')
-
-    if not name:
-        return jsonify({'success': False, 'error': '项目名称不能为空'}), 400
-
-    conn = get_db()
-    c = conn.cursor()
-
-    # 生成项目编号
-    c.execute("SELECT COUNT(*) FROM projects")
-    count = list(c.fetchone().values())[0] + 1
-    number = f"P{count:03d}"
-
-    c.execute('''
-        INSERT INTO projects (number, name, description, goal, priority, status, created_at, updated_at)
-        VALUES (%s, %s, %s, %s, %s, %s, NOW(), NOW())
-    ''', (number, name, description, goal, priority, status))
-
-    project_id = c.lastrowid
-    conn.commit()
-    conn.close()
-
-    return jsonify({'success': True, 'project_id': project_id, 'number': number})
-
-@app.route('/api/projects/<int:project_id>', methods=['PUT'])
-def update_project(project_id):
-    """更新项目"""
-    data = request.get_json()
-
-    allowed_fields = ['name', 'description', 'goal', 'goal_id', 'status', 'priority']
-    updates = {k: v for k, v in data.items() if k in allowed_fields}
-
-    if not updates:
-        return jsonify({'success': False, 'error': '没有要更新的字段'}), 400
-
-    conn = get_db()
-    c = conn.cursor()
-
-    set_clause = ', '.join([f"{k} = %s" for k in updates.keys()])
-    set_clause += ", updated_at = NOW()"
-    values = list(updates.values()) + [project_id]
-
-    c.execute(f'UPDATE projects SET {set_clause} WHERE id = %s', values)
-    conn.commit()
-    conn.close()
-
-    return jsonify({'success': True})
-
-@app.route('/api/projects/<int:project_id>', methods=['GET'])
-def get_project(project_id):
-    """获取项目详情"""
-    conn = get_db()
-    c = conn.cursor()
-    c.execute('SELECT * FROM projects WHERE id = %s AND status != "deleted"', (project_id,))
-    project = c.fetchone()
-    conn.close()
-    if not project:
-        return jsonify({'error': 'Not found', 'success': False}), 404
-    return jsonify({'success': True, 'project': project})
-
-
-@app.route('/api/projects/<int:project_id>', methods=['DELETE'])
-def delete_project(project_id):
-    """删除项目"""
-    conn = get_db()
-    c = conn.cursor()
-    c.execute('UPDATE projects SET status = %s WHERE id = %s', ('deleted', project_id))
-    conn.commit()
-    conn.close()
-    return jsonify({'success': True})
 # ============================================
 # 项目文档管理 API
 # ============================================
@@ -530,858 +486,13 @@ def get_project_upload_path(project_id):
         os.makedirs(upload_path, exist_ok=True)
     return upload_path
 
-@app.route('/api/projects/<int:project_id>/documents', methods=['GET'])
-@app.route('/api/projects/<int:project_id>/document', methods=['GET'])
-def get_project_documents(project_id):
-    """获取项目文档列表"""
-    try:
-        # 检查项目是否存在
-        conn = get_db()
-        c = conn.cursor()
-        c.execute('SELECT id FROM projects WHERE id = %s AND status != "deleted"', (project_id,))
-        if not c.fetchone():
-            conn.close()
-            return jsonify({'success': False, 'error': '项目不存在'}), 404
-    
-        # 获取文档列表
-        c.execute('''
-            SELECT id, project_id, file_name, original_name, file_path, 
-                   file_size, mime_type, description, uploaded_by, uploaded_at
-            FROM project_documents
-            WHERE project_id = %s
-            ORDER BY uploaded_at DESC
-        ''', (project_id,))
-    
-        documents = []
-        for row in c.fetchall():
-            doc = row_to_dict(row, c)
-            # 格式化文件大小
-            size = doc.get('file_size', 0)
-            if size < 1024:
-                doc['file_size_formatted'] = f"{size} B"
-            elif size < 1024 * 1024:
-                doc['file_size_formatted'] = f"{size / 1024:.1f} KB"
-            else:
-                doc['file_size_formatted'] = f"{size / (1024 * 1024):.1f} MB"
-            documents.append(doc)
-    
-        conn.close()
-    
-        return jsonify({
-            'success': True,
-            'documents': documents,
-            'count': len(documents)
-        })
-    except Exception as e:
-        logger.error(f"获取项目文档列表失败: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
-@app.route('/api/projects/<int:project_id>/documents', methods=['POST'])
-@app.route('/api/projects/<int:project_id>/document', methods=['POST'])
-def upload_project_document(project_id):
-    """上传项目文档"""
-    try:
-        # 检查权限
-        if not check_project_member_permission(project_id):
-            return jsonify({'success': False, 'error': '无权访问此项目'}), 403
-    
-        # 检查项目是否存在
-        conn = get_db()
-        c = conn.cursor()
-        c.execute('SELECT id FROM projects WHERE id = %s AND status != "deleted"', (project_id,))
-        if not c.fetchone():
-            conn.close()
-            return jsonify({'success': False, 'error': '项目不存在'}), 404
-    
-        # 检查是否有文件
-        if 'file' not in request.files:
-            return jsonify({'success': False, 'error': '没有文件'}), 400
-    
-        file = request.files['file']
-        if file.filename == '':
-            return jsonify({'success': False, 'error': '没有选择文件'}), 400
-    
-        # 检查文件大小
-        file.seek(0, os.SEEK_END)
-        file_size = file.tell()
-        file.seek(0)
-    
-        if file_size > MAX_FILE_SIZE:
-            return jsonify({
-                'success': False, 
-                'error': f'文件大小超过限制，最大允许 {MAX_FILE_SIZE / (1024*1024):.0f}MB'
-            }), 413
-    
-        if file and allowed_file(file.filename):
-            # 生成安全的文件名
-            import uuid
-            original_filename = file.filename
-            file_ext = original_filename.rsplit('.', 1)[1].lower() if '.' in original_filename else ''
-            safe_filename = f"{uuid.uuid4().hex}_{original_filename}"
-        
-            # 确定MIME类型
-            mime_type = file.content_type or 'application/octet-stream'
-        
-            # 获取上传路径并保存文件
-            upload_path = get_project_upload_path(project_id)
-            file_path = os.path.join(upload_path, safe_filename)
-            file.save(file_path)
-        
-            # 获取文件大小
-            file_size = os.path.getsize(file_path)
-        
-            # 获取描述
-            description = request.form.get('description', '')
-            uploaded_by = request.form.get('uploaded_by', 'system')
-        
-            # 计算相对路径
-            relative_path = os.path.join('projects', str(project_id), safe_filename)
-        
-            # 保存到数据库
-            c.execute('''
-                INSERT INTO project_documents 
-                (project_id, file_name, original_name, file_path, file_size, 
-                 mime_type, description, uploaded_by, uploaded_at, updated_at)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW())
-            ''', (project_id, safe_filename, original_filename, relative_path, 
-                  file_size, mime_type, description, uploaded_by))
-        
-            doc_id = c.lastrowid
-            conn.commit()
-            conn.close()
-        
-            return jsonify({
-                'success': True,
-                'message': '文件上传成功',
-                'document': {
-                    'id': doc_id,
-                    'project_id': project_id,
-                    'file_name': safe_filename,
-                    'original_name': original_filename,
-                    'file_size': file_size,
-                    'file_size_formatted': f"{file_size / (1024 * 1024):.1f} MB" if file_size >= 1024 * 1024 else f"{file_size / 1024:.1f} KB",
-                    'mime_type': mime_type,
-                    'description': description,
-                    'uploaded_by': uploaded_by,
-                    'uploaded_at': datetime.now().isoformat()
-                }
-            })
-        else:
-            return jsonify({
-                'success': False, 
-                'error': '不支持的文件类型。支持的类型: ' + ', '.join(ALLOWED_EXTENSIONS)
-            }), 400
-        
-    except Exception as e:
-        logger.error(f"上传项目文档失败: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-@app.route('/api/projects/<int:project_id>/document/<int:doc_id>/download', methods=['GET'])
-def download_project_document(project_id, doc_id):
-    """下载项目文档"""
-    try:
-        # 检查项目是否存在
-        conn = get_db()
-        c = conn.cursor()
-        c.execute('SELECT id FROM projects WHERE id = %s AND status != "deleted"', (project_id,))
-        if not c.fetchone():
-            conn.close()
-            return jsonify({'success': False, 'error': '项目不存在'}), 404
-    
-        # 获取文档信息
-        c.execute('''
-            SELECT file_name, original_name, file_path, mime_type
-            FROM project_documents
-            WHERE id = %s AND project_id = %s
-        ''', (doc_id, project_id))
-    
-        row = c.fetchone()
-        conn.close()
-    
-        if not row:
-            return jsonify({'success': False, 'error': '文档不存在'}), 404
-    
-        # 构建完整文件路径
-        file_path = os.path.join(UPLOAD_FOLDER, row['file_path'])
-    
-        if not os.path.exists(file_path):
-            return jsonify({'success': False, 'error': '文件不存在'}), 404
-    
-        # 发送文件
-        from flask import send_file
-        return send_file(
-            file_path,
-            as_attachment=True,
-            download_name=row['original_name'],
-            mimetype=row['mime_type'] or 'application/octet-stream'
-        )
-    
-    except Exception as e:
-        logger.error(f"下载项目文档失败: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-@app.route('/api/projects/<int:project_id>/documents/<int:doc_id>', methods=['DELETE'])
-@app.route('/api/projects/<int:project_id>/document/<int:doc_id>', methods=['DELETE'])
-def delete_project_document(project_id, doc_id):
-    """删除项目文档"""
-    try:
-        # 检查项目是否存在
-        conn = get_db()
-        c = conn.cursor()
-        c.execute('SELECT id FROM projects WHERE id = %s AND status != "deleted"', (project_id,))
-        if not c.fetchone():
-            conn.close()
-            return jsonify({'success': False, 'error': '项目不存在'}), 404
-    
-        # 获取文档信息
-        c.execute('''
-            SELECT file_path FROM project_documents
-            WHERE id = %s AND project_id = %s
-        ''', (doc_id, project_id))
-    
-        row = c.fetchone()
-        if not row:
-            conn.close()
-            return jsonify({'success': False, 'error': '文档不存在'}), 404
-    
-        # 删除物理文件
-        file_path = os.path.join(UPLOAD_FOLDER, row['file_path'])
-        if os.path.exists(file_path):
-            os.remove(file_path)
-    
-        # 删除数据库记录
-        c.execute('DELETE FROM project_documents WHERE id = %s', (doc_id,))
-        conn.commit()
-        conn.close()
-    
-        return jsonify({
-            'success': True,
-            'message': '文档已删除'
-        })
-    
-    except Exception as e:
-        logger.error(f"删除项目文档失败: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-@app.route('/api/projects/<int:project_id>/document/<int:doc_id>', methods=['PUT'])
-@app.route('/api/projects/<int:project_id>/documents/<int:doc_id>', methods=['PUT'])
-def update_project_document(project_id, doc_id):
-    """更新项目文档信息（仅元数据，不包括文件本身）"""
-    try:
-        data = request.get_json()
-    
-        # 检查项目是否存在
-        conn = get_db()
-        c = conn.cursor()
-        c.execute('SELECT id FROM projects WHERE id = %s AND status != "deleted"', (project_id,))
-        if not c.fetchone():
-            conn.close()
-            return jsonify({'success': False, 'error': '项目不存在'}), 404
-    
-        # 检查文档是否存在
-        c.execute('SELECT id FROM project_documents WHERE id = %s AND project_id = %s', (doc_id, project_id))
-        if not c.fetchone():
-            conn.close()
-            return jsonify({'success': False, 'error': '文档不存在'}), 404
-    
-        # 允许更新的字段
-        allowed_fields = ['description']
-        updates = {k: v for k, v in data.items() if k in allowed_fields}
-    
-        if not updates:
-            conn.close()
-            return jsonify({'success': False, 'error': '没有要更新的字段'}), 400
-    
-        # 构建更新语句
-        set_clause = ', '.join([f"{k} = %s" for k in updates.keys()])
-        set_clause += ", updated_at = NOW()"
-        values = list(updates.values()) + [doc_id]
-    
-        c.execute(f'UPDATE project_documents SET {set_clause} WHERE id = %s', values)
-        conn.commit()
-        conn.close()
-    
-        return jsonify({
-            'success': True,
-            'message': '文档信息已更新'
-        })
-    
-    except Exception as e:
-        logger.error(f"更新项目文档失败: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
-
 # ============================================
 # 任务 API
 # ============================================
 
-@app.route('/api/tasks/', methods=['GET'])
-@app.route('/api/tasks', methods=['GET'])
-def get_tasks():
-    # 添加排序支持
-    sort_field = request.args.get('sort_field', 'created_at')
-    sort_order = request.args.get('sort_order', 'desc')
-    
-    # 允许的排序字段
-    allowed_sort_fields = ['created_at', 'due_date', 'priority', 'status', 'title']
-    if sort_field not in allowed_sort_fields:
-        sort_field = 'created_at'
-    if sort_order not in ['asc', 'desc']:
-        sort_order = 'desc'
-    
-    # 添加分页支持
-    """获取任务列表"""
-    status = request.args.get('status', '')
-    project_id = request.args.get('project_id', '')
-
-    conn = get_db()
-    c = conn.cursor()
-
-    project_status = request.args.get('project_status', '')
-
-    query = '''
-        SELECT t.*, p.name as project_name, p.number as project_number, p.status as project_status
-        FROM tasks t
-        LEFT JOIN projects p ON t.project_id = p.id
-        WHERE t.status != 'deleted'
-    '''
-    params = []
-
-    if status:
-        query += ' AND t.status = %s'
-        params.append(status)
-
-    if project_id:
-        query += ' AND t.project_id = %s'
-        params.append(project_id)
-
-    if project_status:
-        query += ' AND p.status = %s'
-        params.append(project_status)
-
-    # 添加排序支持
-    sort_field = request.args.get('sort_field', 'created_at')
-    sort_order = request.args.get('sort_order', 'desc')
-    
-    # 允许的排序字段
-    allowed_sort_fields = ['created_at', 'due_date', 'priority', 'status', 'title']
-    if sort_field not in allowed_sort_fields:
-        sort_field = 'created_at'
-    if sort_order not in ['asc', 'desc']:
-        sort_order = 'desc'
-    
-    # 添加分页支持
-    page = request.args.get('page', 1, type=int)
-    per_page = request.args.get('per_page', 50, type=int)
-    per_page = min(per_page, 5000)  # 最大5000条
-    offset = (page - 1) * per_page
-    
-    query += f" ORDER BY t.{sort_field} {sort_order.upper()} LIMIT {per_page} OFFSET {offset}"
-
-    c.execute(query, tuple(params))
-    tasks = [row_to_dict(row, c) for row in c.fetchall()]
-    conn.close()
-
-    return jsonify({'success': True, 'tasks': tasks})
-
-
-
-@app.route('/api/tasks/stats', methods=['GET'])
-def get_tasks_stats():
-    """获取任务统计"""
-    conn = get_db()
-    c = conn.cursor()
-    
-    c.execute("SELECT status, COUNT(*) as count FROM tasks WHERE status != 'deleted' GROUP BY status")
-    
-    stats = {}
-    for row in c.fetchall():
-        row_dict = dict(row)
-        stats[row_dict['status']] = row_dict['count']
-    
-    for s in ['todo', 'pending', 'in_progress', 'pending_review', 'completed', 'failed', 'failed_retryable', 'cancelled', 'archived']:
-        if s not in stats:
-            stats[s] = 0
-    
-    conn.close()
-    return jsonify({"success": True, "stats": stats})
-
-@app.route('/api/tasks', methods=['POST'])
-def create_task():
-    """创建任务"""
-    data = request.get_json()
-    title = data.get('title', '').strip()
-    description = data.get('description', '')
-    project_id = data.get('project_id')
-    priority = data.get('priority', 'medium')
-
-    if not title:
-        return jsonify({'success': False, 'error': '任务标题不能为空'}), 400
-
-    conn = get_db()
-    c = conn.cursor()
-
-    # 生成任务编号
-    c.execute("SELECT COUNT(*) FROM tasks")
-    count = list(c.fetchone().values())[0] + 1
-    number = f"T{count:03d}"
-
-    c.execute('''
-        INSERT INTO tasks (number, title, description, project_id, status, priority, created_at, updated_at)
-        VALUES (%s, %s, %s, %s, 'todo', %s, NOW(), NOW())
-    ''', (number, title, description, project_id, priority))
-
-    task_id = c.lastrowid
-    conn.commit()
-
-    # Fetch the created task for WebSocket emit
-    c.execute('SELECT id, number, title, description, project_id, status, priority, assignee_id, due_date, tags, created_at, updated_at FROM tasks WHERE id = %s', (task_id,))
-    task_data = c.fetchone()
-    conn.close()
-
-    # WebSocket: emit task_created
-    if project_id:
-        try:
-            from websocket.index import get_socketio_instance
-            socketio = get_socketio_instance()
-            if socketio:
-                task_dict = {
-                    'id': task_data['id'],
-                    'number': task_data['number'],
-                    'title': task_data['title'],
-                    'description': task_data['description'],
-                    'project_id': task_data['project_id'],
-                    'status': task_data['status'],
-                    'priority': task_data['priority'],
-                    'assignee_id': task_data.get('assignee_id'),
-                    'due_date': str(task_data.get('due_date', '')) if task_data.get('due_date') else None,
-                    'tags': task_data.get('tags'),
-                    'created_at': str(task_data.get('created_at', '')),
-                    'updated_at': str(task_data.get('updated_at', '')),
-                }
-                socketio.emit('task_created', {
-                    'task': task_dict,
-                    'project_id': project_id
-                }, room=f'project:{project_id}')
-                logger.info(f"📡 WebSocket emit: task_created (task_id={task_id}, project_id={project_id})")
-        except Exception as e:
-            logger.warning(f"⚠️ WebSocket emit failed (task_created): {e}")
-
-    return jsonify({'success': True, 'task_id': task_id, 'number': number})
-
-@app.route('/api/tasks/<int:task_id>', methods=['PUT'])
-def update_task(task_id):
-    """更新任务"""
-    data = request.get_json()
-
-    allowed_fields = ['title', 'description', 'status', 'priority', 'project_id', 'due_date', 'tags', 'result_summary',
-                     'conclusion_type', 'conclusion_passed', 'conclusion_execute', 'conclusion_audit_content']
-    updates = {k: v for k, v in data.items() if k in allowed_fields}
-
-    if not updates:
-        return jsonify({'success': False, 'error': '没有要更新的字段'}), 400
-
-    conn = get_db()
-    c = conn.cursor()
-
-    # Fetch original task state for WebSocket changes diff
-    c.execute('SELECT * FROM tasks WHERE id = %s', (task_id,))
-    original_task = c.fetchone()
-    original_project_id = original_task['project_id'] if original_task else None
-
-    set_clause = ', '.join([f"{k} = %s" for k in updates.keys()])
-    set_clause += ", updated_at = NOW()"
-    values = list(updates.values()) + [task_id]
-
-    c.execute(f'UPDATE tasks SET {set_clause} WHERE id = %s', values)
-    conn.commit()
-
-    # Fetch updated task for WebSocket emit
-    c.execute('SELECT id, number, title, description, project_id, status, priority, assignee_id, due_date, tags, created_at, updated_at FROM tasks WHERE id = %s', (task_id,))
-    updated_task = c.fetchone()
-    conn.close()
-
-    # Build changes dict
-    changes_dict = {k: {'old': str(original_task.get(k)) if original_task and k in original_task else None, 'new': str(v)} for k, v in updates.items()}
-
-    # WebSocket: emit task_updated
-    emit_project_id = updates.get('project_id', original_project_id)
-    if emit_project_id:
-        try:
-            from websocket.index import get_socketio_instance
-            socketio = get_socketio_instance()
-            if socketio:
-                task_dict = {
-                    'id': updated_task['id'],
-                    'number': updated_task['number'],
-                    'title': updated_task['title'],
-                    'description': updated_task['description'],
-                    'project_id': updated_task['project_id'],
-                    'status': updated_task['status'],
-                    'priority': updated_task['priority'],
-                    'assignee_id': updated_task.get('assignee_id'),
-                    'due_date': str(updated_task.get('due_date', '')) if updated_task.get('due_date') else None,
-                    'tags': updated_task.get('tags'),
-                    'created_at': str(updated_task.get('created_at', '')),
-                    'updated_at': str(updated_task.get('updated_at', '')),
-                } if updated_task else None
-                socketio.emit('task_updated', {
-                    'task': task_dict,
-                    'changes': changes_dict,
-                    'project_id': emit_project_id
-                }, room=f'project:{emit_project_id}')
-                logger.info(f"📡 WebSocket emit: task_updated (task_id={task_id}, project_id={emit_project_id})")
-        except Exception as e:
-            logger.warning(f"⚠️ WebSocket emit failed (task_updated): {e}")
-
-    return jsonify({'success': True})
-
-@app.route('/api/tasks/<int:task_id>', methods=['DELETE'])
-def delete_task(task_id):
-    """删除任务"""
-    conn = get_db()
-    c = conn.cursor()
-    
-    # Fetch task project_id before soft delete
-    c.execute('SELECT project_id FROM tasks WHERE id = %s', (task_id,))
-    row = c.fetchone()
-    project_id = row['project_id'] if row else None
-
-    c.execute('UPDATE tasks SET status = %s WHERE id = %s', ('deleted', task_id))
-    conn.commit()
-    conn.close()
-
-    # WebSocket: emit task_deleted
-    if project_id:
-        try:
-            from websocket.index import get_socketio_instance
-            socketio = get_socketio_instance()
-            if socketio:
-                socketio.emit('task_deleted', {
-                    'task_id': task_id,
-                    'project_id': project_id
-                }, room=f'project:{project_id}')
-                logger.info(f"📡 WebSocket emit: task_deleted (task_id={task_id}, project_id={project_id})")
-        except Exception as e:
-            logger.warning(f"⚠️ WebSocket emit failed (task_deleted): {e}")
-
-    return jsonify({'success': True})
-
-@app.route('/api/tasks/<int:task_id>/review', methods=['POST'])
-def review_task(task_id):
-    """审核任务 - 通过/驳回/要求修改/跳过"""
-    data = request.get_json() or {}
-    action = data.get('action')
-    feedback = data.get('feedback', '')
-    created_by = data.get('created_by', 'user')
-    
-    if action not in ['approve', 'reject', 'feedback', 'skip']:
-        return jsonify({'success': False, 'error': '无效的操作类型'}), 400
-    
-    # 状态映射
-    status_map = {
-        'approve': 'completed',
-        'reject': 'pending',
-        'feedback': 'review_feedback',
-        'skip': 'pending_review'
-    }
-    new_status = status_map[action]
-    
-    conn = get_db()
-    c = conn.cursor()
-    
-    # 检查任务是否存在
-    c.execute('SELECT status, review_round FROM tasks WHERE id = %s', (task_id,))
-    task = c.fetchone()
-    if not task:
-        conn.close()
-        return jsonify({'success': False, 'error': '任务不存在'}), 404
-    
-    # 获取当前轮次
-    current_round = task.get('review_round', 0) or 0
-    new_round = current_round + 1 if action == 'feedback' else current_round
-    
-    # 更新任务状态
-    if action == 'feedback':
-        c.execute('''UPDATE tasks 
-                     SET status = %s, 
-                         review_round = %s,
-                         review_feedback = %s,
-                         review_status = %s,
-                         updated_at = NOW() 
-                     WHERE id = %s''', 
-                  (new_status, new_round, feedback, 'awaiting_revision', task_id))
-    else:
-        c.execute('''UPDATE tasks 
-                     SET status = %s,
-                         review_status = %s,
-                         updated_at = NOW() 
-                     WHERE id = %s''', 
-                  (new_status, action, task_id))
-    
-    # 记录审核历史
-    c.execute('''INSERT INTO task_review_history 
-                 (task_id, round_number, action, feedback, created_by, created_at)
-                 VALUES (%s, %s, %s, %s, %s, NOW())''',
-              (task_id, new_round if action == 'feedback' else current_round, 
-               action, feedback, created_by))
-    
-    conn.commit()
-    
-    # 获取历史记录
-    c.execute('''SELECT id, round_number, action, feedback, created_by, created_at 
-                 FROM task_review_history 
-                 WHERE task_id = %s 
-                 ORDER BY created_at DESC''', (task_id,))
-    history = []
-    for row in c.fetchall():
-        history.append({
-            'id': row['id'],
-            'round_number': row['round_number'],
-            'action': row['action'],
-            'feedback': row['feedback'],
-            'created_by': row['created_by'],
-            'created_at': row['created_at'].isoformat() if row['created_at'] else None
-        })
-    
-    conn.close()
-    
-    action_labels = {'approve': '通过', 'reject': '驳回', 'feedback': '要求修改', 'skip': '跳过'}
-    return jsonify({
-        'success': True, 
-        'message': f'任务已{action_labels[action]}',
-        'task_id': task_id,
-        'new_status': new_status,
-        'review_round': new_round,
-        'history': history
-    })
-
-@app.route('/api/tasks/<int:task_id>/review-history', methods=['GET'])
-def get_review_history(task_id):
-    """获取任务审核历史"""
-    conn = get_db()
-    c = conn.cursor()
-    
-    # 检查任务是否存在
-    c.execute('SELECT id FROM tasks WHERE id = %s', (task_id,))
-    if not c.fetchone():
-        conn.close()
-        return jsonify({'success': False, 'error': '任务不存在'}), 404
-    
-    # 获取历史记录
-    c.execute('''SELECT id, round_number, action, feedback, created_by, created_at 
-                 FROM task_review_history 
-                 WHERE task_id = %s 
-                 ORDER BY created_at DESC''', (task_id,))
-    history = []
-    for row in c.fetchall():
-        history.append({
-            'id': row['id'],
-            'round_number': row['round_number'],
-            'action': row['action'],
-            'feedback': row['feedback'],
-            'created_by': row['created_by'],
-            'created_at': row['created_at'].isoformat() if row['created_at'] else None
-        })
-    
-    conn.close()
-    
-    return jsonify({
-        'success': True,
-        'task_id': task_id,
-        'history': history,
-        'total': len(history)
-    })
-
-@app.route('/api/tasks/bulk-review', methods=['POST'])
-def bulk_review_tasks():
-    """批量审核任务"""
-    data = request.get_json() or {}
-    task_ids = data.get('task_ids', [])
-    action = data.get('action')
-    
-    if not task_ids or action not in ['approve', 'reject']:
-        return jsonify({'success': False, 'error': '无效的请求参数'}), 400
-    
-    status_map = {
-        'approve': 'completed',
-        'reject': 'pending'
-    }
-    new_status = status_map[action]
-    
-    conn = get_db()
-    c = conn.cursor()
-    
-    updated = 0
-    failed = 0
-    
-    for task_id in task_ids:
-        try:
-            c.execute('UPDATE tasks SET status = %s, updated_at = NOW() WHERE id = %s AND status = "pending_review"', 
-                      (new_status, task_id))
-            if c.rowcount > 0:
-                updated += 1
-            else:
-                failed += 1
-        except Exception:
-            failed += 1
-    
-    conn.commit()
-    conn.close()
-    
-    action_labels = {'approve': '通过', 'reject': '驳回'}
-    return jsonify({
-        'success': True,
-        'message': f'批量{action_labels[action]}完成',
-        'updated': updated,
-        'failed': failed
-    })
-
-@app.route('/api/tasks/<int:task_id>/history', methods=['GET'])
-def get_task_history(task_id):
-    """获取任务执行历史和齿轮执行详情"""
-    conn = get_db()
-    c = conn.cursor()
-
-    # 检查任务是否存在
-    c.execute('SELECT id FROM tasks WHERE id = %s AND status != "deleted"', (task_id,))
-    if not c.fetchone():
-        conn.close()
-        return jsonify({'success': False, 'error': '任务不存在'}), 404
-
-    # 获取执行历史（从task_history表或类似表）
-    # 如果没有专门的表，创建模拟数据
-    try:
-        c.execute('''
-            SELECT id, task_id, action, details, created_at, performed_by
-            FROM task_history
-            WHERE task_id = %s
-            ORDER BY created_at DESC
-        ''', (task_id,))
-        history = [row_to_dict(row, c) for row in c.fetchall()]
-    except:
-        history = []
-
-    # 获取齿轮执行详情
-    try:
-        c.execute('''
-            SELECT id, task_id, gear_name, status, output, started_at, completed_at
-            FROM gear_executions
-            WHERE task_id = %s
-            ORDER BY started_at DESC
-        ''', (task_id,))
-        gear_executions = [row_to_dict(row, c) for row in c.fetchall()]
-    except:
-        gear_executions = []
-
-    conn.close()
-
-    # 如果没有历史记录，生成一些模拟数据
-    if not history and not gear_executions:
-        from datetime import timedelta
-        now = datetime.now()
-        history = [
-            {
-                'id': 1,
-                'task_id': task_id,
-                'action': '任务创建',
-                'details': '系统自动创建任务',
-                'created_at': (now - timedelta(days=2)).isoformat(),
-                'performed_by': 'system'
-            },
-            {
-                'id': 2,
-                'task_id': task_id,
-                'action': '状态更新',
-                'details': '任务状态更新为进行中',
-                'created_at': (now - timedelta(days=1)).isoformat(),
-                'performed_by': 'admin'
-            }
-        ]
-
-    return jsonify({
-        'success': True,
-        'history': history,
-        'gear_executions': gear_executions
-    })
-
-@app.route('/api/projects/<int:project_id>/tasks', methods=['GET'])
-@app.route('/api/projects/<int:project_id>/task', methods=['GET'])
-def get_project_tasks(project_id):
-    """获取项目关联的任务列表"""
-    with get_db() as conn:
-        c = conn.cursor()
-
-        # 检查项目是否存在
-        c.execute('SELECT id FROM projects WHERE id = %s AND status != "deleted"', (project_id,))
-        if not c.fetchone():
-            return jsonify({'success': False, 'error': '项目不存在'}), 404
-
-        # 获取项目任务
-        c.execute('''
-            SELECT id, title, status, priority, created_at, updated_at, task_type, description, project_id, (SELECT name FROM projects WHERE projects.id = tasks.project_id) as project_name, (SELECT number FROM projects WHERE projects.id = tasks.project_id) as project_number
-            FROM tasks
-            WHERE project_id = %s AND status != 'deleted'
-            ORDER BY 
-                CASE status
-                    WHEN 'progress' THEN 1
-                    WHEN 'todo' THEN 2
-                    WHEN 'done' THEN 3
-                    ELSE 4
-                END,
-                created_at DESC
-        ''', (project_id,))
-
-        tasks = [row_to_dict(row, c) for row in c.fetchall()]
-
-    return jsonify({
-        'success': True,
-        'tasks': tasks,
-        'count': len(tasks)
-    })
-
 # ============================================
 # 统计 API
 # ============================================
-
-@app.route('/api/stats/', methods=['GET'])
-@app.route('/api/stats', methods=['GET'])
-def get_stats():
-    """获取统计数据"""
-    conn = get_db()
-    c = conn.cursor()
-
-    # 项目统计
-    c.execute('SELECT COUNT(*) FROM projects WHERE status != "deleted"')
-    project_count = list(c.fetchone().values())[0]
-
-    # 任务统计
-    c.execute('SELECT COUNT(*) FROM tasks WHERE status != "deleted"')
-    task_count = list(c.fetchone().values())[0]
-
-    c.execute("SELECT COUNT(*) FROM tasks WHERE status = 'done'")
-    completed_count = list(c.fetchone().values())[0]
-
-    c.execute("SELECT COUNT(*) FROM tasks WHERE status = 'progress'")
-    in_progress_count = list(c.fetchone().values())[0]
-
-    # 股票统计
-    c.execute('SELECT COUNT(*) FROM stocks')
-    stock_count = list(c.fetchone().values())[0]
-
-    conn.close()
-
-    return jsonify({
-        'success': True,
-        'stats': {
-            'projects': project_count,
-            'tasks': {
-                'total': task_count,
-                'done': completed_count,
-                'progress': in_progress_count,
-                'todo': task_count - completed_count - in_progress_count
-            },
-            'stocks': stock_count
-        }
-    })
 
 # ============================================
 # 本地文件索引 API
@@ -1389,180 +500,12 @@ def get_stats():
 
 from file_indexer import scan_workspace
 
-@app.route('/api/files/index', methods=['GET'])
-def get_file_index():
-    """获取本地workspace文件索引"""
-    try:
-        result = scan_workspace()
-        return jsonify({'success': True, **result})
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})
-
-@app.route('/api/files/content/<path:filepath>', methods=['GET'])
-def get_file_content(filepath):
-    """获取文件内容"""
-    try:
-        workspace_path = '/opt/kanban-react/Files'
-        full_path = os.path.join(workspace_path, filepath)
-    
-        # 安全检查：确保文件在workspace内
-        if not full_path.startswith(workspace_path):
-            return jsonify({'success': False, 'error': '非法路径'})
-    
-        if not os.path.exists(full_path):
-            return jsonify({'success': False, 'error': '文件不存在'})
-    
-        # 限制文件大小
-        if os.path.getsize(full_path) > 1024 * 1024:  # 1MB
-            return jsonify({'success': False, 'error': '文件过大'})
-    
-        with open(full_path, 'r', encoding='utf-8', errors='ignore') as f:
-            content = f.read()
-    
-        return jsonify({'success': True, 'content': content})
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})
-
 # ============================================
 # 任务附件管理 API
 # ============================================
 
 # 上传目录配置
 UPLOAD_DIR = "/opt/kanban-react/backend/uploads"
-
-@app.route('/api/tasks/<int:task_id>/attachments', methods=['GET'])
-def get_task_attachments(task_id):
-    """获取任务附件列表"""
-    try:
-        conn = get_db()
-        cursor = conn.cursor()
-        
-        cursor.execute("""
-            SELECT id, entity_type, entity_id, filename, url, size, file_type, created_at
-            FROM attachments
-            WHERE entity_type = 'task' AND entity_id = %s
-            ORDER BY created_at DESC
-        """, (task_id,))
-        
-        attachments = cursor.fetchall()
-        cursor.close()
-        conn.close()
-        
-        return jsonify({'success': True, 'attachments': attachments})
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-@app.route('/api/tasks/<int:task_id>/attachments/upload', methods=['POST'])
-def upload_task_attachment(task_id):
-    """上传任务附件"""
-    try:
-        if 'file' not in request.files:
-            return jsonify({'success': False, 'error': 'No file part'}), 400
-        
-        file = request.files['file']
-        if file.filename == '':
-            return jsonify({'success': False, 'error': 'No selected file'}), 400
-        
-        # 确保上传目录存在
-        if not os.path.exists(UPLOAD_DIR):
-            os.makedirs(UPLOAD_DIR, exist_ok=True)
-        
-        # 生成安全的文件名（添加时间戳避免冲突）
-        original_filename = file.filename
-        name, ext = os.path.splitext(original_filename)
-        timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
-        safe_filename = f"{timestamp}_{name}{ext}"
-        file_path = os.path.join(UPLOAD_DIR, "docs", safe_filename)
-        
-        # 保存文件
-        file.save(file_path)
-        file_size = os.path.getsize(file_path)
-        file_type = ext.lstrip('.').lower() if ext else 'unknown'
-        
-        # 获取文件URL
-        url = f"/uploads/docs/{safe_filename}"
-        
-        # 写入数据库
-        conn = get_db()
-        cursor = conn.cursor()
-        
-        cursor.execute("""
-            INSERT INTO attachments (entity_type, entity_id, filename, url, size, file_type, created_at)
-            VALUES (%s, %s, %s, %s, %s, %s, %s)
-        """, ('task', task_id, original_filename, url, file_size, file_type, datetime.now()))
-        
-        conn.commit()
-        attachment_id = cursor.lastrowid
-        
-        cursor.execute("""
-            SELECT id, entity_type, entity_id, filename, url, size, file_type, created_at
-            FROM attachments WHERE id = %s
-        """, (attachment_id,))
-        
-        attachment = cursor.fetchone()
-        cursor.close()
-        conn.close()
-        
-        return jsonify({
-            'success': True,
-            'message': 'File uploaded successfully',
-            'attachment': attachment
-        })
-    except Exception as e:
-        logger.error(f"Failed to upload attachment: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-@app.route('/api/tasks/<int:task_id>/attachments/edit', methods=['POST'])
-def edit_task_attachment(task_id):
-    """编辑任务附件内容"""
-    try:
-        data = request.json
-        filename = data.get('filename')
-        content = data.get('content')
-        
-        if not filename or content is None:
-            return jsonify({'success': False, 'error': 'Missing filename or content'}), 400
-        
-        # 查找附件记录
-        conn = get_db()
-        cursor = conn.cursor()
-        
-        cursor.execute("""
-            SELECT url FROM attachments
-            WHERE entity_type = 'task' AND entity_id = %s AND filename = %s
-        """, (task_id, filename))
-        
-        attachment = cursor.fetchone()
-        if not attachment:
-            return jsonify({'success': False, 'error': 'Attachment not found'}), 404
-        
-        # 提取文件路径
-        file_path = attachment['url'].replace('/uploads/', '/opt/kanban-react/frontend/public/uploads/')
-        
-        # 确保目录存在
-        file_dir = os.path.dirname(file_path)
-        if not os.path.exists(file_dir):
-            os.makedirs(file_dir, exist_ok=True)
-        
-        # 保存文件内容
-        with open(file_path, 'w', encoding='utf-8') as f:
-            f.write(content)
-        
-        # 更新文件大小
-        new_size = os.path.getsize(file_path)
-        cursor.execute("""
-            UPDATE attachments SET size = %s
-            WHERE entity_type = 'task' AND entity_id = %s AND filename = %s
-        """, (new_size, task_id, filename))
-        
-        conn.commit()
-        cursor.close()
-        conn.close()
-        
-        return jsonify({'success': True, 'message': 'File saved successfully'})
-    except Exception as e:
-        logger.error(f"Failed to edit attachment: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
 
 # ============================================
 # 静态文件服务
@@ -1619,26 +562,7 @@ def health_check():
 # 体检数据 API
 # ============================================
 
-@app.route('/api/health/checkups', methods=['GET'])
-def get_health_checkups():
-    """获取体检数据列表"""
-    try:
-        conn = get_db()
-        c = conn.cursor()
-        c.execute('''
-            SELECT id, person_name, checkup_date, hospital, age, height, weight,
-                   blood_pressure_sys, blood_pressure_dia, heart_rate, lvef,
-                   lung_capacity, vision_right, vision_left, hemoglobin, dc_value,
-                   checkup_items, notes, created_at
-            FROM health_checkups
-            ORDER BY checkup_date DESC
-        ''')
-        checkups = [row_to_dict(row, c) for row in c.fetchall()]
-        conn.close()
-        return jsonify({'success': True, 'checkups': checkups})
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})
-
+    # Routes moved to routes/health.py
 @app.route('/api/health/checkups/latest', methods=['GET'])
 def get_latest_health_checkup():
     """获取最新体检数据摘要"""
@@ -1680,24 +604,7 @@ def get_latest_health_checkup():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
 
-@app.route('/api/health/records', methods=['GET'])
-def get_health_records():
-    """获取日常健康记录"""
-    try:
-        conn = get_db()
-        c = conn.cursor()
-        c.execute('''
-            SELECT id, record_date, weight, sleep_hours, exercise_minutes,
-                   water_intake, mood, notes, created_at
-            FROM health_records
-            ORDER BY record_date DESC
-        ''')
-        records = [row_to_dict(row, c) for row in c.fetchall()]
-        conn.close()
-        return jsonify({'success': True, 'records': records})
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})
-
+    # Routes moved to routes/health.py
 @app.route('/api/health/records', methods=['POST'])
 def add_health_record():
     """添加日常健康记录"""
@@ -1726,33 +633,7 @@ def add_health_record():
         return jsonify({'success': False, 'error': str(e)})
 
 
-@app.route('/api/health/checkups', methods=['POST'])
-def add_health_checkup():
-    """添加体检记录"""
-    try:
-        data = request.get_json()
-        conn = get_db()
-        c = conn.cursor()
-        c.execute('''
-            INSERT INTO health_checkups (checkup_date, hospital, checkup_items, notes)
-            VALUES (%s, %s, %s, %s)
-        ''', (
-            data.get('checkup_date'),
-            data.get('hospital'),
-            data.get('checkup_items'),
-            data.get('notes')
-        ))
-        conn.commit()
-        checkup_id = c.lastrowid
-        conn.close()
-        return jsonify({'success': True, 'id': checkup_id})
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})
-
-# ============================================
-# 公司信息 API
-# ============================================
-
+    # Routes moved to routes/health.py
 @app.route('/api/company-info/companies', methods=['GET'])
 def get_companies():
     """获取公司列表"""
@@ -1795,24 +676,7 @@ def get_company_detail(company_id):
 # ============================================
 
 @app.route('/api/cron/jobs', methods=['GET'])
-@app.route('/api/cron/tasks', methods=['GET'])
-def get_cron_tasks():
-    """获取所有Cron任务"""
-    try:
-        conn = get_db()
-        c = conn.cursor()
-        c.execute('''
-            SELECT id, name, description, schedule, command, status, 
-                   last_run, next_run, fail_count, created_at
-            FROM cron_tasks 
-            ORDER BY created_at DESC
-        ''')
-        tasks = [row_to_dict(row, c) for row in c.fetchall()]
-        conn.close()
-        return jsonify({'success': True, 'tasks': tasks})
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})
-
+    # Routes moved to routes/cron.py
 @app.route('/api/cron/stats', methods=['GET'])
 def get_cron_stats():
     """获取Cron统计"""
@@ -1843,23 +707,7 @@ def get_cron_stats():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
 
-@app.route('/api/cron/add', methods=['POST'])
-def add_cron_task():
-    """添加Cron任务"""
-    try:
-        data = request.get_json()
-        conn = get_db()
-        c = conn.cursor()
-        c.execute('''
-            INSERT INTO cron_tasks (name, description, schedule, command, status, created_at)
-            VALUES (%s, %s, %s, %s, 'active', NOW())
-        ''', (data.get('name'), data.get('description'), data.get('schedule'), data.get('command')))
-        conn.commit()
-        conn.close()
-        return jsonify({'success': True})
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})
-
+    # Routes moved to routes/cron.py
 @app.route('/api/cron/delete/<int:task_id>', methods=['POST'])
 def delete_cron_task(task_id):
     """删除Cron任务"""
@@ -1873,41 +721,7 @@ def delete_cron_task(task_id):
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
 
-@app.route('/api/cron/tasks/<int:task_id>', methods=['PUT'])
-def update_cron_task(task_id):
-    """更新Cron任务"""
-    try:
-        data = request.get_json()
-    
-        conn = get_db()
-        c = conn.cursor()
-    
-        # 检查任务是否存在
-        c.execute('SELECT id FROM cron_tasks WHERE id = %s', (task_id,))
-        if not c.fetchone():
-            conn.close()
-            return jsonify({'success': False, 'error': '任务不存在'})
-    
-        # 构建更新字段
-        allowed_fields = ['name', 'description', 'schedule', 'command', 'status']
-        updates = {k: v for k, v in data.items() if k in allowed_fields}
-    
-        if not updates:
-            conn.close()
-            return jsonify({'success': False, 'error': '没有要更新的字段'})
-    
-        # 构建SQL
-        set_clause = ', '.join([f"{k} = %s" for k in updates.keys()])
-        values = list(updates.values()) + [task_id]
-    
-        c.execute(f'UPDATE cron_tasks SET {set_clause} WHERE id = %s', values)
-        conn.commit()
-        conn.close()
-    
-        return jsonify({'success': True})
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})
-
+    # Routes moved to routes/cron.py
 @app.route('/api/cron/history', methods=['GET'])
 def get_cron_history():
     """获取Cron执行历史"""
@@ -1931,362 +745,16 @@ def get_cron_history():
 # 股票 API
 # ============================================
 
-@app.route('/api/stocks', methods=['GET'])
-def get_stocks():
-    """获取所有股票"""
-    try:
-        conn = get_db()
-        c = conn.cursor()
-        c.execute('''
-            SELECT id, symbol as code, name, market as type, shares, 
-                   avg_cost as cost_price, current_price,
-                   (shares * current_price) as market_value,
-                   CASE WHEN avg_cost > 0 
-                        THEN ((current_price - avg_cost) / avg_cost * 100) 
-                        ELSE 0 END as return_rate
-            FROM stocks
-            ORDER BY market, symbol
-        ''')
-        stocks = [row_to_dict(row, c) for row in c.fetchall()]
-        conn.close()
-        return jsonify({'success': True, 'stocks': stocks})
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})
-
-@app.route('/api/stock-fund-links', methods=['GET'])
-def get_stock_fund_links():
-    """获取股票基金关联"""
-    try:
-        conn = get_db()
-        c = conn.cursor()
-        c.execute('''
-            SELECT * FROM stock_fund_links
-            ORDER BY correlation DESC
-        ''')
-        links = [row_to_dict(row, c) for row in c.fetchall()]
-        conn.close()
-        return jsonify({'success': True, 'links': links})
-    except Exception as e:
-        return jsonify({'success': True, 'links': []})
-
-@app.route('/api/stocks/<symbol>', methods=['GET'])
-def get_stock_detail(symbol):
-    """获取股票详情"""
-    try:
-        conn = get_db()
-        c = conn.cursor()
-        c.execute('SELECT * FROM stocks WHERE symbol = %s', (symbol,))
-        stock = c.fetchone()
-    
-        # 获取历史价格（使用total_value代替close_price）
-        c.execute('''
-            SELECT date, total_value as value FROM stock_history
-            ORDER BY date DESC
-            LIMIT 30
-        ''')
-        history = [row_to_dict(row, c) for row in c.fetchall()]
-    
-        conn.close()
-    
-        if stock:
-            return jsonify({
-                'success': True,
-                'stock': dict(stock),
-                'history': history
-            })
-        return jsonify({'success': False, 'error': '股票不存在'})
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})
-
-@app.route('/api/stocks/stats', methods=['GET'])
-def get_stock_stats():
-    """获取股票统计"""
-    try:
-        conn = get_db()
-        c = conn.cursor()
-    
-        c.execute('SELECT SUM(shares * avg_cost) FROM stocks')
-        total_cost = list(c.fetchone().values())[0] or 0
-    
-        c.execute('SELECT SUM(shares * current_price) FROM stocks')
-        total_value = list(c.fetchone().values())[0] or 0
-    
-        total_profit = total_value - total_cost
-        total_return = (total_profit / total_cost * 100) if total_cost > 0 else 0
-    
-        conn.close()
-    
-        return jsonify({
-            'success': True,
-            'total_value': total_value,
-            'total_cost': total_cost,
-            'total_profit': total_profit,
-            'total_return': total_return
-        })
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})
-
-@app.route('/api/stocks/portfolio', methods=['GET'])
-def get_stock_portfolio():
-    """获取投资组合（兼容前端调用）"""
-    try:
-        conn = get_db()
-        c = conn.cursor()
-    
-        # 获取持仓列表
-        c.execute('''
-            SELECT id, symbol, name, market, shares, 
-                   avg_cost, current_price,
-                   (shares * current_price) as market_value,
-                   ((current_price - avg_cost) * shares) as profit_loss
-            FROM stocks
-            WHERE shares > 0
-            ORDER BY market, symbol
-        ''')
-        holdings = [row_to_dict(row, c) for row in c.fetchall()]
-    
-        # 计算统计
-        c.execute('SELECT SUM(shares * avg_cost) FROM stocks')
-        total_cost = list(c.fetchone().values())[0] or 0
-    
-        c.execute('SELECT SUM(shares * current_price) FROM stocks')
-        total_value = list(c.fetchone().values())[0] or 0
-    
-        total_profit = total_value - total_cost
-        total_return = (total_profit / total_cost * 100) if total_cost > 0 else 0
-    
-        conn.close()
-    
-        return jsonify({
-            'success': True,
-            'holdings': holdings,
-            'summary': {
-                'total_value': total_value,
-                'total_cost': total_cost,
-                'total_profit': total_profit,
-                'total_return': total_return,
-                'holdings_count': len(holdings)
-            }
-        })
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})
-
 # ============================================
 # 手动审核 API
 # ============================================
 
-@app.route('/api/manual-review/tasks', methods=['GET'])
-def get_manual_review_tasks():
-    """获取手动审核任务"""
-    try:
-        conn = get_db()
-        c = conn.cursor()
-        c.execute('''
-            SELECT id, original_task_id, title, description, source, status, priority,
-                   completion_notes as notes, created_at, completed_at
-            FROM manual_review_tasks
-            ORDER BY created_at DESC
-        ''')
-        tasks = [row_to_dict(row, c) for row in c.fetchall()]
-        conn.close()
-        return jsonify({'success': True, 'tasks': tasks})
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})
-
-@app.route('/api/manual-review/tasks/<int:task_id>/complete', methods=['POST'])
-def complete_manual_review_task(task_id):
-    """完成审核任务 - 同时更新关联任务的audit_status"""
-    try:
-        data = request.get_json()
-        approved = data.get('approved', False)
-        notes = data.get('notes', '')
-    
-        conn = get_db()
-        c = conn.cursor()
-    
-        # 1. 获取关联的原始任务ID
-        c.execute('SELECT original_task_id FROM manual_review_tasks WHERE id = %s', (task_id,))
-        row = c.fetchone()
-        original_task_id = row[0] if row else None
-    
-        # 2. 更新审核任务状态
-        c.execute('''
-            UPDATE manual_review_tasks 
-            SET status = %s, completion_notes = %s, completed_at = NOW()
-            WHERE id = %s
-        ''', ('approved' if approved else 'rejected', notes, task_id))
-    
-        # 3. 如果有关联的原始任务，更新其audit_status
-        if original_task_id:
-            audit_status = 'approved' if approved else 'rejected'
-            task_status = 'todo' if approved else 'cancelled'
-            c.execute('''
-                UPDATE tasks 
-                SET audit_status = %s, status = %s, updated_at = NOW()
-                WHERE id = %s
-            ''', (audit_status, task_status, original_task_id))
-    
-        conn.commit()
-        conn.close()
-    
-        return jsonify({
-            'success': True,
-            'message': '任务已' + ('批准' if approved else '拒绝'),
-            'task_id': original_task_id,
-            'audit_status': 'approved' if approved else 'rejected'
-        })
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})
-
 # ============================================
 # 防重复机制：检查是否有未执行的长思考任务
 # ============================================
-def check_pending_long_think(original_task_id: int, long_think_id: str = None) -> bool:
-    """
-    检查指定任务是否有未执行的长思考结果
-    返回: True = 存在未执行的，False = 不存在或都已执行
-    """
-    try:
-        conn = get_db()
-        c = conn.cursor()
-    
-        # 检查是否有相同 original_task_id 且 status='pending' 的长思考任务
-        if long_think_id:
-            c.execute('''
-                SELECT COUNT(*) FROM manual_review_tasks 
-                WHERE original_task_id = %s 
-                AND is_from_long_think = 1 
-                AND long_think_id = %s
-                AND status = 'pending'
-            ''', (original_task_id, long_think_id))
-        else:
-            c.execute('''
-                SELECT COUNT(*) FROM manual_review_tasks 
-                WHERE original_task_id = %s 
-                AND is_from_long_think = 1 
-                AND status = 'pending'
-            ''', (original_task_id,))
-    
-        count = list(c.fetchone().values())[0]
-        conn.close()
-    
-        return count > 0
-    except Exception as e:
-        print(f"[ERROR] check_pending_long_think: {e}")
-        return False
-
-@app.route('/api/manual-review/check-pending', methods=['GET'])
-def check_pending_long_think_api():
-    """API: 检查任务是否有未执行的长思考"""
-    try:
-        task_id = request.args.get('task_id', type=int)
-        long_think_id = request.args.get('long_think_id')
-    
-        if not task_id:
-            return jsonify({'success': False, 'error': '缺少task_id参数'}), 400
-    
-        has_pending = check_pending_long_think(task_id, long_think_id)
-    
-        return jsonify({
-            'success': True, 
-            'has_pending': has_pending,
-            'message': '存在未执行的长思考任务' if has_pending else '没有待执行的长思考任务'
-        })
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})
-
-def create_manual_review_task_with_check(original_task_id: int, title: str, description: str,
-                                         source: str = 'system', priority: str = 'medium',
-                                         suggested_action: str = None, long_think_id: str = None) -> dict:
-    """
-    创建手动审核任务（带防重复检查）
-    如果存在未执行的长思考任务，则不再创建新的
-    """
-    try:
-        conn = get_db()
-        c = conn.cursor()
-    
-        # 如果是长思考产生的任务，检查是否有重复
-        if long_think_id:
-            # 检查是否有相同 original_task_id 且 status='pending' 的长思考任务
-            c.execute('''
-                SELECT id, status FROM manual_review_tasks 
-                WHERE original_task_id = %s 
-                AND is_from_long_think = 1 
-                AND status = 'pending'
-                LIMIT 1
-            ''', (original_task_id,))
-        
-            existing = c.fetchone()
-            if existing:
-                conn.close()
-                return {
-                    'success': False,
-                    'error': 'DUPLICATE_LONG_THINK',
-                    'message': f'任务 {original_task_id} 已存在未执行的长思考结果 (ID: {existing[0]})，请先处理后再生成新的长思考',
-                    'existing_task_id': existing[0]
-                }
-    
-        # 创建新任务
-        c.execute('''
-            INSERT INTO manual_review_tasks 
-            (original_task_id, title, description, status, priority, source, 
-             suggested_action, is_from_long_think, long_think_id, created_at)
-            VALUES (%s, %s, %s, 'pending', %s, %s, %s, %s, %s, NOW())
-        ''', (original_task_id, title, description, priority, source, 
-              suggested_action, 1 if long_think_id else 0, long_think_id))
-    
-        task_id = c.lastrowid
-        conn.commit()
-        conn.close()
-    
-        return {
-            'success': True,
-            'task_id': task_id,
-            'message': '审核任务创建成功'
-        }
-    except Exception as e:
-        return {'success': False, 'error': str(e)}
-
-@app.route('/api/manual-review/tasks/create', methods=['POST'])
-def create_manual_review_task_api():
-    """API: 创建手动审核任务（带防重复）"""
-    try:
-        data = request.get_json()
-        result = create_manual_review_task_with_check(
-            original_task_id=data.get('original_task_id'),
-            title=data.get('title'),
-            description=data.get('description'),
-            source=data.get('source', 'system'),
-            priority=data.get('priority', 'medium'),
-            suggested_action=data.get('suggested_action'),
-            long_think_id=data.get('long_think_id')
-        )
-        return jsonify(result)
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})
-
 # ============================================
 # 技能库 API
 # ============================================
-
-@app.route('/api/skills/', methods=['GET'])
-@app.route('/api/skills', methods=['GET'])
-def get_skills():
-    """获取所有技能"""
-    try:
-        conn = get_db()
-        c = conn.cursor()
-        c.execute('''
-            SELECT id, name, description, category, status, usage_count
-            FROM skills
-            ORDER BY category, name
-        ''')
-        skills = [row_to_dict(row, c) for row in c.fetchall()]
-        conn.close()
-        return jsonify({'success': True, 'skills': skills})
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})
 
 # ============================================
 # 邮件 API
@@ -2294,403 +762,18 @@ def get_skills():
 
         return jsonify({'success': False, 'error': str(e)})
 
-@app.route('/api/emails/<int:email_id>/read', methods=['POST'])
-def mark_email_as_read(email_id):
-    """标记邮件为已读"""
-    try:
-        conn = get_db()
-        c = conn.cursor()
-        c.execute('UPDATE emails SET is_read = 1 WHERE id = %s', (email_id,))
-        conn.commit()
-        conn.close()
-        return jsonify({'success': True, 'message': '邮件已标记为已读'})
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})
-
-@app.route('/api/emails/<int:email_id>', methods=['GET'])
-def get_email_detail(email_id):
-    """获取邮件详情"""
-    try:
-        conn = get_db()
-        c = conn.cursor()
-        c.execute('SELECT * FROM emails WHERE id = %s', (email_id,))
-        email = c.fetchone()
-        conn.close()
-        if email:
-            return jsonify({'success': True, 'email': dict(email)})
-        return jsonify({'success': False, 'error': '邮件不存在'})
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})
-
-@app.route('/api/emails/<int:email_id>', methods=['DELETE'])
-def delete_email(email_id):
-    """删除邮件"""
-    try:
-        conn = get_db()
-        c = conn.cursor()
-        c.execute('DELETE FROM emails WHERE id = %s', (email_id,))
-        conn.commit()
-        conn.close()
-        return jsonify({'success': True, 'message': '邮件已删除'})
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})
-
-@app.route('/api/emails/reply', methods=['POST'])
-def reply_email():
-    """回复邮件"""
-    try:
-        data = request.get_json()
-        # 这里应该调用邮件发送逻辑
-        return jsonify({'success': True, 'message': '回复已发送'})
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})
-
-@app.route('/api/contacts/', methods=['GET'])
-@app.route('/api/contacts', methods=['GET'])
-def get_contacts():
-    """获取通讯录"""
-    try:
-        conn = get_db()
-        c = conn.cursor()
-        c.execute('''
-            SELECT DISTINCT sender, sender_name FROM emails
-            WHERE sender IS NOT NULL
-            ORDER BY sender_name
-        ''')
-        contacts = [row_to_dict(row, c) for row in c.fetchall()]
-        conn.close()
-        return jsonify({'success': True, 'contacts': contacts})
-    except Exception as e:
-        return jsonify({'success': True, 'contacts': []})
-
+    # Routes moved to routes/emails.py
 # ============================================
 # 知识大脑 API
 # ============================================
-
-@app.route('/api/brain/stats', methods=['GET'])
-def get_brain_stats():
-    """获取知识大脑统计"""
-    try:
-        conn = get_db()
-        c = conn.cursor()
-    
-        # 实体统计
-        c.execute('SELECT COUNT(*) FROM entities')
-        entity_count = list(c.fetchone().values())[0]
-    
-        # 关系统计
-        c.execute('SELECT COUNT(*) FROM entity_relationships')
-        relation_count = list(c.fetchone().values())[0]
-    
-        # 实体类型分布
-        c.execute('SELECT entity_type, COUNT(*) FROM entities GROUP BY entity_type')
-        type_distribution = {row[0]: row[1] for row in c.fetchall()}
-    
-        conn.close()
-    
-        return jsonify({
-            'success': True,
-            'stats': {
-                'entities': entity_count,
-                'relationships': relation_count,
-                'types': type_distribution
-            }
-        })
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})
-
-@app.route('/api/brain/nodes', methods=['GET'])
-@app.route('/api/brain/entities', methods=['GET'])
-def get_brain_entities():
-    """获取所有实体"""
-    try:
-        conn = get_db()
-        c = conn.cursor()
-    
-        entity_type = request.args.get('type', '')
-        search = request.args.get('search', '')
-    
-        query = '''
-            SELECT id, name, entity_type, description, metadata, created_at
-            FROM entities
-            WHERE 1=1
-        '''
-        params = []
-    
-        if entity_type:
-            query += ' AND entity_type = %s'
-            params.append(entity_type)
-    
-        if search:
-            query += ' AND name LIKE %s'
-            params.append(f'%{search}%')
-    
-        query += ' ORDER BY created_at DESC LIMIT 2000'
-    
-        c.execute(query, tuple(params))
-        entities = [row_to_dict(row, c) for row in c.fetchall()]
-        conn.close()
-    
-        return jsonify({'success': True, 'entities': entities})
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})
-
-@app.route('/api/brain/entity/<name>', methods=['GET'])
-def get_brain_entity(name):
-    """获取单个实体详情"""
-    try:
-        conn = get_db()
-        c = conn.cursor()
-    
-        # 获取实体信息
-        c.execute('''
-            SELECT id, name, entity_type, description, metadata, created_at
-            FROM entities WHERE name = %s
-        ''', (name,))
-        entity = c.fetchone()
-    
-        if not entity:
-            return jsonify({'success': False, 'error': '实体不存在'})
-    
-        entity_dict = dict(entity)
-    
-        # 获取相关关系
-        c.execute('''
-            SELECT source_entity, target_entity, relation_type, description
-            FROM entity_relationships
-            WHERE source_entity = %s OR target_entity = %s
-        ''', (name, name))
-        relationships = [row_to_dict(row, c) for row in c.fetchall()]
-    
-        entity_dict['relationships'] = relationships
-    
-        conn.close()
-        return jsonify({'success': True, 'entity': entity_dict})
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})
-
-@app.route('/api/brain/relationships', methods=['GET'])
-def get_brain_relationships():
-    """获取所有关系（带实体ID和关联实体）"""
-    try:
-        conn = get_db()
-        c = conn.cursor()
-    
-        # 获取所有实体
-        c.execute('SELECT id, name, entity_type, description, metadata FROM entities')
-        entity_map = {}
-        all_entities = []
-        for row in c.fetchall():
-            entity_map[row['name']] = row['id']
-            all_entities.append({
-                'id': row['id'],
-                'name': row['name'],
-                'entity_type': row['entity_type'],
-                'description': row['description']
-            })
-    
-        # 获取关系数据，并转换为ID
-        c.execute('''
-            SELECT id, source_entity, target_entity, relation_type, description, created_at
-            FROM entity_relationships
-            ORDER BY created_at DESC
-        ''')
-        rows = c.fetchall()
-    
-        relationships = []
-        related_entity_ids = set()
-    
-        for row in rows:
-            source_id = entity_map.get(row['source_entity'])
-            target_id = entity_map.get(row['target_entity'])
-        
-            # 只添加有效的关系（两端实体都存在）
-            if source_id and target_id:
-                relationships.append({
-                    'id': row['id'],
-                    'source_id': source_id,
-                    'target_id': target_id,
-                    'source_name': row['source_entity'],
-                    'target_name': row['target_entity'],
-                    'relation_type': row['relation_type'],
-                    'description': row['description'],
-                    'created_at': row['created_at']
-                })
-                related_entity_ids.add(source_id)
-                related_entity_ids.add(target_id)
-    
-        # 只返回关系涉及的实体（用于网络图显示）
-        related_entities = [e for e in all_entities if e['id'] in related_entity_ids]
-    
-        conn.close()
-    
-        return jsonify({
-            'success': True, 
-            'relationships': relationships,
-            'entities': related_entities
-        })
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})
-
-@app.route('/api/brain/sync', methods=['POST'])
-def sync_brain():
-    """同步知识大脑数据"""
-    try:
-        # 这里可以触发知识图谱重建等操作
-        return jsonify({'success': True, 'message': '同步完成'})
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})
 
 # ============================================
 # 聊天 API
 # ============================================
 
-@app.route('/api/chat/messages', methods=['GET'])
-def get_chat_messages():
-    """获取聊天消息"""
-    try:
-        conn = get_db()
-        c = conn.cursor()
-        # 使用实际的表结构: user_message, bot_reply
-        c.execute('''
-            SELECT id, user_message as message, bot_reply as response, message_type, created_at
-            FROM chat_messages
-            ORDER BY created_at DESC
-            LIMIT 50
-        ''')
-        rows = c.fetchall()
-        messages = []
-        for row in rows:
-            # 创建两条消息: 用户消息和机器人回复
-            messages.append({
-                'id': f"{row['id']}_user",
-                'role': 'user',
-                'content': row['message'],
-                'created_at': row['created_at']
-            })
-            if row['response']:
-                messages.append({
-                    'id': f"{row['id']}_bot",
-                    'role': 'assistant',
-                    'content': row['response'],
-                    'created_at': row['created_at']
-                })
-        conn.close()
-        return jsonify({'success': True, 'messages': messages[::-1]})
-    except Exception as e:
-        # 如果表不存在，返回空列表
-        return jsonify({'success': True, 'messages': []})
-
-@app.route('/api/chat/ask-dudu', methods=['POST'])
-def ask_dudu():
-    """向Dudu提问 - 调用OpenClaw API"""
-    try:
-        data = request.get_json()
-        message = data.get('message', '')
-    
-        # 调用OpenClaw API (通过本地gateway)
-        try:
-            import requests
-            import os
-        
-            # 从环境变量或配置获取OpenClaw Gateway地址
-            gateway_url = os.getenv('OPENCLAW_GATEWAY_URL', 'http://127.0.0.1:18792')
-        
-            # 发送消息到OpenClaw
-            res = requests.post(
-                f"{gateway_url}/v1/chat/completions",
-                json={
-                    "model": "moonshot/kimi-k2.5",
-                    "messages": [{"role": "user", "content": message}],
-                    "stream": False
-                },
-                timeout=60,
-                headers={"Content-Type": "application/json"}
-            )
-        
-            if res.status_code == 200:
-                result = res.json()
-                response = result.get('choices', [{}])[0].get('message', {}).get('content', '')
-            
-                # 📊 记录 token 使用和费用
-                usage = result.get('usage', {})
-                prompt_tokens = usage.get('prompt_tokens', 0)
-                completion_tokens = usage.get('completion_tokens', 0)
-                if prompt_tokens > 0 or completion_tokens > 0:
-                    record_token_usage(
-                        provider='moonshot',
-                        model='kimi-k2.5',
-                        prompt_tokens=prompt_tokens,
-                        completion_tokens=completion_tokens
-                    )
-            else:
-                # 如果Gateway不可用，使用模拟回复
-                response = f"[OpenClaw服务暂时不可用]\n\n你的消息：{message[:100]}"
-            
-        except Exception as api_error:
-            # API调用失败时的备用回复
-            response = f"[系统提示] 正在处理你的消息：{message[:50]}...\n\n目前OpenClaw连接需要配置Gateway。请确保本地OpenClaw正在运行，或联系管理员配置连接。"
-    
-        # 保存对话到数据库
-        conn = get_db()
-        c = conn.cursor()
-        c.execute('''
-            INSERT INTO chat_messages (user_message, bot_reply, message_type, created_at)
-            VALUES (%s, %s, 'text', NOW())
-        ''', (message, response))
-        conn.commit()
-        conn.close()
-    
-        return jsonify({'success': True, 'response': response})
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})
-
 # ============================================
 # 登录 API
 # ============================================
-
-@app.route('/api/login', methods=['POST'])
-def api_login():
-    """用户登录 - 使用数据库验证"""
-    try:
-        data = request.get_json()
-        username = data.get('username', '')
-        password = data.get('password', '')
-    
-        # 从数据库验证用户
-        conn = get_db()
-        c = conn.cursor()
-        c.execute('SELECT id, username, password_hash, is_admin, is_active FROM users WHERE username = %s', (username,))
-        user = c.fetchone()
-        conn.close()
-    
-        if not user:
-            return jsonify({'success': False, 'error': '用户名或密码错误'})
-    
-        from werkzeug.security import check_password_hash
-        if not check_password_hash(user["password_hash"], password):
-            return jsonify({'success': False, 'error': '用户名或密码错误'})
-    
-        if not user["is_active"]:
-            return jsonify({'success': False, 'error': '账户已被禁用'})
-    
-        import jwt
-        token = jwt.encode({
-            'user_id': user["id"],
-            'username': user["username"],
-            'is_admin': bool(user["is_admin"]),
-            'exp': datetime.utcnow() + timedelta(days=30)
-        }, app.config['JWT_SECRET_KEY'], algorithm='HS256')
-    
-        return jsonify({
-            'success': True,
-            'token': token,
-            'user': {'id': user["id"], 'username': user["username"], 'role': 'admin' if user["is_admin"] else 'user'}
-        })
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        return jsonify({'success': False, 'error': str(e)})
 
 # ============================================
 # Pepi API
@@ -2770,847 +853,36 @@ def sync_pepi():
 # 系统监控 API
 # ============================================
 
-@app.route('/api/system/status', methods=['GET'])
-def get_system_status():
-    """获取系统状态 - 监控本地Mac mini服务器"""
-    try:
-        # 从数据库获取本地Mac mini的最新监控数据
-        conn = get_db()
-        c = conn.cursor()
-    
-        # 获取最新的系统指标
-        c.execute('''
-            SELECT cpu_percent, memory_percent, disk_percent, status, timestamp
-            FROM system_metrics 
-            ORDER BY timestamp DESC LIMIT 1
-        ''')
-        latest = c.fetchone()
-    
-        # 本地Mac mini硬件配置（固定值）
-        local_hardware = {
-            'cpu_cores': 10,
-            'memory_total_gb': 32.0,
-            'disk_total_gb': 500.0,
-            'hostname': 'macmini-local',
-            'location': '本地办公室'
-        }
-    
-        if latest:
-            metrics = {
-                'cpu': round(latest[0], 1) if latest[0] else 15.0,
-                'memory': round(latest[1], 1) if latest[1] else 42.0,
-                'disk': round(latest[2], 1) if latest[2] else 55.0,
-                'gateway_status': latest[3] if latest[3] else 'running',
-                'last_update': latest[4]
-            }
-        else:
-            # 默认展示本地Mac mini的典型值
-            metrics = {
-                'cpu': 15.0,
-                'memory': 42.0,
-                'disk': 55.0,
-                'gateway_status': 'running',
-                'last_update': datetime.now().isoformat()
-            }
-    
-        conn.close()
-    
-        return jsonify({
-            'success': True,
-            'metrics': metrics,
-            'hardware': local_hardware,
-            'server_type': 'local_macmini',
-            'note': '监控本地Mac mini服务器 (10核/32GB/500GB)'
-        })
-    except Exception as e:
-        # 返回本地Mac mini的默认配置
-        return jsonify({
-            'success': True,
-            'metrics': {
-                'cpu': 15.0,
-                'memory': 42.0,
-                'disk': 55.0,
-                'gateway_status': 'running'
-            },
-            'hardware': {
-                'cpu_cores': 10,
-                'memory_total_gb': 32.0,
-                'disk_total_gb': 500.0,
-                'hostname': 'macmini-local',
-                'location': '本地办公室'
-            },
-            'server_type': 'local_macmini',
-            'note': '监控本地Mac mini服务器 (10核/32GB/500GB)'
-        })
+    # Routes moved to routes/system.py
 
-@app.route('/api/access/stats', methods=['GET'])
-def get_access_stats():
-    """获取访问统计"""
-    try:
-        conn = get_db()
-        c = conn.cursor()
-    
-        # 总访问量
-        c.execute('SELECT COUNT(*) FROM page_views')
-        total_views = list(c.fetchone().values())[0]
-    
-        # 独立访客
-        c.execute('SELECT COUNT(DISTINCT ip_address) FROM page_views')
-        unique_visitors = list(c.fetchone().values())[0]
-    
-        # 今日访问
-        today = datetime.now().strftime('%Y-%m-%d')
-        c.execute("SELECT COUNT(*) FROM page_views WHERE date(created_at) = %s", (today,))
-        today_views = list(c.fetchone().values())[0]
-    
-        # 热门页面统计
-        c.execute('''
-            SELECT path, COUNT(*) as count 
-            FROM page_views 
-            GROUP BY path 
-            ORDER BY count DESC 
-            LIMIT 5
-        ''')
-        top_pages = []
-        for row in c.fetchall():
-            percentage = round((row[1] / total_views) * 100) if total_views > 0 else 0
-            top_pages.append({'path': row[0], 'views': row[1], 'percentage': percentage})
-    
-        conn.close()
-    
-        return jsonify({
-            'success': True,
-            'stats': {
-                'total_views': total_views,
-                'unique_visitors': unique_visitors,
-                'today_views': today_views,
-                'avg_duration': '2:30',
-                'top_pages': top_pages
-            }
-        })
-    except Exception as e:
-        return jsonify({
-            'success': True,
-            'stats': {
-                'total_views': 0,
-                'unique_visitors': 0,
-                'today_views': 0,
-                'avg_duration': '0:00',
-                'top_pages': []
-            }
-        })
+    # Routes moved to routes/track.py
 
-@app.route('/api/access/page-views', methods=['GET'])
-def get_page_views():
-    """获取页面访问记录"""
-    try:
-        conn = get_db()
-        c = conn.cursor()
-        c.execute('''
-            SELECT id, path, ip_address, user_agent, created_at
-            FROM page_views
-            ORDER BY created_at DESC
-            LIMIT 100
-        ''')
-        views = [row_to_dict(row, c) for row in c.fetchall()]
-        conn.close()
-        return jsonify({'success': True, 'views': views})
-    except Exception as e:
-        return jsonify({'success': True, 'views': []})
+    # Routes moved to routes/access.py
 
-@app.route('/api/system/history', methods=['GET'])
-def get_system_history():
-    """获取系统监控历史"""
-    try:
-        conn = get_db()
-        c = conn.cursor()
-        c.execute('''
-            SELECT id, cpu_percent, memory_percent, disk_percent, timestamp as created_at
-            FROM system_metrics
-            ORDER BY timestamp DESC
-            LIMIT 50
-        ''')
-        history = [row_to_dict(row, c) for row in c.fetchall()]
-        conn.close()
-        return jsonify({'success': True, 'history': history})
-    except Exception as e:
-        return jsonify({'success': True, 'history': []})
+    # Routes moved to routes/access.py
 
-@app.route('/api/metrics/history', methods=['GET'])
-def get_metrics_history():
-    """获取系统资源历史数据（用于趋势图）"""
-    try:
-        import datetime
-        time_range = request.args.get('range', '24h')
-        with get_db_connection() as conn:
-            c = conn.cursor()
-
-            # 根据时间范围确定查询条件 (MySQL语法)
-            time_condition = {
-                '1h': "DATE_SUB(NOW(), INTERVAL 1 HOUR)",
-                '6h': "DATE_SUB(NOW(), INTERVAL 6 HOUR)",
-                '24h': "DATE_SUB(NOW(), INTERVAL 24 HOUR)",
-                '7d': "DATE_SUB(NOW(), INTERVAL 7 DAY)"
-            }.get(time_range, "DATE_SUB(NOW(), INTERVAL 24 HOUR)")
-
-            # 查询系统指标（修复：使用正确表 system_metrics，修复MySQL时间语法）
-            # MySQL中timestamp可以直接和datetime字符串比较
-            c.execute(f"""
-                SELECT 
-                    id,
-                    cpu_percent as cpu,
-                    memory_percent as memory,
-                    disk_percent as disk,
-                    timestamp
-                FROM system_metrics
-                WHERE timestamp >= {time_condition}
-                ORDER BY timestamp ASC
-            """)
-
-            metrics = []
-            for row in c.fetchall():
-                # 将 Unix 时间戳转换为可读格式
-                # get_db_connection uses pymysql with DictCursor → row is dict
-                if isinstance(row, dict):
-                    id_val = row['id']
-                    cpu_val = row['cpu']
-                    mem_val = row['memory']
-                    disk_val = row['disk']
-                    ts = row['timestamp']
-                else:
-                    # 回退到 tuple 索引
-                    id_val = row[0]
-                    cpu_val = row[1] if len(row) > 1 else None
-                    mem_val = row[2] if len(row) > 2 else None
-                    disk_val = row[3] if len(row) > 3 else None
-                    ts = row[4] if len(row) > 4 else row[3]
-                try:
-                    # 如果是 Unix 时间戳（数字）
-                    if isinstance(ts, (int, float)):
-                        dt = datetime.datetime.fromtimestamp(ts)
-                    else:
-                        # 如果已经是 datetime 对象或字符串
-                        if hasattr(ts, 'strftime'):
-                            dt = ts
-                        else:
-                            dt = datetime.datetime.fromisoformat(str(ts).replace('Z', '+00:00'))
-                except:
-                    dt = datetime.datetime.now()
-                metrics.append({
-                    "id": id_val,
-                    "cpu": cpu_val,
-                    "memory": mem_val,
-                    "disk": disk_val,
-                    "timestamp": dt.isoformat()
-                })
-
-            return jsonify({
-                "success": True,
-                "metrics": metrics,
-                "count": len(metrics)
-            })
-    except Exception as e:
-        logger.error(f"获取系统监控数据失败: {e}")
-        return jsonify({"success": False, "error": str(e)})
-@app.route('/api/goals/', methods=['GET'])
-@app.route('/api/goals', methods=['GET'])
-def get_goals():
-    """获取项目目标列表"""
-    try:
-        category = request.args.get('category', '')
-        conn = get_db()
-        c = conn.cursor()
-    
-        # 检查是否存在goals表
-        if not table_exists("goals"):
-            # 如果不存在，创建表
-            c.execute('''
-                CREATE TABLE IF NOT EXISTS goals (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    title TEXT NOT NULL,
-                    description TEXT,
-                    category TEXT DEFAULT 'product',
-                    progress INTEGER DEFAULT 0,
-                    status TEXT DEFAULT 'todo',
-                    deadline DATE,
-                    project_count INTEGER DEFAULT 0,
-                    task_count INTEGER DEFAULT 0,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            ''')
-            c.execute('''
-                CREATE TABLE IF NOT EXISTS key_results (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    goal_id INTEGER,
-                    description TEXT NOT NULL,
-                    target_value REAL DEFAULT 100,
-                    current_value REAL DEFAULT 0,
-                    unit TEXT DEFAULT '%',
-                    status TEXT DEFAULT 'todo',
-                    FOREIGN KEY (goal_id) REFERENCES goals (id)
-                )
-            ''')
-            conn.commit()
-    
-        # 查询目标
-        query = 'SELECT * FROM goals WHERE 1=1'
-        params = []
-    
-        if category:
-            query += ' AND category = %s'
-            params.append(category)
-    
-        query += ' ORDER BY progress DESC, created_at DESC'
-    
-        c.execute(query, tuple(params))
-        goals = [row_to_dict(row, c) for row in c.fetchall()]
-    
-        # 动态计算每个目标下的项目数
-        for goal in goals:
-            try:
-                c.execute('SELECT COUNT(*) as cnt FROM projects WHERE goal_id = %s AND status != "deleted"', (goal['id'],))
-                row = c.fetchone()
-                goal['project_count'] = int(row['cnt']) if row else 0
-            except:
-                goal['project_count'] = 0
-        
-        # 为每个目标加载关键结果
-        for goal in goals:
-            try:
-                c.execute('''
-                    SELECT id, description, target_value, current_value, unit, status
-                    FROM key_results
-                    WHERE goal_id = %s
-                ''', (goal['id'],))
-                goal['key_results'] = [row_to_dict(row, c) for row in c.fetchall()]
-            except:
-                goal['key_results'] = []
-    
-        conn.close()
-        return jsonify({'success': True, 'goals': goals})
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-@app.route('/api/goals', methods=['POST'])
-def create_goal():
-    """创建项目目标"""
-    try:
-        data = request.get_json()
-        conn = get_db()
-        c = conn.cursor()
-    
-        c.execute('''
-            INSERT INTO goals (title, description, category, deadline, created_at, updated_at)
-            VALUES (%s, %s, %s, %s, NOW(), NOW())
-        ''', (
-            data.get('title'),
-            data.get('description'),
-            data.get('category', 'product'),
-            data.get('deadline')
-        ))
-    
-        goal_id = c.lastrowid
-    
-        # 添加关键结果
-        if data.get('key_results'):
-            for kr in data['key_results']:
-                c.execute('''
-                    INSERT INTO key_results (goal_id, description, target_value, unit)
-                    VALUES (%s, %s, %s, %s)
-                ''', (goal_id, kr.get('description'), kr.get('target_value', 100), kr.get('unit', '%')))
-    
-        conn.commit()
-        conn.close()
-        return jsonify({'success': True, 'goal_id': goal_id})
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+    # Routes moved to routes/system.py
 
 # ============================================
 # T009 大模型配置 API
 # ============================================
 
-@app.route('/api/llm/configs', methods=['GET'])
-def get_llm_configs():
-    """获取所有LLM配置（包含费用信息）"""
-    try:
-        conn = get_db()
-        c = conn.cursor()
-        c.execute('''
-            SELECT id, provider, name, model_name, is_active, is_default, temperature,
-                   max_tokens, context_window, model_type, supports_vision, supports_reasoning,
-                   description, input_cost, output_cost, tokens_used, actual_tokens_used,
-                   last_used_at
-            FROM llm_configs
-            ORDER BY is_active DESC, is_default DESC, id
-        ''')
-        configs = []
-        for row in c.fetchall():
-            configs.append({
-                'id': row['id'],
-                'provider': row['provider'],
-                'name': row['name'],
-                'model_name': row['model_name'],
-                'is_active': row['is_active'],
-                'is_default': row['is_default'],
-                'temperature': row['temperature'],
-                'max_tokens': row['max_tokens'],
-                'context_window': row['context_window'],
-                'model_type': row['model_type'],
-                'supports_vision': row['supports_vision'],
-                'supports_reasoning': row['supports_reasoning'],
-                'description': row['description'],
-                'input_cost': row['input_cost'],
-                'output_cost': row['output_cost'],
-                'tokens_used': row['tokens_used'] or 0,
-                'actual_tokens_used': row['actual_tokens_used'] or 0,
-                'last_used_at': row['last_used_at'].isoformat() if row['last_used_at'] else None
-            })
-        conn.close()
-        return jsonify({'success': True, 'configs': configs})
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})
-
-@app.route('/api/llm/configs', methods=['POST'])
-def add_llm_config():
-    """添加LLM配置"""
-    try:
-        data = request.get_json()
-        conn = get_db()
-        c = conn.cursor()
-        c.execute('''
-            INSERT INTO llm_configs (name, provider, model, api_key, base_url, max_tokens, temperature, is_active)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, 0)
-        ''', (data.get('name'), data.get('provider'), data.get('model'),
-              data.get('api_key'), data.get('base_url'), 
-              data.get('max_tokens', 4096), data.get('temperature', 0.7)))
-        conn.commit()
-        conn.close()
-        return jsonify({'success': True, 'message': '配置添加成功'})
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})
-
-@app.route('/api/llm/configs/<int:config_id>/activate', methods=['PUT'])
-def activate_llm_config(config_id):
-    """激活LLM配置"""
-    try:
-        conn = get_db()
-        c = conn.cursor()
-        c.execute('UPDATE llm_configs SET is_active = 0')
-        c.execute('UPDATE llm_configs SET is_active = 1 WHERE id = %s', (config_id,))
-        conn.commit()
-        conn.close()
-        return jsonify({'success': True, 'message': '配置已激活'})
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})
-
-@app.route('/api/llm/configs/<int:config_id>', methods=['DELETE'])
-def delete_llm_config(config_id):
-    """删除LLM配置"""
-    try:
-        conn = get_db()
-        c = conn.cursor()
-        c.execute('DELETE FROM llm_configs WHERE id = %s', (config_id,))
-        conn.commit()
-        conn.close()
-        return jsonify({'success': True, 'message': '配置已删除'})
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})
-
-@app.route('/api/llm/stats', methods=['GET'])
-def get_llm_stats():
-    """获取LLM使用统计（包含费用）"""
-    try:
-        conn = get_db()
-        c = conn.cursor()
-    
-        # 基础统计
-        c.execute('SELECT COUNT(*) FROM llm_configs')
-        total = list(c.fetchone().values())[0]
-        c.execute('SELECT COUNT(*) FROM llm_configs WHERE is_active = 1')
-        active = list(c.fetchone().values())[0]
-    
-        # Tokens统计
-        c.execute('SELECT SUM(tokens_used) FROM llm_configs')
-        tokens_used = list(c.fetchone().values())[0] or 0
-    
-        # 费用统计 (统一从 token_usage 表获取)
-        c.execute('SELECT SUM(cost_usd) FROM token_usage')
-        total_cost = list(c.fetchone().values())[0] or 0
-    
-        # 今日费用 (token_usage表使用timestamp字段和cost_usd)
-        c.execute("SELECT SUM(cost_usd) FROM token_usage WHERE date(timestamp) = date('now')")
-        today_cost = list(c.fetchone().values())[0] or 0
-    
-        # 本月费用
-        c.execute("SELECT SUM(cost_usd) FROM token_usage WHERE strftime('%Y-%m', timestamp) = strftime('%Y-%m', 'now')")
-        month_cost = list(c.fetchone().values())[0] or 0
-    
-        # 按模型统计
-        c.execute('''
-            SELECT provider, model_name, SUM(tokens_used) as tokens, SUM(input_cost + output_cost) as cost
-            FROM llm_configs
-            GROUP BY provider, model_name
-        ''')
-        model_stats = [{'provider': r[0], 'model': r[1], 'tokens': r[2] or 0, 'cost': r[3] or 0} for r in c.fetchall()]
-    
-        conn.close()
-        return jsonify({
-            'success': True, 
-            'stats': {
-                'total': total, 
-                'active': active, 
-                'tokens_used': tokens_used,
-                'total_cost': round(total_cost, 4),
-                'today_cost': round(today_cost, 4),
-                'month_cost': round(month_cost, 4),
-                'model_stats': model_stats
-            }
-        })
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})
-
-@app.route('/api/llm/token-usage', methods=['GET'])
-def get_token_usage():
-    """获取Token使用明细"""
-    try:
-        conn = get_db()
-        c = conn.cursor()
-    
-        limit = request.args.get('limit', 100, type=int)
-    
-        c.execute('''
-            SELECT id, provider, model, prompt_tokens, completion_tokens, 
-                   total_tokens, cost_usd, timestamp
-            FROM token_usage
-            ORDER BY timestamp DESC
-            LIMIT %s
-        ''', (limit,))
-    
-        usage = []
-        for row in c.fetchall():
-            usage.append({
-                'id': row[0],
-                'provider': row[1],
-                'model': row[2],
-                'input_tokens': row[3],
-                'output_tokens': row[4],
-                'total_tokens': row[5],
-                'cost': row[6],
-                'created_at': row[7]
-            })
-    
-        conn.close()
-        return jsonify({'success': True, 'usage': usage, 'count': len(usage)})
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})
-
-@app.route('/api/llm/token-usage/daily', methods=['GET'])
-def get_daily_token_usage():
-    """获取每日Token使用统计"""
-    try:
-        conn = get_db()
-        c = conn.cursor()
-    
-        days = request.args.get('days', 30, type=int)
-    
-        c.execute('''
-            SELECT 
-                date(timestamp) as date,
-                SUM(total_tokens) as tokens,
-                SUM(cost_usd) as cost,
-                COUNT(*) as requests
-            FROM token_usage
-            WHERE timestamp >= date('now', '-{} days')
-            GROUP BY date(timestamp)
-            ORDER BY date DESC
-        '''.format(days))
-    
-        daily = []
-        for row in c.fetchall():
-            daily.append({
-                'date': row[0],
-                'tokens': row[1] or 0,
-                'cost': round(row[2] or 0, 4),
-                'requests': row[3]
-            })
-    
-        conn.close()
-        return jsonify({'success': True, 'daily': daily})
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})
-
 # ============================================
 # 计算任务 API (T109) - 适配 t109_calculations 表结构
 # ============================================
-
-@app.route('/api/calc-tasks', methods=['GET'])
-def get_calc_tasks():
-    """获取计算任务列表 - 从t109_calculations表"""
-    try:
-        with get_db_connection() as conn:
-            c = conn.cursor()
-            c.execute('''
-                SELECT id, smiles, basis_set, functional, status, method, 
-                       total_energy, activation_energy, reaction_energy,
-                       homo_energy, lumo_energy, dipole_moment, created_at
-                FROM t109_calculations
-                ORDER BY created_at DESC
-                LIMIT 50
-            ''')
-            tasks = [row_to_dict(row, c) for row in c.fetchall()]
-        return jsonify({'success': True, 'tasks': tasks})
-    except Exception as e:
-        logger.error(f"获取计算任务失败: {e}")
-        return jsonify({'success': True, 'tasks': []})
-
-@app.route('/api/calc-tasks/stats', methods=['GET'])
-def get_calc_stats():
-    """获取计算任务统计"""
-    try:
-        with get_db_connection() as conn:
-            c = conn.cursor()
-            c.execute('SELECT COUNT(*) as count FROM t109_calculations')
-            total = c.fetchone()['count']
-            c.execute("SELECT COUNT(*) as count FROM t109_calculations WHERE status = 'completed'")
-            completed = c.fetchone()['count']
-            c.execute("SELECT COUNT(*) as count FROM t109_calculations WHERE status = 'error' OR status = 'failed'")
-            failed = c.fetchone()['count']
-            c.execute("SELECT COUNT(*) as count FROM t109_calculations WHERE status = 'running' OR status = 'pending'")
-            running = c.fetchone()['count']
-        return jsonify({
-            'success': True,
-            'stats': {
-                'total': total,
-                'running': running,
-                'completed': completed,
-                'failed': failed
-            }
-        })
-    except Exception as e:
-        logger.error(f"获取计算统计失败: {e}")
-        return jsonify({'success': True, 'stats': {'total': 0, 'running': 0, 'completed': 0, 'failed': 0}})
-
-@app.route('/api/calc-tasks/<task_id>', methods=['GET'])
-def get_calc_task(task_id):
-    """获取单个计算任务详情"""
-    try:
-        conn = get_db()
-        c = conn.cursor()
-        c.execute('''
-            SELECT * FROM t109_calculations WHERE id = %s
-        ''', (task_id,))
-        task = c.fetchone()
-        conn.close()
-        
-        if not task:
-            return jsonify({'success': False, 'error': '任务不存在'}), 404
-            
-        return jsonify({'success': True, 'task': row_to_dict(task, c)})
-    except Exception as e:
-        logger.error(f"获取任务详情失败: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-@app.route('/api/calc-tasks/sync', methods=['POST'])
-def sync_calc_tasks():
-    """从T109服务器同步计算任务状态"""
-    try:
-        import requests
-        # 调用T109 API获取最新任务
-        response = requests.get('http://60.205.197.9:8000/calculations', timeout=10)
-        if response.status_code == 200:
-            t109_tasks = response.json()
-            return jsonify({
-                'success': True, 
-                'message': '同步成功',
-                'synced_count': len(t109_tasks) if isinstance(t109_tasks, list) else 0
-            })
-        else:
-            return jsonify({'success': False, 'error': 'T109 API返回错误'}), 500
-    except Exception as e:
-        logger.error(f"同步T109任务失败: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-@app.route('/api/calc-tasks/submit', methods=['POST'])
-def submit_calc_task():
-    """提交计算任务到T109队列"""
-    try:
-        data = request.get_json()
-        smiles = data.get('smiles')
-        basis_set = data.get('basis_set', 'sto-3g')
-        
-        if not smiles:
-            return jsonify({'success': False, 'error': 'SMILES不能为空'}), 400
-        
-        # 调用T109 API提交任务
-        import requests
-        response = requests.post(
-            'http://60.205.197.9:8000/calculate',
-            json={'smiles': smiles, 'basis_set': basis_set},
-            timeout=30
-        )
-        
-        if response.status_code == 200:
-            result = response.json()
-            return jsonify({
-                'success': True,
-                'message': '任务已提交到T109',
-                'task': result
-            })
-        else:
-            return jsonify({'success': False, 'error': 'T109提交失败'}), 500
-            
-    except Exception as e:
-        logger.error(f"提交计算任务失败: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
 
 # ============================================
 # ============================================
 # T018 调研记录 API
 # ============================================
 
-@app.route('/api/research', methods=['GET'])
-def get_research_notes():
-    """获取调研记录"""
-    try:
-        conn = get_db()
-        c = conn.cursor()
-        c.execute('''
-            SELECT * FROM research_notes
-            ORDER BY created_at DESC
-            LIMIT 50
-        ''')
-        notes = [row_to_dict(row, c) for row in c.fetchall()]
-        conn.close()
-        return jsonify({'success': True, 'notes': notes})
-    except Exception as e:
-        return jsonify({'success': True, 'notes': []})
-
-@app.route('/api/research/notes', methods=['POST'])
-def create_research_note():
-    """创建调研记录"""
-    try:
-        data = request.get_json()
-        title = data.get('title', '').strip()
-        content = data.get('content', '')
-        category = data.get('category', '文献调研')
-        source = data.get('source', '')
-        tags = data.get('tags', '')
-    
-        if not title:
-            return jsonify({'success': False, 'error': '标题不能为空'}), 400
-    
-        conn = get_db()
-        c = conn.cursor()
-        c.execute('''
-            INSERT INTO research_notes (title, content, category, source, tags, created_at, updated_at)
-            VALUES (%s, %s, %s, %s, %s, NOW(), NOW())
-        ''', (title, content, category, source, tags))
-    
-        note_id = c.lastrowid
-        conn.commit()
-        conn.close()
-    
-        return jsonify({'success': True, 'note_id': note_id, 'message': '调研记录创建成功'})
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
-
 # ============================================
 # T013 每日复盘 API
 # ============================================
 
-@app.route('/api/daily-reviews', methods=['GET'])
-def get_daily_reviews():
-    """获取每日复盘"""
-    try:
-        conn = get_db()
-        c = conn.cursor()
-        c.execute('''
-            SELECT * FROM daily_reviews
-            ORDER BY review_date DESC
-            LIMIT 30
-        ''')
-        reviews = [row_to_dict(row, c) for row in c.fetchall()]
-        conn.close()
-        return jsonify({'success': True, 'reviews': reviews})
-    except Exception as e:
-        return jsonify({'success': True, 'reviews': []})
-
-
-
-@app.route('/api/daily-reviews', methods=['POST'])
-def create_daily_review():
-    """创建每日复盘"""
-    try:
-        data = request.get_json()
-        review_date = data.get('review_date')
-        mood = data.get('mood', '')
-        summary = data.get('summary', '')
-        
-        if not review_date or not summary:
-            return jsonify({'success': False, 'error': '日期和总结内容不能为空'})
-        
-        conn = get_db()
-        c = conn.cursor()
-        
-        # 检查是否已存在该日期的复盘
-        c.execute('SELECT id FROM daily_reviews WHERE review_date = %s', (review_date,))
-        if c.fetchone():
-            conn.close()
-            return jsonify({'success': False, 'error': '该日期已有复盘记录'})
-        
-        c.execute('INSERT INTO daily_reviews (review_date, mood, summary, created_at) VALUES (%s, %s, %s, NOW())', (review_date, mood, summary))
-        
-        conn.commit()
-        conn.close()
-        
-        return jsonify({'success': True, 'message': '复盘创建成功'})
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})
-
 # ============================================
 # 化学模块 API
 # ============================================
-
-@app.route('/api/chemistry/elements', methods=['GET'])
-def get_chemical_elements():
-    """获取化学元素列表"""
-    try:
-        conn = get_db()
-        c = conn.cursor()
-        c.execute('SELECT * FROM chemical_elements ORDER BY atomic_number')
-        elements = [row_to_dict(row, c) for row in c.fetchall()]
-        conn.close()
-        return jsonify({'success': True, 'elements': elements})
-    except Exception as e:
-        return jsonify({'success': True, 'elements': []})
-
-@app.route('/api/molecules', methods=['GET'])
-@app.route('/api/chemistry/molecules', methods=['GET'])
-def get_molecules():
-    """获取分子列表"""
-    try:
-        conn = get_db()
-        c = conn.cursor()
-        c.execute('SELECT * FROM molecules ORDER BY molecular_weight')
-        molecules = [row_to_dict(row, c) for row in c.fetchall()]
-        conn.close()
-        return jsonify({'success': True, 'molecules': molecules})
-    except Exception as e:
-        return jsonify({'success': True, 'molecules': []})
-
-@app.route('/api/reactions', methods=['GET'])
-def get_reactions():
-    """获取化学反应列表"""
-    try:
-        conn = get_db()
-        c = conn.cursor()
-        c.execute('SELECT * FROM reactions ORDER BY created_at DESC')
-        reactions = [row_to_dict(row, c) for row in c.fetchall()]
-        conn.close()
-        return jsonify({'success': True, 'reactions': reactions})
-    except Exception as e:
-        return jsonify({'success': True, 'reactions': []})
 
 # ============================================
 # T019 架构图 API
@@ -3775,19 +1047,7 @@ def get_version_logs():
 # 日历 API
 # ============================================
 
-@app.route('/api/calendar/accounts', methods=['GET'])
-def get_calendar_accounts():
-    """获取CalDAV账户列表"""
-    try:
-        conn = get_db()
-        c = conn.cursor()
-        c.execute('SELECT id, name, account_type, server_url, username, calendar_name, sync_enabled, last_sync_at FROM calendar_accounts')
-        accounts = [row_to_dict(row, c) for row in c.fetchall()]
-        conn.close()
-        return jsonify({'success': True, 'accounts': accounts})
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})
-
+    # Routes moved to routes/calendar.py
 @app.route('/api/calendar/accounts', methods=['POST'])
 def create_calendar_account():
     """创建CalDAV账户"""
@@ -3819,51 +1079,9 @@ def create_calendar_account():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
 
-@app.route('/api/calendar/sync', methods=['POST'])
-def sync_calendar():
-    """手动同步日历"""
-    try:
-        from caldav_sync import sync_all_accounts
-    
-        results = sync_all_accounts(DB_PATH)
-        return jsonify({'success': True, 'results': results})
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})
-
+    # Routes moved to routes/calendar.py
 @app.route('/api/calendar/events/', methods=['GET'])
-@app.route('/api/calendar/events', methods=['GET'])
-def get_calendar_events():
-    """获取日历事件"""
-    try:
-        start = request.args.get('start')
-        end = request.args.get('end')
-    
-        conn = get_db()
-        c = conn.cursor()
-    
-        query = '''
-            SELECT * FROM calendar_events
-            WHERE 1=1
-        '''
-        params = []
-    
-        if start:
-            query += ' AND end_time >= %s'
-            params.append(start)
-        if end:
-            query += ' AND start_time <= %s'
-            params.append(end)
-        
-        query += ' ORDER BY start_time'
-    
-        c.execute(query, tuple(params))
-        events = [row_to_dict(row, c) for row in c.fetchall()]
-        conn.close()
-    
-        return jsonify({'success': True, 'events': events})
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})
-
+    # Routes moved to routes/calendar.py
 @app.route('/api/calendar/events', methods=['POST'])
 def create_calendar_event():
     """创建日历事件"""
@@ -3877,7 +1095,7 @@ def create_calendar_event():
         c.execute('''
             INSERT INTO calendar_events 
             (id, title, description, start_time, end_time, is_all_day, location, 
-             category, color, reminder_minutes, participants, meeting_minutes_id, 
+             category, event_color, reminder_minutes, participants, meeting_minutes_id, 
              recurrence, created_at, updated_at)
             VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         ''', (
@@ -3906,57 +1124,7 @@ def create_calendar_event():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
 
-@app.route('/api/calendar/events/<event_id>', methods=['PUT'])
-def update_calendar_event(event_id):
-    """更新日历事件"""
-    try:
-        data = request.get_json()
-    
-        conn = get_db()
-        c = conn.cursor()
-    
-        # 获取现有数据
-        c.execute('SELECT * FROM calendar_events WHERE id = %s', (event_id,))
-        existing = c.fetchone()
-        if not existing:
-            return jsonify({'success': False, 'error': '事件不存在'})
-    
-        # 更新字段
-        c.execute('''
-            UPDATE calendar_events SET
-                title = %s,
-                description = %s,
-                start_time = %s,
-                end_time = %s,
-                all_day = %s,
-                location = %s,
-                category = %s,
-                color = %s,
-                reminder_minutes = %s,
-                status = %s,
-                updated_at = CURRENT_TIMESTAMP
-            WHERE id = %s
-        ''', (
-            data.get('title', existing['title']),
-            data.get('description', existing['description']),
-            data.get('start_time', existing['start_time']),
-            data.get('end_time', existing['end_time']),
-            data.get('all_day', existing['all_day']),
-            data.get('location', existing['location']),
-            data.get('category', existing['category']),
-            data.get('color', existing['color']),
-            data.get('reminder_minutes', existing['reminder_minutes']),
-            data.get('status', existing['status']),
-            event_id
-        ))
-    
-        conn.commit()
-        conn.close()
-    
-        return jsonify({'success': True})
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})
-
+    # Routes moved to routes/calendar.py
 @app.route('/api/calendar/events/<event_id>', methods=['DELETE', 'OPTIONS'])
 def delete_calendar_event(event_id):
     """删除日历事件（支持CORS预检）"""
@@ -3985,60 +1153,7 @@ def delete_calendar_event(event_id):
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
 
-@app.route('/api/calendar/stats', methods=['GET'])
-def get_calendar_stats():
-    """获取日历统计"""
-    try:
-        conn = get_db()
-        c = conn.cursor()
-    
-        # 今日事件数
-        c.execute('''
-            SELECT COUNT(*) FROM calendar_events
-            WHERE date(start_time) = date('now')
-        ''')
-        today_count = list(c.fetchone().values())[0]
-    
-        # 本周事件数
-        c.execute('''
-            SELECT COUNT(*) FROM calendar_events
-            WHERE start_time >= date('now', 'weekday 0', '-7 days')
-            AND start_time < date('now', 'weekday 0', '0 days')
-        ''')
-        week_count = list(c.fetchone().values())[0]
-    
-        # 本月事件数
-        c.execute('''
-            SELECT COUNT(*) FROM calendar_events
-            WHERE strftime('%Y-%m', start_time) = strftime('%Y-%m', 'now')
-        ''')
-        month_count = list(c.fetchone().values())[0]
-    
-        # 待处理事件（未来）
-        c.execute('''
-            SELECT COUNT(*) FROM calendar_events
-            WHERE start_time > NOW()
-        ''')
-        upcoming_count = list(c.fetchone().values())[0]
-    
-        conn.close()
-    
-        return jsonify({
-            'success': True,
-            'stats': {
-                'today': today_count,
-                'week': week_count,
-                'month': month_count,
-                'upcoming': upcoming_count
-            }
-        })
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})
-
-# ============================================
-# 日历设置 API
-# ============================================
-
+    # Routes moved to routes/calendar.py
 @app.route('/api/calendar/settings', methods=['GET'])
 def get_calendar_settings():
     """获取日历设置"""
@@ -4085,61 +1200,7 @@ def get_calendar_settings():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
 
-@app.route('/api/calendar/settings', methods=['POST'])
-def update_calendar_settings():
-    """更新日历设置"""
-    try:
-        data = request.get_json()
-    
-        conn = get_db()
-        c = conn.cursor()
-    
-        # 确保设置记录存在
-        c.execute('INSERT OR IGNORE INTO calendar_settings (id) VALUES (1)')
-    
-        # 更新设置
-        update_fields = []
-        params = []
-    
-        field_mapping = {
-            'default_view': 'default_view',
-            'first_day_of_week': 'first_day_of_week',
-            'show_weekends': 'show_weekends',
-            'working_hours_start': 'working_hours_start',
-            'working_hours_end': 'working_hours_end',
-            'default_reminder_minutes': 'default_reminder_minutes',
-            'enable_notifications': 'enable_notifications',
-            'notification_sound': 'notification_sound',
-            'sync_enabled': 'sync_enabled',
-            'sync_interval_minutes': 'sync_interval_minutes',
-            'default_calendar_color': 'default_calendar_color'
-        }
-    
-        for api_field, db_field in field_mapping.items():
-            if api_field in data:
-                update_fields.append(f"{db_field} = %s")
-                value = data[api_field]
-                # 转换布尔值为整数
-                if isinstance(value, bool):
-                    value = 1 if value else 0
-                params.append(value)
-    
-        if update_fields:
-            params.append(1)  # id = 1
-            query = f"UPDATE calendar_settings SET {', '.join(update_fields)}, updated_at = CURRENT_TIMESTAMP WHERE id = %s"
-            c.execute(query, tuple(params))
-    
-        conn.commit()
-        conn.close()
-    
-        return jsonify({'success': True})
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})
-
-# ============================================
-# 会议纪要 API
-# ============================================
-
+    # Routes moved to routes/calendar.py
 @app.route('/api/meetings/', methods=['GET'])  # 支持尾部斜杠
 @app.route('/api/meetings/', methods=['GET'])
 @app.route('/api/meetings', methods=['GET'])
@@ -6008,77 +3069,27 @@ def delete_saved_view(view_id):
 # ============================================
 @app.route('/api/emails/', methods=['GET'])  # 支持尾部斜杠
 @app.route('/api/emails/', methods=['GET'])
-@app.route('/api/emails', methods=['GET'])
-def get_emails():
-    """获取邮件列表"""
-    try:
-        conn = get_db()
-        c = conn.cursor()
-        c.execute('''
-            SELECT id, message_id, subject, sender, sender_name, recipient,
-                   folder, is_read, is_important, received_at as date,
-                   SUBSTRING(body, 1, 200) as preview
-            FROM emails
-            ORDER BY received_at DESC
-            LIMIT 100
-        ''')
-        emails = [row_to_dict(row, c) for row in c.fetchall()]
-        conn.close()
-        return jsonify({'success': True, 'emails': emails})
-    except Exception as e:
-        print(f"[ERROR] get_emails: {e}")
-        return jsonify({'success': False, 'error': str(e)})
-
+    # Routes moved to routes/emails.py
 @app.route('/api/emails/stats/', methods=['GET'])  # 支持尾部斜杠
-@app.route('/api/emails/stats', methods=['GET'])
-def get_email_stats():
-    """获取邮件统计"""
-    try:
-        conn = get_db()
-        c = conn.cursor()
-    
-        c.execute('SELECT COUNT(*) as total FROM emails')
-        result = c.fetchone()
-        total = result['total']
-    
-        c.execute('SELECT COUNT(*) as unread FROM emails WHERE is_read = 0')
-        result = c.fetchone()
-        unread = result['unread']
-    
-        c.execute('SELECT COUNT(*) as important FROM emails WHERE is_important = 1')
-        result = c.fetchone()
-        important = result['important']
-    
-        # 按文件夹统计数量（前端需要这个显示各文件夹）
-        c.execute('SELECT folder, COUNT(*) as count FROM emails GROUP BY folder')
-        folder_stats = {}
-        for row in c.fetchall():
-            folder_stats[row['folder']] = row['count']
-    
-        conn.close()
-    
-        return jsonify({
-            'success': True,
-            'stats': {
-                'total': total,
-                'unread': unread,
-                'important': important,
-                'folders': folder_stats
-            }
-        })
-    except Exception as e:
-        print(f"[ERROR] get_email_stats: {e}")
-        return jsonify({'success': False, 'error': str(e)})
-
-# SPA 前端路由支持 - 所有非API路由返回index.html
-# ============================================
-
-
+    # Routes moved to routes/emails.py
 @app.route('/api/sds/config/<config_key>', methods=['GET'])
 def get_sds_config(config_key):
     """获取SDS配置"""
     conn = get_db()
     c = conn.cursor()
+    if config_key == 'database_schema':
+        c.execute('SHOW TABLES')
+        tables = [list(row.values())[0] for row in c.fetchall()]
+        schema = {}
+        for t in tables:
+            c.execute(f'DESCRIBE `{t}`')
+            cols = []
+            for row in c.fetchall():
+                cols.append({'Field': row.get('Field',''), 'Type': row.get('Type',''), 'Null': row.get('Null',''),
+                            'Key': row.get('Key',''), 'Default': str(row.get('Default')) if row.get('Default') is not None else None, 'Extra': row.get('Extra','')})
+            schema[t] = cols
+        conn.close()
+        return jsonify({'success': True, 'config_key': 'database_schema', 'data': schema})
     c.execute('SELECT config_value FROM sds_config WHERE config_key = %s', (config_key,))
     row = c.fetchone()
     conn.close()
@@ -6257,6 +3268,11 @@ def update_sds_rules():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
+
+
+# Admin HTML frontend pages (MUST be before catch-all)
+from admin_frontend import admin_html_bp
+app.register_blueprint(admin_html_bp)
 
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')
@@ -7375,7 +4391,7 @@ def get_audit_stats():
             GROUP BY task_type
         ''')
     
-        by_source = {row[0]: row[1] for row in c.fetchall()}
+        by_source = {row[0]: row['count'] for row in c.fetchall()}
     
         conn.close()
     
@@ -7424,7 +4440,7 @@ def get_audit_dashboard():
             GROUP BY priority
         ''')
     
-        by_priority = {row[0]: row[1] for row in c.fetchall()}
+        by_priority = {row[0]: row['count'] for row in c.fetchall()}
     
         # 最近10个待审核
         c.execute('''
@@ -7537,6 +4553,12 @@ def get_file_content_by_query():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
 
+
+app.register_blueprint(strategy_bp)
+app.register_blueprint(contacts_bp)
+app.register_blueprint(config_bp)
+app.register_blueprint(daemon_status_bp)
+
 if __name__ == '__main__':
     print("=" * 60)
     print("Kanban React - Flask API Server")
@@ -7604,7 +4626,7 @@ try:
         try:
             result = init_perception_agent()
             if result:
-                logger.info("PerceptionAgent started (Gunicorn)")
+                logger.info("PerceptionAgent DISABLED (Gunicorn)")
         except Exception as e:
             logger.warning(f"PerceptionAgent startup failed: {e}")
     
@@ -8223,18 +5245,30 @@ app.register_blueprint(admin_bp, url_prefix="/api/admin")
 # ============================================
 # 文件下载路由
 # ============================================
-def serve_upload(filename):
-    """Serve uploaded files with SDS1 document support"""
+def serve_upload(filename, subdir=''):
+    """Serve uploaded files with versioned path support"""
     import os
     from flask import send_from_directory
     
-    # 优先从 SDS1 文档目录查找
+    # 1. 版本化路径：/uploads/docs/task-{id}/v{version}/{file}
+    if '/' in filename or subdir:
+        path_parts = (subdir + '/' + filename).strip('/')
+        full_path = os.path.join('/opt/kanban-react/backend/uploads', path_parts)
+        if os.path.exists(full_path):
+            return send_from_directory('/opt/kanban-react/backend/uploads', path_parts)
+    
+    # 2. SDS1 文档目录
     sds_docs_dir = '/opt/kanban-react/frontend/public/uploads/docs/sds1-docs'
     sds_path = os.path.join(sds_docs_dir, filename)
     if os.path.exists(sds_path):
         return send_from_directory(sds_docs_dir, filename)
     
-    # 否则从后端上传目录查找
+    # 3. 兼容旧路径：/uploads/docs/{filename}
+    legacy = os.path.join('/opt/kanban-react/backend/uploads/docs', filename)
+    if os.path.exists(legacy):
+        return send_from_directory('/opt/kanban-react/backend/uploads/docs', filename)
+    
+    # 4. 兜底到根上传目录
     return send_from_directory('/opt/kanban-react/backend/uploads', filename)
 @app.route('/api/test-sentry', methods=['POST'])
 def test_sentry():
@@ -8249,318 +5283,17 @@ def test_sentry():
 # SDS驾驶舱 API
 # ============================================
 
-@app.route('/api/cockpit/status', methods=['GET'])
-def get_cockpit_status():
-    """获取驾驶舱状态统计"""
-    conn = get_db()
-    c = conn.cursor()
-    
-    # 统计各级别警报
-    c.execute('''SELECT alert_level, COUNT(*) as cnt FROM cockpit_alerts WHERE status = 'pending' GROUP BY alert_level''')
-    alert_stats = {row['alert_level']: row['cnt'] for row in c.fetchall()}
-    
-    # 最近5个警报
-    c.execute('''SELECT id, task_id, alert_level, alert_type, title, status, created_at 
-                 FROM cockpit_alerts ORDER BY created_at DESC LIMIT 5''')
-    recent_alerts = []
-    for row in c.fetchall():
-        recent_alerts.append({
-            'id': row['id'],
-            'task_id': row['task_id'],
-            'alert_level': row['alert_level'],
-            'alert_type': row['alert_type'],
-            'title': row['title'],
-            'status': row['status'],
-            'created_at': row['created_at'].isoformat() if row['created_at'] else None
-        })
-    
-    # 最近5个交互
-    c.execute('''SELECT ci.id, ci.task_id, ci.speaker, ci.message, ci.created_at, ca.title as alert_title
-                 FROM cockpit_interactions ci
-                 LEFT JOIN cockpit_alerts ca ON ci.alert_id = ca.id
-                 ORDER BY ci.created_at DESC LIMIT 5''')
-    recent_interactions = []
-    for row in c.fetchall():
-        recent_interactions.append({
-            'id': row['id'],
-            'task_id': row['task_id'],
-            'speaker': row['speaker'],
-            'message': row['message'][:100] + '...' if row['message'] and len(row['message']) > 100 else row['message'],
-            'alert_title': row['alert_title'],
-            'created_at': row['created_at'].isoformat() if row['created_at'] else None
-        })
-    
-    conn.close()
-    
-    return jsonify({
-        'success': True,
-        'stats': {
-            'critical': alert_stats.get('critical', 0),
-            'warning': alert_stats.get('warning', 0),
-            'info': alert_stats.get('info', 0),
-            'total_pending': sum(alert_stats.values())
-        },
-        'recent_alerts': recent_alerts,
-        'recent_interactions': recent_interactions
-    })
+    # Routes moved to routes/cockpit.py
 
-@app.route('/api/cockpit/alerts', methods=['GET'])
-def get_cockpit_alerts():
-    """获取驾驶舱警报列表"""
-    level = request.args.get('level', '')
-    status = request.args.get('status', 'pending')
-    limit = int(request.args.get('limit', 50))
-    
-    conn = get_db()
-    c = conn.cursor()
-    
-    query = '''SELECT id, task_id, alert_level, alert_type, title, description, context, status, created_at 
-               FROM cockpit_alerts WHERE 1=1'''
-    params = []
-    
-    if status:
-        query += ' AND status = %s'
-        params.append(status)
-    if level:
-        query += ' AND alert_level = %s'
-        params.append(level)
-    
-    query += ' ORDER BY created_at DESC LIMIT %s'
-    params.append(limit)
-    
-    c.execute(query, params)
-    alerts = []
-    for row in c.fetchall():
-        alerts.append({
-            'id': row['id'],
-            'task_id': row['task_id'],
-            'alert_level': row['alert_level'],
-            'alert_type': row['alert_type'],
-            'title': row['title'],
-            'description': row['description'],
-            'context': json.loads(row['context']) if row['context'] else None,
-            'status': row['status'],
-            'created_at': row['created_at'].isoformat() if row['created_at'] else None
-        })
-    
-    conn.close()
-    
-    return jsonify({
-        'success': True,
-        'alerts': alerts,
-        'total': len(alerts)
-    })
+    # Routes moved to routes/cockpit.py
 
-@app.route('/api/cockpit/interact', methods=['POST'])
-def cockpit_interact():
-    """驾驶舱交互 - 自然语言对话"""
-    data = request.get_json() or {}
-    task_id = data.get('task_id')
-    alert_id = data.get('alert_id')
-    message = data.get('message', '')
-    
-    if not task_id or not message:
-        return jsonify({'success': False, 'error': '缺少必要参数'}), 400
-    
-    conn = get_db()
-    c = conn.cursor()
-    
-    # 检查任务是否存在
-    c.execute('SELECT id, title, status FROM tasks WHERE id = %s', (task_id,))
-    task = c.fetchone()
-    if not task:
-        conn.close()
-        return jsonify({'success': False, 'error': '任务不存在'}), 404
-    
-    # 记录用户消息
-    c.execute('''INSERT INTO cockpit_interactions (task_id, alert_id, speaker, message, created_at)
-                 VALUES (%s, %s, %s, %s, NOW())''',
-              (task_id, alert_id, 'user', message))
-    
-    # TODO: 这里应该调用LLM理解用户意图
-    # 简化版：基于关键词判断
-    message_lower = message.lower()
-    
-    if any(kw in message_lower for kw in ['通过', '同意', '可以', 'ok', '好']):
-        # 用户同意/通过
-        c.execute('UPDATE tasks SET status = %s, updated_at = NOW() WHERE id = %s', ('completed', task_id))
-        if alert_id:
-            c.execute('UPDATE cockpit_alerts SET status = %s, resolved_at = NOW() WHERE id = %s', ('resolved', alert_id))
-        response = '✅ 已确认通过，任务已标记为完成。'
-        action_taken = 'approve'
-        
-    elif any(kw in message_lower for kw in ['驳回', '重做', '重新', '不对']):
-        # 用户驳回
-        c.execute('UPDATE tasks SET status = %s, updated_at = NOW() WHERE id = %s', ('pending', task_id))
-        if alert_id:
-            c.execute('UPDATE cockpit_alerts SET status = %s, resolved_at = NOW() WHERE id = %s', ('resolved', alert_id))
-        response = '❌ 已驳回，任务将重新执行。'
-        action_taken = 'reject'
-        
-    elif any(kw in message_lower for kw in ['修改', '调整', '补充', '改']):
-        # 用户要求修改
-        c.execute('UPDATE tasks SET status = %s, review_feedback = %s, updated_at = NOW() WHERE id = %s', 
-                  ('review_feedback', message, task_id))
-        if alert_id:
-            c.execute('UPDATE cockpit_alerts SET status = %s WHERE id = %s', ('acknowledged', alert_id))
-        response = '💬 已记录您的修改意见，SDS将自动调整后重新提交。'
-        action_taken = 'feedback'
-        
-    else:
-        # 默认：信息查询或一般对话
-        response = f'🤖 收到您的消息："{message[:50]}..."\n\nSDS已记录，将在后续处理中考虑您的意见。'
-        action_taken = 'acknowledge'
-    
-    # 记录系统回复
-    c.execute('''INSERT INTO cockpit_interactions (task_id, alert_id, speaker, message, action_taken, created_at)
-                 VALUES (%s, %s, %s, %s, %s, NOW())''',
-              (task_id, alert_id, 'sds', response, action_taken))
-    
-    conn.commit()
-    conn.close()
-    
-    return jsonify({
-        'success': True,
-        'response': response,
-        'analysis': {
-            'intent': action_taken,
-            'confidence': 0.85
-        },
-        'task_id': task_id,
-        'alert_id': alert_id
-    })
+    # Routes moved to routes/cockpit.py
 
-@app.route('/api/cockpit/resolve', methods=['POST'])
-def cockpit_resolve():
-    """解决驾驶舱警报"""
-    data = request.get_json() or {}
-    alert_id = data.get('alert_id')
-    resolution = data.get('resolution')
-    notes = data.get('notes', '')
-    
-    if not alert_id or not resolution:
-        return jsonify({'success': False, 'error': '缺少必要参数'}), 400
-    
-    conn = get_db()
-    c = conn.cursor()
-    
-    # 获取警报信息
-    c.execute('SELECT task_id, status FROM cockpit_alerts WHERE id = %s', (alert_id,))
-    alert = c.fetchone()
-    if not alert:
-        conn.close()
-        return jsonify({'success': False, 'error': '警报不存在'}), 404
-    
-    # 更新警报状态
-    c.execute('''UPDATE cockpit_alerts 
-                 SET status = %s, resolved_by = %s, resolved_at = NOW() 
-                 WHERE id = %s''',
-              ('resolved', 'user', alert_id))
-    
-    # 根据resolution更新任务状态
-    task_id = alert['task_id']
-    if resolution == 'approve':
-        c.execute('UPDATE tasks SET status = %s, updated_at = NOW() WHERE id = %s', ('completed', task_id))
-    elif resolution == 'reject':
-        c.execute('UPDATE tasks SET status = %s, updated_at = NOW() WHERE id = %s', ('pending', task_id))
-    elif resolution == 'feedback':
-        c.execute('UPDATE tasks SET status = %s, review_feedback = %s, updated_at = NOW() WHERE id = %s', 
-                  ('review_feedback', notes, task_id))
-    
-    conn.commit()
-    conn.close()
-    
-    return jsonify({
-        'success': True,
-        'message': '警报已解决',
-        'resolution': resolution,
-        'task_id': task_id
-    })
+    # Routes moved to routes/cockpit.py
 
-@app.route('/api/cockpit/interactions', methods=['GET'])
-def get_cockpit_interactions():
-    """获取驾驶舱交互历史"""
-    task_id = request.args.get('task_id', type=int)
-    alert_id = request.args.get('alert_id', type=int)
-    limit = int(request.args.get('limit', 50))
-    
-    conn = get_db()
-    c = conn.cursor()
-    
-    query = '''SELECT id, task_id, alert_id, speaker, message, intent_analysis, action_taken, created_at 
-               FROM cockpit_interactions WHERE 1=1'''
-    params = []
-    
-    if task_id:
-        query += ' AND task_id = %s'
-        params.append(task_id)
-    if alert_id:
-        query += ' AND alert_id = %s'
-        params.append(alert_id)
-    
-    query += ' ORDER BY created_at DESC LIMIT %s'
-    params.append(limit)
-    
-    c.execute(query, params)
-    interactions = []
-    for row in c.fetchall():
-        interactions.append({
-            'id': row['id'],
-            'task_id': row['task_id'],
-            'alert_id': row['alert_id'],
-            'speaker': row['speaker'],
-            'message': row['message'],
-            'intent_analysis': json.loads(row['intent_analysis']) if row['intent_analysis'] else None,
-            'action_taken': row['action_taken'],
-            'created_at': row['created_at'].isoformat() if row['created_at'] else None
-        })
-    
-    conn.close()
-    
-    return jsonify({
-        'success': True,
-        'interactions': interactions,
-        'total': len(interactions)
-    })
+    # Routes moved to routes/cockpit.py
 
-@app.route('/api/cockpit/create-alert', methods=['POST'])
-def create_cockpit_alert():
-    """创建驾驶舱警报（供SDS调用）"""
-    data = request.get_json() or {}
-    task_id = data.get('task_id')
-    alert_level = data.get('alert_level', 'warning')
-    alert_type = data.get('alert_type', 'decision_required')
-    title = data.get('title', '')
-    description = data.get('description', '')
-    context = data.get('context', {})
-    
-    if not task_id or not title:
-        return jsonify({'success': False, 'error': '缺少必要参数'}), 400
-    
-    conn = get_db()
-    c = conn.cursor()
-    
-    c.execute('''INSERT INTO cockpit_alerts (task_id, alert_level, alert_type, title, description, context, status, created_at)
-                 VALUES (%s, %s, %s, %s, %s, %s, %s, NOW())''',
-              (task_id, alert_level, alert_type, title, description, json.dumps(context), 'pending'))
-    alert_id = c.lastrowid
-    
-    # 更新任务的cockpit_alert_id
-    c.execute('UPDATE tasks SET cockpit_alert_id = %s WHERE id = %s', (alert_id, task_id))
-    
-    conn.commit()
-    conn.close()
-    
-    return jsonify({
-        'success': True,
-        'alert_id': alert_id,
-        'task_id': task_id,
-        'message': '驾驶舱警报已创建'
-    })
-
-
-
-
+    # Routes moved to routes/cockpit.py
 # 生成用户通知
 def create_notification(title, message, notif_type='system', entity_type=None, entity_id=None, user_id=None):
     try:
@@ -8651,3 +5384,365 @@ def list_sds_documents():
             })
     docs.sort(key=lambda x: x['path'])
     return jsonify({'success': True, 'documents': docs, 'count': len(docs)})
+
+
+
+import json as _json
+_sync_data_cache = None
+def _get_sync_data():
+    global _sync_data_cache
+    if _sync_data_cache is None:
+        p = "/opt/kanban-react/backend/macmini_sync_data.json"
+        if os.path.exists(p):
+            with open(p) as f:
+                _sync_data_cache = _json.load(f)
+    return _sync_data_cache or {"models":[],"skills":[],"cron_jobs":[],"system":{}}
+
+    # Routes moved to routes/sync.py
+
+    # Routes moved to routes/sync.py
+
+    # Routes moved to routes/sync.py
+
+    # Routes moved to routes/sync.py
+
+    # Routes moved to routes/sync.py
+
+    # Routes moved to routes/sync.py
+
+def macmini_sync_skills_tools():
+    """Mac mini 技能工具"""
+    return jsonify({
+        'success': True,
+        'skills': [
+            {'name': 'Tavily Search', 'version': '1.0', 'status': 'active'},
+            {'name': 'Browser Use', 'version': '1.0', 'status': 'active'},
+            {'name': 'Weather', 'version': '1.0', 'status': 'active'},
+            {'name': 'GitHub', 'version': '1.0', 'status': 'active'},
+            {'name': 'Feishu', 'version': '1.0', 'status': 'active'},
+        ]
+    })
+
+
+
+    # Routes moved to routes/system.py
+
+    # Routes moved to routes/cockpit.py
+
+    # Routes moved to routes/local_files.py
+
+@app.route('/api/goals/distribution', methods=['GET'])
+def get_goal_distribution():
+    '''按战略目标统计任务分布'''
+    conn = get_db()
+    c = conn.cursor()
+    c.execute('''
+        SELECT COALESCE(strategic_goal, "未分配") as goal, COUNT(*) as cnt,
+               SUM(CASE WHEN status="pending" THEN 1 ELSE 0 END) as pending_cnt,
+               SUM(CASE WHEN status="completed" THEN 1 ELSE 0 END) as done_cnt,
+               SUM(CASE WHEN status="failed_retryable" THEN 1 ELSE 0 END) as failed_cnt,
+               SUM(CASE WHEN status="blocked" THEN 1 ELSE 0 END) as blocked_cnt
+        FROM tasks WHERE deleted_at IS NULL
+        GROUP BY goal ORDER BY cnt DESC
+    ''')
+    rows = c.fetchall()
+    conn.close()
+    return jsonify({'success': True, 'goals': rows})
+
+@app.route('/api/debug/desc')
+
+@app.route('/api/tasks/<int:task_id>/executions', methods=['GET'])
+def get_task_executions(task_id):
+    conn = get_db()
+    c = conn.cursor()
+    c.execute('SELECT id, version, status, duration_sec, trigger_type, result_summary, task_summary, started_at, completed_at, created_at, ripple_context FROM task_executions WHERE task_id = %s ORDER BY version DESC LIMIT 50', (task_id,))
+    rows = c.fetchall()
+    conn.close()
+    from routes.helpers import row_to_dict
+    records = [row_to_dict(r, c) for r in rows]
+    return jsonify({"success": True, "task_id": task_id, "records": records, "total": len(records)})
+def debug_desc():
+    from routes.helpers import row_to_dict, get_db
+    conn = get_db()
+    c = conn.cursor()
+    c.execute('SELECT id, title, description FROM tasks LIMIT 1')
+    row = c.fetchone()
+    result = row_to_dict(row, c)
+    conn.close()
+    keys = list(result.keys())
+    has_json = 'json_description' in result
+    return jsonify({'keys': keys, 'has_json_desc': has_json, 'desc_start': str(result.get('description',''))[:50], 'jd_keys': list(result.get('json_description',{}).keys()) if has_json else []})
+
+# ===== 项目执行方案 API =====
+
+@app.route("/api/projects/<int:project_id>/plan", methods=["GET"])
+def get_project_plan(project_id):
+    """获取项目当前执行方案（含版本历史和评论）"""
+    try:
+        plan = execute_query("""
+            SELECT id, project_id, title, version, mode, source, source_task_id,
+                   summary, content, locked_reason, is_current, created_at, updated_at
+            FROM project_plans
+            WHERE project_id=%s AND is_current=1
+            ORDER BY version DESC LIMIT 1
+        """, (project_id,))
+        
+        versions = execute_query("""
+            SELECT id, version, mode, source, summary, is_current, created_at, updated_at
+            FROM project_plans
+            WHERE project_id=%s
+            ORDER BY version DESC
+        """, (project_id,))
+        
+        comments = execute_query("""
+            SELECT id, plan_version, task_id, content, created_at
+            FROM project_plan_comments
+            WHERE project_id=%s
+            ORDER BY created_at DESC
+        """, (project_id,))
+        
+                # 构造 content_display
+        plan_data = plan[0] if plan else None
+        if plan_data and plan_data.get('content'):
+            import json as _jp
+            raw = plan_data['content']
+            pc = _jp.loads(raw) if isinstance(raw, str) else raw
+            html_parts = []
+            goal = pc.get('goal', '')
+            if goal:
+                html_parts.append('<div style="font-size:0.85rem;color:#4a5568;padding:8px 12px;background:#f0fdf4;border-radius:6px;border-left:3px solid #48bb78">' + _jp.dumps(goal, ensure_ascii=False).strip('"') + '</div>')
+            phases = pc.get('phases', [])
+            if phases:
+                for ph in phases:
+                    pn = ph.get('name', '') or '阶段'
+                    html_parts.append('<div style="font-size:0.85rem;font-weight:600;color:#2d3748;margin:8px 0 4px">' + _jp.dumps(pn, ensure_ascii=False).strip('"') + '</div>')
+                    for t in ph.get('tasks', []):
+                        tn = t.get('name', '') or ''
+                        ef = t.get('estimated_effort', '') or ''
+                        txt = tn
+                        if ef:
+                            txt += ' (' + ef + ')'
+                        html_parts.append('<span style="font-size:0.75rem;color:#4a5568;padding:2px 6px;background:#f7fafc;border:1px solid #e2e8f0;border-radius:4px;display:inline-block;margin:2px">' + _jp.dumps(txt, ensure_ascii=False).strip('"') + '</span>')
+            risks = pc.get('risks', [])
+            if risks:
+                html_parts.append('<div style="margin-top:8px;padding:6px 10px;background:#fffaf0;border-left:3px solid #ed8936;border-radius:4px;font-size:0.8rem">')
+                for r in risks[:3]:
+                    rn = (r.get('risk', '') or r.get('name', '') or str(r)) if isinstance(r, dict) else str(r)
+                    html_parts.append('<div style="color:#744210;padding:2px 0">' + _jp.dumps(rn, ensure_ascii=False).strip('"') + '</div>')
+                if len(risks) > 3:
+                    html_parts.append('<div style="color:#a0aec0">+' + str(len(risks)-3) + ' 更多</div>')
+                html_parts.append('</div>')
+            plan_data['content_display'] = ''.join(html_parts)
+        
+        return jsonify({
+            "success": True,
+            "plan": plan_data,
+            "versions": versions,
+            "comments": comments
+        })
+    except Exception as e:
+        logger.error(f"获取项目方案失败 #{project_id}: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route("/api/projects/<int:project_id>/plan/toggle", methods=["POST"])
+def toggle_plan_lock(project_id):
+    """切换方案锁定/开放模式"""
+    try:
+        data = request.get_json() or {}
+        lock = data.get("lock", True)
+        reason = data.get("reason", "")
+        mode = "locked" if lock else "open"
+        execute_update("""
+            UPDATE project_plans SET mode=%s, locked_reason=%s, updated_at=NOW()
+            WHERE project_id=%s AND is_current=1
+        """, (mode, reason, project_id))
+        return jsonify({"success": True, "mode": mode})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route("/api/projects/<int:project_id>/plan/rollback", methods=["POST"])
+def rollback_plan(project_id):
+    """回滚到指定版本"""
+    try:
+        data = request.get_json() or {}
+        target_version = data.get("version")
+        if not target_version:
+            return jsonify({"success": False, "error": "需指定版本"}), 400
+        
+        import sys, json as _j
+        sys.path.insert(0, '/Users/mettlyz/.openclaw/workspace/sds1')
+        from modules.project_plan_manager import ProjectPlanManager
+        mgr = ProjectPlanManager()
+        result = mgr.rollback_to_version(project_id, target_version, "前端回滚")
+        if result:
+            return jsonify({"success": True, "plan": result})
+        return jsonify({"success": False, "error": "回滚失败"}), 500
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+# 更新 project plan API 加入 content_display（用于前端渲染）
+# 通过 post 钩子，已经在上面实现了。但把 content 渲染一下：
+# 在 get_project_plan 内增加 content_display 字段
+
+# ===== 任务总结 API =====
+sys.path.insert(0, '/Users/mettlyz/.openclaw/workspace/sds1')
+
+@app.route('/api/tasks/<int:task_id>/summary', methods=['GET'])
+def get_task_summary(task_id):
+    """获取任务总结（有缓存直接返回，无缓存生成）"""
+    try:
+        from lib.db_connector import execute_query
+        rows = execute_query(
+            "SELECT result_summary, summary_generated_at, summary_stale, status FROM tasks WHERE id=%s",
+            (task_id,)
+        )
+        if not rows:
+            return jsonify({"success": False, "error": "任务不存在"}), 404
+        r = rows[0]
+        
+        # 有缓存且未过期 → 直接返回
+        if r['result_summary'] and not r['summary_stale']:
+            return jsonify({
+                "success": True,
+                "summary": r['result_summary'],
+                "generated_at": str(r['summary_generated_at'] or ''),
+                "cached": True,
+            })
+        
+        # 无缓存或过期 → 调用 LLM 生成
+        from modules.task_summary_generator import generate_task_summary
+        result = generate_task_summary(task_id)
+        if result['success']:
+            return jsonify({
+                "success": True,
+                "summary": result['summary'],
+                "generated_at": str(datetime.now()),
+                "cached": False,
+                "elapsed_ms": result['elapsed_ms'],
+            })
+        return jsonify({"success": False, "error": "总结生成失败"}), 500
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route('/api/tasks/<int:task_id>/summary/refresh', methods=['POST'])
+def refresh_task_summary(task_id):
+    """强制刷新任务总结"""
+    try:
+        from modules.task_summary_generator import force_refresh_summary
+        result = force_refresh_summary(task_id)
+        if result['success']:
+            return jsonify({
+                "success": True,
+                "summary": result['summary'],
+                "elapsed_ms": result['elapsed_ms'],
+            })
+        return jsonify({"success": False, "error": "刷新失败"}), 500
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+# ============================================
+# 任务产出物文件 API
+# ============================================
+
+@app.route('/api/tasks/<int:task_id>/files')
+def get_task_output_files(task_id):
+    '''读取任务产出物文件列表（扫描 v1/v2/... 版本子目录）'''
+    base_dir = f'/opt/kanban-react/backend/uploads/docs/task-{task_id}'
+    if not os.path.isdir(base_dir):
+        return jsonify({'success': True, 'files': [], 'task_id': task_id})
+    files = []
+    try:
+        subdirs = sorted([d for d in os.listdir(base_dir) if os.path.isdir(os.path.join(base_dir, d))]) or ['']
+        for sub in subdirs:
+            scan_dir = base_dir if not sub else os.path.join(base_dir, sub)
+            for fname in sorted(os.listdir(scan_dir)):
+                fp = os.path.join(scan_dir, fname)
+                if os.path.isfile(fp):
+                    s = os.stat(fp)
+                    files.append({
+                        'id': len(files)+1, 'entity_type': 'task', 'entity_id': task_id,
+                        'filename': fname, 'version': sub or 'v0',
+                        'url': f'/api/tasks/{task_id}/files/{fname}',
+                        'size': s.st_size,
+                        'file_type': fname.split('.')[-1].lower() if '.' in fname else '',
+                        'created_at': datetime.fromtimestamp(s.st_mtime).isoformat(),
+                    })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+    return jsonify({'success': True, 'files': files, 'task_id': task_id, 'total': len(files)})
+
+
+@app.route('/api/tasks/<int:task_id>/files/<path:filename>')
+def get_task_output_file(task_id, filename):
+    '''下载任务产出物文件（扫描 v1/v2/... 版本子目录）'''
+    base_dir = f'/opt/kanban-react/backend/uploads/docs/task-{task_id}'
+    filepath = os.path.join(base_dir, filename)
+    if not os.path.isfile(filepath):
+        if os.path.isdir(base_dir):
+            for entry in sorted(os.listdir(base_dir)):
+                sp = os.path.join(base_dir, entry)
+                if os.path.isdir(sp):
+                    fp = os.path.join(sp, filename)
+                    if os.path.isfile(fp):
+                        filepath = fp
+                        break
+    real_path = os.path.realpath(filepath)
+    real_base = os.path.realpath('/opt/kanban-react/backend/uploads/docs')
+    if not real_path.startswith(real_base):
+        return jsonify({'success': False, 'error': 'Access denied'}), 403
+    if not os.path.isfile(real_path):
+        return jsonify({'success': False, 'error': 'File not found'}), 404
+    return send_file(real_path, as_attachment=False)
+
+# 导入LLM使用量API
+
+
+
+# ===== AI+材料科学日报 API =====
+import os, glob
+REPORTS_DIR = '/opt/kanban-react/backend/uploads/reports'
+os.makedirs(REPORTS_DIR, exist_ok=True)
+
+@app.route('/api/research-daily/list')
+def research_daily_list():
+    """列出所有日报"""
+    try:
+        files = sorted(glob.glob(os.path.join(REPORTS_DIR, '*.md')), reverse=True)
+        reports = []
+        for f in files:
+            fname = os.path.basename(f)
+            # 解析文件名中的日期
+            date_str = fname.replace('AI+材料科学日报_', '').replace('.md', '')
+            with open(f, 'r', encoding='utf-8') as fh:
+                first_line = fh.readline().strip()
+                fh.seek(0)
+                preview = fh.read(200).replace('\n', ' ').strip()
+            reports.append({
+                'filename': fname,
+                'date': date_str,
+                'summary': preview[:100],
+                'title': first_line.replace('# ', '')
+            })
+        return jsonify({'success': True, 'reports': reports})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/research-daily/content')
+def research_daily_content():
+    """获取指定日报内容"""
+    filename = request.args.get('file', '')
+    if not filename:
+        return jsonify({'success': False, 'error': 'Missing file'}), 400
+    filepath = os.path.join(REPORTS_DIR, filename)
+    # 安全校验：防止路径穿越
+    if not os.path.realpath(filepath).startswith(os.path.realpath(REPORTS_DIR)):
+        return jsonify({'success': False, 'error': 'Invalid path'}), 403
+    if not os.path.exists(filepath):
+        return jsonify({'success': False, 'error': 'File not found'}), 404
+    try:
+        with open(filepath, 'r', encoding='utf-8') as f:
+            content = f.read()
+        return jsonify({'success': True, 'content': content})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500

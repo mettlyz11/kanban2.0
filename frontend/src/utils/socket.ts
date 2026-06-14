@@ -81,8 +81,8 @@ class SocketIOManager {
           timeout: 10000
         });
 
-        // 连接成功
-        this.socket.on('connect', () => {
+        // 连接成功 / 重连成功
+        const onConnected = () => {
           console.log('✅ WebSocket 连接成功');
           this.connected = true;
           
@@ -92,9 +92,24 @@ class SocketIOManager {
 
           // 启动心跳
           this.startHeartbeat();
-          
-          resolve(true);
+        };
+
+        this.socket.on('connect', onConnected);
+        
+        // Resolve immediately once connected; errors won't reject (auto-reconnect handles them)
+        let resolved = false;
+        this.socket.on('connect', () => {
+          if (!resolved) { resolved = true; resolve(true); }
         });
+        
+        // Timeout fallback: resolve anyway after 15s (let auto-reconnect work in background)
+        setTimeout(() => {
+          if (!resolved) {
+            resolved = true;
+            console.warn('⚠️ WebSocket 连接超时，后台继续重试');
+            resolve(false);
+          }
+        }, 15000);
 
         // 连接断开
         this.socket.on('disconnect', () => {
@@ -107,12 +122,28 @@ class SocketIOManager {
           }
         });
 
-        // 连接错误
+        // 连接错误 (socket.io 会自动重连，不要 reject)
         this.socket.on('connect_error', (error) => {
-          console.error('❌ WebSocket 连接错误:', error);
+          console.warn('⚠️ WebSocket 连接错误 (自动重连中):', error.message);
+          this.connected = false;
+          // 不停止心跳，重连成功后会自动重启
+        });
+
+        // 重连失败
+        this.socket.on('reconnect_failed', () => {
+          console.error('❌ WebSocket 重连失败');
           this.connected = false;
           this.stopHeartbeat();
-          reject(error);
+        });
+
+        // 重连成功
+        this.socket.on('reconnect', (attemptNumber: number) => {
+          console.log('✅ WebSocket 重连成功 (尝试了 ' + attemptNumber + ' 次)');
+          this.connected = true;
+          if (config.onConnect) {
+            config.onConnect();
+          }
+          this.startHeartbeat();
         });
 
         // 任务事件

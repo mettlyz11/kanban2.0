@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef } from 'react';
 import * as Sentry from '@sentry/react';
 
 interface Props {
@@ -19,17 +19,20 @@ function DraggableFeedbackDialog({ onClose }: { onClose: () => void }) {
   const [submitted, setSubmitted] = useState(false);
   const dialogRef = useRef<HTMLDivElement>(null);
 
-  // offset from center: 0 means centered
-  const [offset, setOffset] = useState({ x: 0, y: 0 });
-  const dragRef = useRef({ startX: 0, startY: 0, offX: 0, offY: 0 });
+  // Use absolute positioning for reliable dragging
+  const [pos, setPos] = useState({ left: window.innerWidth / 2 - 210, top: window.innerHeight / 2 - 150 });
 
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+  const handleMouseDown = (e: React.MouseEvent) => {
     e.preventDefault();
-    dragRef.current = { startX: e.clientX, startY: e.clientY, offX: offset.x, offY: offset.y };
+    e.stopPropagation();
+    const startLeft = pos.left;
+    const startTop = pos.top;
+    const startX = e.clientX;
+    const startY = e.clientY;
     const onMove = (ev: MouseEvent) => {
-      setOffset({
-        x: dragRef.current.offX + (ev.clientX - dragRef.current.startX),
-        y: dragRef.current.offY + (ev.clientY - dragRef.current.startY),
+      setPos({
+        left: startLeft + (ev.clientX - startX),
+        top: startTop + (ev.clientY - startY),
       });
     };
     const onUp = () => {
@@ -38,7 +41,7 @@ function DraggableFeedbackDialog({ onClose }: { onClose: () => void }) {
     };
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onUp);
-  }, [offset.x, offset.y]);
+  };
 
   const handleSubmit = () => {
     Sentry.captureMessage('User Feedback: ' + comments, {
@@ -50,8 +53,8 @@ function DraggableFeedbackDialog({ onClose }: { onClose: () => void }) {
 
   if (submitted) {
     return (
-      <div style={overlayStyle} onClick={onClose}>
-        <div style={dialogStyle}>
+      <div style={overlayStyle}>
+        <div style={{...dialogStyle, position: 'fixed', left: pos.left, top: pos.top, margin: 0, zIndex: 10000}}>
           <h3 style={{ color: '#22c55e', marginBottom: '16px' }}>✅ 感谢反馈！</h3>
           <p style={{ color: '#666' }}>我们会尽快修复问题。</p>
         </div>
@@ -59,18 +62,19 @@ function DraggableFeedbackDialog({ onClose }: { onClose: () => void }) {
     );
   }
 
-  // When offset != 0, use translate instead of the center translate(-50%,-50%)
-  const hasMoved = offset.x !== 0 || offset.y !== 0;
-
   return (
-    <div style={overlayStyle} onClick={onClose}>
+    <div style={overlayStyle}>
       <div
         ref={dialogRef}
         onClick={(e) => e.stopPropagation()}
         style={{
           ...dialogStyle,
-          transform: hasMoved ? `translate(calc(-50% + ${offset.x}px), calc(-50% + ${offset.y}px))` : undefined,
+          position: 'fixed',
+          left: pos.left,
+          top: pos.top,
+          margin: 0,
           cursor: 'default',
+          zIndex: 10000,
         }}
       >
         <div
@@ -156,14 +160,10 @@ const overlayStyle: React.CSSProperties = {
   right: 0,
   bottom: 0,
   backgroundColor: 'rgba(0, 0, 0, 0.4)',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
   zIndex: 9999,
 };
 
 const dialogStyle: React.CSSProperties = {
-  position: 'relative',
   backgroundColor: 'white',
   borderRadius: '12px',
   boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',

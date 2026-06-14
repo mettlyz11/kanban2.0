@@ -10,11 +10,21 @@ export function useCalendarWebSocket(userId?: string) {
     minutes_before: number;
   } | null>(null);
 
-  useEffect(() => {
-    if (!userId) return;
+  // 如果 userId 为空，使用默认值确保能连接
+  const effectiveUserId = userId || 'guest-calendar';
 
+  useEffect(() => {
     // Subscribe to calendar events
-    socketIO.emit('calendar_subscribe', { user_id: userId });
+    // Check real socket connection status
+    const checkConn = setInterval(() => {
+      // @ts-ignore
+      if (socketIO.connected) {
+        setWsConnected(true);
+        clearInterval(checkConn);
+      }
+    }, 500);
+
+    socketIO.emit('calendar_subscribe', { user_id: effectiveUserId });
 
     // Listen for new events
     socketIO.on('calendar_event_added', (data: any) => {
@@ -34,16 +44,15 @@ export function useCalendarWebSocket(userId?: string) {
       setPendingRefresh(true);
     });
 
-    setWsConnected(true);
-
     return () => {
-      socketIO.emit('calendar_unsubscribe', { user_id: userId });
+      clearInterval(checkConn);
+      socketIO.emit('calendar_unsubscribe', { user_id: effectiveUserId });
       socketIO.off('calendar_event_added');
       socketIO.off('calendar_event_changed');
       socketIO.off('calendar_event_removed');
       socketIO.off('meeting_alert');
     };
-  }, [userId]);
+  }, [effectiveUserId]);
 
   const clearAlert = useCallback(() => setAlert(null), []);
   const markRefreshed = useCallback(() => setPendingRefresh(false), []);

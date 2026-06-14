@@ -1,3 +1,4 @@
+import LLMUsage from "./pages/LLMUsage";
 import * as Sentry from "@sentry/react"
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom"
 import { useLocation } from "react-router-dom";
@@ -8,12 +9,7 @@ import Projects from "./pages/Projects";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import Tasks from "./pages/Tasks";
-import Users from "./pages/Users";
 import Settings from "./pages/Settings";
-import P049Dashboard from "./pages/P049Dashboard";
-import P049Login from "./pages/P049Login";
-import P049UserProfile from "./pages/P049UserProfile";
-import P049ProjectMembers from "./pages/P049ProjectMembers";
 import ManualReview from "./pages/ManualReview";
 import DailyReviews from "./pages/DailyReviews";
 import Skills from "./pages/Skills";
@@ -24,6 +20,10 @@ import Brain from "./pages/Brain";
 import CalcTasks from "./pages/CalcTasks";
 import CalendarPage from "./pages/CalendarPage";
 import Chat from "./pages/Chat";
+import RecurringTasks from "./pages/RecurringTasks";
+import AuditRepair from './pages/AuditRepair';
+import KTConfig from "./pages/KTConfig";
+import SystemMap from "./pages/SystemMap";
 import CommunicationHub from "./pages/CommunicationHub";
 import CompanyInfo from "./pages/CompanyInfo";
 import CompanyList from "./pages/CompanyList";
@@ -44,6 +44,8 @@ import ProjectDesign from "./pages/ProjectDesign";
 import Reactions from "./pages/Reactions";
 import ResearchNotes from "./pages/ResearchNotes";
 import Resources from "./pages/Resources";
+import RipplePanorama from "./pages/RipplePanorama";
+import EvolutionTrend from "./pages/EvolutionTrend";
 import SystemPages from "./pages/SystemPages";
 import XiaBoshi from "./pages/XiaBoshi";
 import PeopleList from "./pages/PeopleList";
@@ -51,6 +53,20 @@ import SelfDrivingSystem from './pages/SelfDrivingSystem';
 import Pepi from "./pages/Pepi";
 import StrategicMap from "./pages/StrategicMap";
 import Cockpit from "./pages/Cockpit";
+import RemoteControl from './pages/RemoteControl'
+import SDSConsole from './pages/SDSConsole'
+import { RemoteDesktop } from './pages/RemoteDesktop'
+import SystemSync from "./pages/SystemSync"
+import ResourceLibrary from "./pages/ResourceLibrary"
+import AuditLog from './pages/AuditLog'
+import LLMGlobalContext from './pages/LLMGlobalContext'
+import ResearchDaily from './pages/ResearchDaily'
+import StrategicDocs from './pages/StrategicDocs'
+import LLMProviders from './pages/LLMProviders'
+import KnowledgeLibrary from './pages/KnowledgeLibrary'
+import Contacts from './pages/Contacts'
+import SysConfig from './pages/SysConfig'
+import KanbanOverview from './pages/KanbanOverview'
 
 function LocationTracker() {
   const location = useLocation();
@@ -75,22 +91,19 @@ export default function Router() {
       <LocationTracker />
       <Routes>
         <Route path="/login" element={<Login />} />
-        <Route path="/p049/login" element={<P049Login />} />
-        <Route path="/p049" element={<P049Dashboard />} />
-        <Route path="/p049/profile" element={<P049UserProfile />} />
-        <Route path="/p049/members" element={<P049ProjectMembers />} />
         <Route element={<ProtectedRoute><Layout>{undefined}</Layout></ProtectedRoute>}>
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/projects" element={<Projects />} />
           <Route path="/tasks" element={<Tasks />} />
-          <Route path="/users" element={<Users />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/review" element={<ManualReview />} />
           <Route path="/daily-reviews" element={<DailyReviews />} />
           <Route path="/skills" element={<Skills />} />
           <Route path="/stocks" element={<Stocks />} />
           <Route path="/llm-configs" element={<LLMConfigs />} />
+          <Route path="/llm-usage" element={<LLMUsage />} />
+          <Route path="/llm-global-context" element={<LLMGlobalContext />} />
           <Route path="/architecture" element={<Architecture />} />
           <Route path="/brain" element={<Brain />} />
           <Route path="/calc-tasks" element={<CalcTasks />} />
@@ -120,12 +133,33 @@ export default function Router() {
           <Route path="/system-monitor" element={<SystemPages />} />
           <Route path="/meetings" element={<MeetingNotes />} />
           <Route path="/pepi" element={<Pepi />} />
-          <Route path="/self-driving" element={<SelfDrivingSystem />} />
+          
+          <Route path="/remote-control" element={<RemoteControl />} />
+          <Route path="/sds-console" element={<SDSConsole />} />
+          <Route path="/remote-desktop" element={<RemoteDesktop />} />
+          <Route path="/audit-log" element={<AuditLog />} />
+<Route path="/self-driving" element={<SelfDrivingSystem />} />
           <Route path="/strategic-map" element={<StrategicMap />} />
           {/* self-driving route added 2026-04-23 */}
+          <Route path="/recurring-tasks" element={<RecurringTasks />} />
+          <Route path="/system-map" element={<SystemMap />} />
+          <Route path="/kt-config" element={<KTConfig />} />
+          <Route path="/audit-repair" element={<AuditRepair />} />
+          <Route path="/system-sync" element={<SystemSync />} />
+          <Route path="/audit" element={<AuditLog />} />
+          <Route path="/resource-library" element={<ResourceLibrary />} />
           <Route path="/cockpit" element={<Cockpit />} />
+          <Route path="/panorama" element={<RipplePanorama />} />
+          <Route path="/evolution-trend" element={<EvolutionTrend />} />
+          <Route path="/research-daily" element={<ResearchDaily />} />
+          <Route path="/strategic-docs" element={<StrategicDocs />} />
+          <Route path="/llm-providers" element={<LLMProviders />} />
+          <Route path="/knowledge-library" element={<KnowledgeLibrary />} />
+          <Route path="/contacts" element={<Contacts />} />
+          <Route path="/sys-config" element={<SysConfig />} />
+          <Route path="/overview" element={<KanbanOverview />} />
         </Route>
       </Routes>
     </BrowserRouter>
   );
-}
+}// BUILD_1781420464

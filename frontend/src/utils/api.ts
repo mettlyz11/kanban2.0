@@ -364,6 +364,31 @@ export const perceptionApi = {
     return res.json()
   },
 
+
+  // 项目总结
+  // 项目总结
+  async getProjectSummary(projectId: number) {
+    const res = await fetch(`${API_BASE}/projects/${projectId}/summary`)
+    return res.json()
+  },
+
+  async updateProjectSummary(projectId: number, summary: string) {
+    const res = await fetch(`${API_BASE}/projects/${projectId}/summary`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ summary })
+    })
+    return res.json()
+  },
+
+  async generateProjectSummary(projectId: number) {
+    const res = await fetch(`${API_BASE}/projects/${projectId}/generate-summary`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" }
+    })
+    return res.json()
+  },
+
   // 记录用户行为
   async recordAction(userId: string, action: string, target?: string) {
     const res = await fetch(`${API_BASE}/perception/record-action`, {

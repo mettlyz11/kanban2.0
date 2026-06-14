@@ -4,7 +4,7 @@ import { TaskAttachments } from "../components/TaskAttachments"
 import { TaskAccordion } from "../components/TaskAccordion"
 import "../components/TaskAttachments.css"
 import { api, projectFilesApi } from '../utils/api'
-import { ChevronDown, ChevronUp, Target, ListTodo, Edit2, Trash2, Plus, X, Save, Upload, Download, FileText, AlertCircle, Loader2, Maximize2 } from 'lucide-react'
+import { ChevronDown, ChevronUp, Target, ListTodo, Edit2, Trash2, Plus, X, Save, Upload, Download, FileText, AlertCircle, Loader2, Maximize2, ExternalLink, ChevronRight } from 'lucide-react'
 
 interface Task {
   id: number
@@ -32,6 +32,7 @@ interface ProjectFile {
 }
 
 interface Project {
+  summary?: string
   id: number
   number: string
   name: string
@@ -114,9 +115,17 @@ export function Projects() {
     if (projects.length === 0 || expandedProjects.size === 0) return
 
     const loadExpandedProjectData = async () => {
-      const expandedIds = Array.from(expandedProjects)
+const loadSummary = (projectId: number) => {
+        const p = projects.find(pj => pj.id === projectId)
+        if (p?.summary) {
+          setProjectSummary(prev => ({ ...prev, [projectId]: p.summary || "" }))
+        }
+      }
 
-      const tasksToLoad = expandedIds.filter(id => !(id in projectTasks))
+      const expandedIds = Array.from(expandedProjects)
+      const validProjectIds = new Set(projects.map(p => p.id))
+      const filteredIds = expandedIds.filter(id => validProjectIds.has(id))
+      const tasksToLoad = filteredIds.filter(id => !(id in projectTasks))
       if (tasksToLoad.length > 0) {
         tasksToLoad.forEach(id => {
           setProjectTasksLoading(prev => ({ ...prev, [id]: true }))
@@ -125,32 +134,35 @@ export function Projects() {
           tasksToLoad.map(async (projectId) => {
             try {
               const data = await api.getProjectTasks(projectId)
-              if (data.success) {
+              if (!data.success) return;
+              if (true) {
                 setProjectTasks(prev => ({ ...prev, [projectId]: data.tasks || [] }))
               } else {
                 setProjectTasks(prev => ({ ...prev, [projectId]: [] }))
               }
             } catch (e) {
               setProjectTasks(prev => ({ ...prev, [projectId]: [] }))
-              console.error('Auto-load failed:', e)
+              /* 404 not found - skip */
             } finally {
               setProjectTasksLoading(prev => ({ ...prev, [projectId]: false }))
+            loadSummary(projectId)
             }
           })
         )
       }
 
-      const filesToLoad = expandedIds.filter(id => !(id in projectFiles))
+      const filesToLoad = filteredIds.filter(id => !(id in projectFiles))
       if (filesToLoad.length > 0) {
         await Promise.all(
           filesToLoad.map(async (projectId) => {
             try {
               const data = await projectFilesApi.getFiles(projectId)
-              if (data.success) {
+              if (!data.success) return;
+              if (true) {
                 setProjectFiles(prev => ({ ...prev, [projectId]: data.documents || [] }))
               }
             } catch (e) {
-              console.error('Auto-load failed:', e)
+              /* 404 not found - skip */
             }
           })
         )
@@ -166,7 +178,8 @@ export function Projects() {
     if (!projectTasks[pid]) {
       setProjectTasksLoading(prev => ({ ...prev, [pid]: true }))
       api.getProjectTasks(pid).then(data => {
-        if (data.success) {
+        if (!data.success) return;
+              if (true) {
           setProjectTasks(prev => ({ ...prev, [pid]: data.tasks || [] }))
         } else {
           setProjectTasks(prev => ({ ...prev, [pid]: [] }))
@@ -188,7 +201,8 @@ export function Projects() {
     }, 10000)
     try {
       const data = await api.getProjects()
-      if (data.success) {
+      if (!data.success) return;
+              if (true) {
         const projectsWithStats = await Promise.all(
           data.projects.map(async (p: Project) => {
             try {
@@ -246,7 +260,8 @@ export function Projects() {
         setProjectTasksLoading(prev => ({ ...prev, [projectId]: true }))
         try {
           const data = await api.getProjectTasks(projectId)
-          if (data.success) {
+          if (!data.success) return;
+              if (true) {
             setProjectTasks(prev => ({
               ...prev,
               [projectId]: data.tasks || []
@@ -264,7 +279,8 @@ export function Projects() {
       if (!projectFiles[projectId]) {
         try {
           const data = await projectFilesApi.getFiles(projectId)
-          if (data.success) {
+          if (!data.success) return;
+              if (true) {
             setProjectFiles(prev => ({
               ...prev,
               [projectId]: data.documents || []
@@ -441,7 +457,7 @@ export function Projects() {
         <div style={{ color: '#666' }}>
           共 {projects.length} 个项目
         </div>
-        <button className="btn btn-primary" onClick={() => setShowModal(true)}>
+        <button className="btn btn-primary" onClick={() => window.location.href =  setShowModal(true)}>
           <Plus size={18} /> 新建项目
         </button>
       </div>
@@ -465,7 +481,7 @@ export function Projects() {
                   alignItems: 'center',
                   justifyContent: 'space-between'
                 }}
-                onClick={() => toggleExpand(p.id)}
+                onClick={() => window.location.href =  toggleExpand(p.id)}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1 }}>
                   <div style={{
@@ -627,6 +643,7 @@ export function Projects() {
                       onClick={() => handleAddTask(p.id)}
                       style={{ fontSize: '0.85rem', padding: '8px 16px' }}
                     >
+            <button onClick={() => window.location.href = `/projects/${p.id}/dependencies`} style={{ padding: "8px 12px", fontSize: "0.85rem", marginRight: "8px", background: "#10b981", color: "white", border: "none", borderRadius: "6px", cursor: "pointer" }}>任务依赖</button>
                       <Plus size={16} /> 添加任务
                     </button>
                   </div>
@@ -691,7 +708,7 @@ export function Projects() {
       )}
 
       {showModal && (
-        <div className="modal-overlay" onClick={() => setShowModal(false)}>
+        <div className="modal-overlay" onClick={() => window.location.href =  setShowModal(false)}>
           <div className="modal" onClick={e => e.stopPropagation()}>
             <h3>新建项目</h3>
             <form onSubmit={handleSubmit}>
@@ -731,7 +748,7 @@ export function Projects() {
                 </select>
               </div>
               <div className="modal-actions">
-                <button type="button" className="btn btn-secondary" onClick={() => setShowModal(false)}>取消</button>
+                <button type="button" className="btn btn-secondary" onClick={() => window.location.href =  setShowModal(false)}>取消</button>
                 <button type="submit" className="btn btn-primary">创建</button>
               </div>
             </form>
@@ -740,7 +757,7 @@ export function Projects() {
       )}
 
       {showEditModal && editingProject && (
-        <div className="modal-overlay" onClick={() => setShowEditModal(false)}>
+        <div className="modal-overlay" onClick={() => window.location.href =  setShowEditModal(false)}>
           <div className="modal" onClick={e => e.stopPropagation()}>
             <h3>编辑项目</h3>
             <form onSubmit={handleEditSubmit}>
@@ -791,7 +808,7 @@ export function Projects() {
                 </select>
               </div>
               <div className="modal-actions">
-                <button type="button" className="btn btn-secondary" onClick={() => setShowEditModal(false)}>取消</button>
+                <button type="button" className="btn btn-secondary" onClick={() => window.location.href =  setShowEditModal(false)}>取消</button>
                 <button type="submit" className="btn btn-primary">
                   <Save size={16} /> 保存
                 </button>
@@ -802,7 +819,7 @@ export function Projects() {
       )}
 
       {showDeleteModal && deletingProject && (
-        <div className="modal-overlay" onClick={() => setShowDeleteModal(false)}>
+        <div className="modal-overlay" onClick={() => window.location.href =  setShowDeleteModal(false)}>
           <div className="modal" onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px', color: '#c62828' }}>
               <AlertCircle size={24} />
@@ -816,7 +833,7 @@ export function Projects() {
               <button
                 type="button"
                 className="btn btn-secondary"
-                onClick={() => setShowDeleteModal(false)}
+                onClick={() => window.location.href =  setShowDeleteModal(false)}
               >
                 取消
               </button>
@@ -834,8 +851,9 @@ export function Projects() {
       )}
 
       {showAddTaskModal && (
-        <div className="modal-overlay" onClick={() => setShowAddTaskModal(false)}>
+        <div className="modal-overlay" onClick={() => window.location.href =  setShowAddTaskModal(false)}>
           <div className="modal" onClick={e => e.stopPropagation()}>
+            <button onClick={() => window.location.href = `/projects/${p.id}/dependencies`} style={{ padding: "8px 12px", fontSize: "0.85rem", marginRight: "8px", background: "#10b981", color: "white", border: "none", borderRadius: "6px", cursor: "pointer" }}>任务依赖</button>
             <h3>添加任务</h3>
             <form onSubmit={handleTaskSubmit}>
               <div className="form-group">
@@ -868,7 +886,7 @@ export function Projects() {
                 </select>
               </div>
               <div className="modal-actions">
-                <button type="button" className="btn btn-secondary" onClick={() => setShowAddTaskModal(false)}>取消</button>
+                <button type="button" className="btn btn-secondary" onClick={() => window.location.href =  setShowAddTaskModal(false)}>取消</button>
                 <button type="submit" className="btn btn-primary">
                   <Plus size={16} /> 添加
                 </button>
@@ -911,6 +929,87 @@ function MaximizedProjectModal({
   setProjects: (p: ProjectWithTasks[]) => void
   loadProjects: () => void
 }) {
+  // Edit project state
+  const [editingField, setEditingField] = useState<string | null>(null)
+  const [editValue, setEditValue] = useState('')
+
+  // Task detail/edit state
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null)
+  const [taskEditForm, setTaskEditForm] = useState({ title: '', description: '', status: '', priority: '', project_id: 0 })
+  const [savingTask, setSavingTask] = useState(false)
+  const [savingProject, setSavingProject] = useState(false)
+  const [projectSummary, setProjectSummary] = useState<Record<number, string>>({})
+  const [summaryLoading, setSummaryLoading] = useState<Record<number, boolean>>({})
+
+  const startEditProjectField = (field: string, value: string) => {
+    setEditingField(field)
+    setEditValue(value)
+  }
+
+  const saveProjectField = async () => {
+    if (!editingField) return
+    setSavingProject(true)
+    try {
+      await api.updateProject(project.id, { [editingField]: editValue })
+      // Update local project
+      const updatedProject = { ...project, [editingField]: editValue }
+      setProjects(projects.map(p => p.id === project.id ? updatedProject : p))
+    } catch (e) {
+      console.error('Failed to update project:', e)
+    }
+    setSavingProject(false)
+    setEditingField(null)
+  }
+
+  const generateSummary = async (projectId: number) => {
+    setSummaryLoading(prev => ({ ...prev, [projectId]: true }))
+    try {
+      const res = await api.generateProjectSummary(projectId)
+      if (res.success) {
+        setProjectSummary(prev => ({ ...prev, [projectId]: res.summary }))
+      }
+    } catch (e) {
+      console.error("生成总结失败:", e)
+    } finally {
+      setSummaryLoading(prev => ({ ...prev, [projectId]: false }))
+    }
+  }
+
+
+  const openTaskDetail = (task: Task) => {
+    setSelectedTask(task)
+    setTaskEditForm({
+      title: task.title || '',
+      description: task.description || '',
+      status: task.status || 'pending',
+      priority: task.priority || 'medium',
+      project_id: 0 // 0 means same project
+    })
+  }
+
+  const saveTaskEdit = async () => {
+    if (!selectedTask) return
+    setSavingTask(true)
+    try {
+      const updates: any = {
+        title: taskEditForm.title,
+        description: taskEditForm.description,
+        status: taskEditForm.status,
+        priority: taskEditForm.priority,
+      }
+      if (taskEditForm.project_id > 0) {
+        updates.project_id = taskEditForm.project_id
+      }
+      await api.updateTask(selectedTask.id, updates)
+      // Reload tasks
+      loadProjects()
+      setSelectedTask(null)
+    } catch (e) {
+      console.error('Failed to update task:', e)
+    }
+    setSavingTask(false)
+  }
+
   const filteredTasks = useMemo(() => {
     let result = tasks
     if (taskSearch) {
@@ -1076,21 +1175,69 @@ function MaximizedProjectModal({
           </div>
 
           <div style={{ marginBottom: '20px' }}>
-            <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#666', marginBottom: '8px' }}>
-              项目描述
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+              <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#666' }}>项目描述</span>
+              <button onClick={() => window.location.href =  startEditProjectField('description', project.description || '')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#667eea', padding: '2px' }} title="编辑描述"><Edit2 size={14} /></button>
             </div>
-            <div style={{ fontSize: '0.9rem', color: '#333', lineHeight: '1.7' }}>
-              {project.description || '暂无描述'}
+            {editingField === 'description' ? (
+              <div>
+                <textarea value={editValue} onChange={e => setEditValue(e.target.value)} style={{ width: '100%', minHeight: '80px', padding: '8px', border: '1px solid #667eea', borderRadius: '6px', fontSize: '0.9rem', fontFamily: 'inherit', resize: 'vertical', outline: 'none', boxSizing: 'border-box' }} />
+                <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
+                  <button onClick={saveProjectField} disabled={savingProject} style={{ padding: '4px 12px', background: '#667eea', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem' }}>{savingProject ? '保存中...' : '保存'}</button>
+                  <button onClick={() => window.location.href =  setEditingField(null)} style={{ padding: '4px 12px', background: '#f0f0f0', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem' }}>取消</button>
+                </div>
+              </div>
+            ) : (
+              <div style={{ fontSize: '0.9rem', color: '#333', lineHeight: '1.7', cursor: 'pointer' }} onClick={() => window.location.href =  startEditProjectField('description', project.description || '')}>{project.description || '暂无描述 (点击编辑)'}</div>
+            )}
+          </div>
+
+          <div style={{ marginBottom: "20px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+              <span style={{ fontSize: "0.85rem", fontWeight: 600, color: "#666" }}>项目总结</span>
+              <button
+                onClick={() => window.location.href =  generateSummary(project.id)}
+                disabled={summaryLoading[project.id]}
+                style={{ background: "none", border: "none", cursor: "pointer", color: "#667eea", padding: "2px", fontSize: "0.8rem", display: "flex", alignItems: "center", gap: "4px" }}
+                title="点击生成/刷新项目总结"
+              >
+                {summaryLoading[project.id] ? "生成中..." : "Refresh"}
+              </button>
+            </div>
+            <div
+              style={{
+                fontSize: "0.85rem",
+                color: "#555",
+                lineHeight: "1.6",
+                padding: "10px 12px",
+                background: "#f8f9ff",
+                borderRadius: "6px",
+                border: "1px solid #e8eaff",
+                whiteSpace: "pre-wrap",
+                maxHeight: "300px",
+                overflowY: "auto"
+              }}
+            >
+              {projectSummary[project.id] || (project as any).summary ? (projectSummary[project.id] || (project as any).summary) : "暂无项目总结。点击 Refresh 基于任务数据自动生成。"}
             </div>
           </div>
 
-          <div style={{ marginBottom: '20px' }}>
-            <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#666', marginBottom: '8px' }}>
-              项目目标
+          <div style={{ marginBottom: "20px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+              <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#666' }}>项目目标</span>
+              <button onClick={() => window.location.href =  startEditProjectField('goal', project.goal || '')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#667eea', padding: '2px' }} title="编辑目标"><Edit2 size={14} /></button>
             </div>
-            <div style={{ fontSize: '0.9rem', color: '#333', lineHeight: '1.7' }}>
-              {project.goal || '暂无目标'}
-            </div>
+            {editingField === 'goal' ? (
+              <div>
+                <textarea value={editValue} onChange={e => setEditValue(e.target.value)} style={{ width: '100%', minHeight: '80px', padding: '8px', border: '1px solid #667eea', borderRadius: '6px', fontSize: '0.9rem', fontFamily: 'inherit', resize: 'vertical', outline: 'none', boxSizing: 'border-box' }} />
+                <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
+                  <button onClick={saveProjectField} disabled={savingProject} style={{ padding: '4px 12px', background: '#667eea', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem' }}>{savingProject ? '保存中...' : '保存'}</button>
+                  <button onClick={() => window.location.href =  setEditingField(null)} style={{ padding: '4px 12px', background: '#f0f0f0', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem' }}>取消</button>
+                </div>
+              </div>
+            ) : (
+              <div style={{ fontSize: '0.9rem', color: '#333', lineHeight: '1.7', cursor: 'pointer' }} onClick={() => window.location.href =  startEditProjectField('goal', project.goal || '')}>{project.goal || '暂无目标 (点击编辑)'}</div>
+            )}
           </div>
 
           <div style={{ marginBottom: '20px' }}>
@@ -1122,6 +1269,7 @@ function MaximizedProjectModal({
 
           <div style={{ display: 'flex', gap: '8px', marginTop: '24px' }}>
             <button className="btn btn-primary" onClick={onAddTask}>
+            <button onClick={() => window.location.href = `/projects/${p.id}/dependencies`} style={{ padding: "8px 12px", fontSize: "0.85rem", marginRight: "8px", background: "#10b981", color: "white", border: "none", borderRadius: "6px", cursor: "pointer" }}>任务依赖</button>
               <Plus size={16} /> 添加任务
             </button>
           </div>
@@ -1216,39 +1364,34 @@ function MaximizedProjectModal({
                       onMouseEnter={e => e.currentTarget.style.background = '#fafafa'}
                       onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                     >
-                      <td style={{ padding: '12px 16px', fontSize: '0.85rem', color: '#667eea', fontFamily: 'monospace' }}>
+                      <td onClick={() => window.location.href =  openTaskDetail(task)} style={{ padding: '12px 16px', fontSize: '0.85rem', color: '#667eea', fontFamily: 'monospace', cursor: 'pointer' }}>
                         {task.number}
                       </td>
-                      <td style={{ padding: '12px 16px', fontSize: '0.9rem', color: '#333' }}>
-                        {task.title}
+                      <td onClick={() => window.location.href =  openTaskDetail(task)} style={{ padding: '12px 16px', fontSize: '0.9rem', color: '#333', cursor: 'pointer' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          {task.title}
+                          <ExternalLink size={12} style={{ opacity: 0.3 }} />
+                        </div>
                       </td>
-                      <td style={{ padding: '12px 16px', textAlign: 'center' }}>
+                      <td onClick={() => window.location.href =  openTaskDetail(task)} style={{ padding: '12px 16px', textAlign: 'center', cursor: 'pointer' }}>
                         <span className={`status-badge status-${task.status}`}>
                           {statusLabel(task.status)}
                         </span>
                       </td>
-                      <td style={{ padding: '12px 16px', textAlign: 'center' }}>
+                      <td onClick={() => window.location.href =  openTaskDetail(task)} style={{ padding: '12px 16px', textAlign: 'center', cursor: 'pointer' }}>
                         <span className={`badge ${priorityBadgeClass(task.priority)}`}>
                           {priorityLabel(task.priority)}
                         </span>
                       </td>
                       <td style={{ padding: '12px 16px', textAlign: 'center' }}>
-                        <button
-                          onClick={() => onDeleteTask(task.id)}
-                          style={{
-                            background: 'none',
-                            border: 'none',
-                            color: '#c62828',
-                            cursor: 'pointer',
-                            padding: '4px',
-                            borderRadius: '4px',
-                            display: 'inline-flex',
-                            alignItems: 'center'
-                          }}
-                          title="删除任务"
-                        >
-                          <Trash2 size={16} />
-                        </button>
+                        <div style={{ display: 'flex', gap: '4px', justifyContent: 'center' }}>
+                          <button onClick={() => window.location.href =  openTaskDetail(task)} style={{ background: 'none', border: 'none', color: '#667eea', cursor: 'pointer', padding: '4px', borderRadius: '4px', display: 'inline-flex', alignItems: 'center' }} title="编辑任务">
+                            <Edit2 size={16} />
+                          </button>
+                          <button onClick={() => window.location.href =  onDeleteTask(task.id)} style={{ background: 'none', border: 'none', color: '#c62828', cursor: 'pointer', padding: '4px', borderRadius: '4px', display: 'inline-flex', alignItems: 'center' }} title="删除任务">
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -1258,6 +1401,89 @@ function MaximizedProjectModal({
           </div>
         </div>
       </div>
+      {/* Task Detail/Edit Modal */}
+      {selectedTask && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          zIndex: 10000,
+          background: 'rgba(0,0,0,0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center'
+        }} onClick={() => window.location.href =  setSelectedTask(null)}>
+          <div style={{
+            background: 'white',
+            borderRadius: '12px',
+            width: '600px',
+            maxHeight: '80vh',
+            overflow: 'auto',
+            boxShadow: '0 20px 60px rgba(0,0,0,0.3)'
+          }} onClick={e => e.stopPropagation()}>
+            {/* Modal Header */}
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              padding: '16px 24px',
+              borderBottom: '1px solid #eee',
+              background: '#f8f9fa'
+            }}>
+              <h3 style={{ margin: 0, fontSize: '1.1rem' }}>编辑任务 - {selectedTask.number}</h3>
+              <button onClick={() => window.location.href =  setSelectedTask(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px' }}><X size={20} /></button>
+            </div>
+            {/* Modal Body */}
+            <div style={{ padding: '24px' }}>
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#666', marginBottom: '6px' }}>任务标题</label>
+                <input type="text" value={taskEditForm.title} onChange={e => setTaskEditForm({...taskEditForm, title: e.target.value})} style={{ width: '100%', padding: '10px', border: '1px solid #ddd', borderRadius: '6px', fontSize: '0.95rem', boxSizing: 'border-box' }} />
+              </div>
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#666', marginBottom: '6px' }}>任务描述</label>
+                <textarea value={taskEditForm.description} onChange={e => setTaskEditForm({...taskEditForm, description: e.target.value})} style={{ width: '100%', minHeight: '80px', padding: '10px', border: '1px solid #ddd', borderRadius: '6px', fontSize: '0.9rem', fontFamily: 'inherit', resize: 'vertical', boxSizing: 'border-box' }} />
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#666', marginBottom: '6px' }}>状态</label>
+                  <select value={taskEditForm.status} onChange={e => setTaskEditForm({...taskEditForm, status: e.target.value})} style={{ width: '100%', padding: '10px', border: '1px solid #ddd', borderRadius: '6px', fontSize: '0.9rem' }}>
+                    <option value="pending">待执行</option>
+                    <option value="in_progress">进行中</option>
+                    <option value="pending_review">待审核</option>
+                    <option value="completed">已完成</option>
+                    <option value="cancelled">已取消</option>
+                    <option value="archived">已归档</option>
+                  </select>
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#666', marginBottom: '6px' }}>优先级</label>
+                  <select value={taskEditForm.priority} onChange={e => setTaskEditForm({...taskEditForm, priority: e.target.value})} style={{ width: '100%', padding: '10px', border: '1px solid #ddd', borderRadius: '6px', fontSize: '0.9rem' }}>
+                    <option value="low">低</option>
+                    <option value="medium">中</option>
+                    <option value="high">高</option>
+                  </select>
+                </div>
+              </div>
+              <div style={{ marginBottom: '24px' }}>
+                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: '#666', marginBottom: '6px' }}>
+                  <ChevronRight size={14} style={{ display: 'inline', marginRight: '4px' }} />
+                  更改项目归属
+                </label>
+                <select value={taskEditForm.project_id} onChange={e => setTaskEditForm({...taskEditForm, project_id: parseInt(e.target.value) || 0})} style={{ width: '100%', padding: '10px', border: '1px solid #ddd', borderRadius: '6px', fontSize: '0.9rem' }}>
+                  <option value={0}>保持不变 ({project.name})</option>
+                  {projects.filter(p => p.id !== project.id).map(p => (
+                    <option key={p.id} value={p.id}>{p.name} (G{p.goal_id || '-'})</option>
+                  ))}
+                </select>
+              </div>
+              {/* Action buttons */}
+              <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+                <button onClick={() => window.location.href =  setSelectedTask(null)} style={{ padding: '10px 20px', background: '#f0f0f0', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '0.9rem' }}>取消</button>
+                <button onClick={saveTaskEdit} disabled={savingTask || !taskEditForm.title.trim()} style={{ padding: '10px 20px', background: (!taskEditForm.title.trim() || savingTask) ? '#ccc' : '#667eea', color: 'white', border: 'none', borderRadius: '6px', cursor: (!taskEditForm.title.trim() || savingTask) ? 'not-allowed' : 'pointer', fontSize: '0.9rem' }}>{savingTask ? '保存中...' : '保存'}</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -1366,7 +1592,7 @@ function ProjectFilesSection({
     <div>
       {!showUpload ? (
         <button
-          onClick={() => setShowUpload(true)}
+          onClick={() => window.location.href =  setShowUpload(true)}
           style={{
             width: '100%',
             padding: '12px',
@@ -1542,7 +1768,7 @@ function ProjectFilesSection({
               </div>
               <div style={{ display: 'flex', gap: '8px' }}>
                 <button
-                  onClick={() => onDownload(file.id)}
+                  onClick={() => window.location.href =  onDownload(file.id)}
                   style={{
                     background: '#e3fcef',
                     border: 'none',
@@ -1559,7 +1785,7 @@ function ProjectFilesSection({
                   <Download size={14} /> 下载
                 </button>
                 <button
-                  onClick={() => onDelete(file.id, file.original_filename)}
+                  onClick={() => window.location.href =  onDelete(file.id, file.original_filename)}
                   style={{
                     background: '#ffebee',
                     border: 'none',

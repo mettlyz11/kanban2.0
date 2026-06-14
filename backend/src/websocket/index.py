@@ -17,6 +17,7 @@ from .events import (
 )
 from .heartbeat import start_heartbeat_monitor, stop_heartbeat_monitor
 from .presence import build_online_users_event_data
+from .system_events import SystemEventHandler
 from .locks import cleanup_expired_locks
 
 logger = logging.getLogger(__name__)
@@ -136,6 +137,9 @@ def _register_handlers(sio: SocketIO):
         """处理心跳"""
         from flask import request
         handle_heartbeat(request.sid, data)
+    
+        # 注册系统监控事件
+    SystemEventHandler.register_events(sio)
     
     logger.info("✅ Socket.IO 事件处理器已注册")
 

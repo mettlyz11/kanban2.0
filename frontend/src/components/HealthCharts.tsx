@@ -136,7 +136,7 @@ export const HealthIndicatorCards: React.FC<{ latest: any }> = ({ latest }) => {
       unit: '', 
       status: latest?.bmi && latest.bmi <= 24 ? '正常' : '偏高',
       color: latest?.bmi && latest.bmi <= 24 ? '#27ae60' : '#e74c3c',
-      icon: <Activity size={24} />
+      icon: <Activity size={16} />
     },
     { 
       title: '收缩压', 
@@ -144,7 +144,7 @@ export const HealthIndicatorCards: React.FC<{ latest: any }> = ({ latest }) => {
       unit: 'mmHg', 
       status: latest?.systolic && latest.systolic <= 140 ? '正常' : '偏高',
       color: latest?.systolic && latest.systolic <= 140 ? '#27ae60' : '#e74c3c',
-      icon: <Heart size={24} />
+      icon: <Heart size={16} />
     },
     { 
       title: '空腹血糖', 
@@ -152,7 +152,7 @@ export const HealthIndicatorCards: React.FC<{ latest: any }> = ({ latest }) => {
       unit: 'mmol/L', 
       status: latest?.fastingSugar && latest.fastingSugar <= 6.1 ? '正常' : '偏高',
       color: latest?.fastingSugar && latest.fastingSugar <= 6.1 ? '#27ae60' : '#e74c3c',
-      icon: <TrendingUp size={24} />
+      icon: <TrendingUp size={16} />
     },
     { 
       title: '总胆固醇', 
@@ -160,7 +160,7 @@ export const HealthIndicatorCards: React.FC<{ latest: any }> = ({ latest }) => {
       unit: 'mmol/L', 
       status: latest?.totalCholesterol && latest.totalCholesterol <= 5.2 ? '正常' : '偏高',
       color: latest?.totalCholesterol && latest.totalCholesterol <= 5.2 ? '#27ae60' : '#e74c3c',
-      icon: <FileText size={24} />
+      icon: <FileText size={16} />
     },
   ];
 
@@ -198,8 +198,8 @@ export const HealthIndicatorCards: React.FC<{ latest: any }> = ({ latest }) => {
             {item.icon}
           </div>
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: '0.9rem', color: '#666', marginBottom: '4px' }}>{item.title}</div>
-            <div style={{ fontSize: '1.8rem', fontWeight: 700, color: '#333' }}>
+            <div style={{ fontSize: '0.75rem', color: '#666', marginBottom: '2px' }}>{item.title}</div>
+            <div style={{ fontSize: '1.2rem', fontWeight: 700, color: '#333' }}>
               {item.value}
               <span style={{ fontSize: '0.9rem', marginLeft: '4px', color: '#999' }}>{item.unit}</span>
             </div>
@@ -271,3 +271,9 @@ export const ExamDataUpload: React.FC<{ onDataLoaded?: (data: any[]) => void }> 
     </div>
   );
 };
+
+const HealthCharts: React.FC = () => {
+  return null;
+};
+
+export default HealthCharts;
