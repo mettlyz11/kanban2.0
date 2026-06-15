@@ -1,0 +1,45 @@
+{
+  "period": "monthly",
+  "start_date": "2026-03-26",
+  "end_date": "2026-04-24",
+  "days_analyzed": 30,
+  "avg_total_score": 87.2,
+  "score_std": 7.0,
+  "avg_steps": 10486.0,
+  "avg_sleep": 7.3,
+  "avg_heart_rate": 58.5,
+  "score_distribution": {
+    "excellent": 22,
+    "good": 7,
+    "fair": 1,
+    "poor": 0
+  },
+  "weekly_breakdown": [
+    {
+      "week": 1,
+      "avg_score": 82.25714285714285,
+      "avg_steps": 8780.42857142857
+    },
+    {
+      "week": 2,
+      "avg_score": 85.31428571428572,
+      "avg_steps": 10146.142857142857
+    },
+    {
+      "week": 3,
+      "avg_score": 90.28571428571429,
+      "avg_steps": 11846.714285714286
+    },
+    {
+      "week": 4,
+      "avg_score": 90.5,
+      "avg_steps": 11073.42857142857
+    }
+  ],
+  "key_insights": [
+    "整体健康状态优秀，平均得分87.2分",
+    "睡眠充足，继续保持",
+    "活动量充足，每日步数达标"
+  ],
+  "recommendations": []
+}

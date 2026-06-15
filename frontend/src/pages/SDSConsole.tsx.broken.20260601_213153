@@ -1,0 +1,673 @@
+import React, { useState, useRef, useEffect, useCallback } from 'react'
+import { useRealtimeWS } from '../hooks/useRealtimeWS'
+import SproutTree from '../components/SproutTree'
+
+const SPROUT_API = '/api/sprout'
+
+// ─── Types ───
+interface V { cpu:number; mem:number; disk:number; up:number; proc:number }
+interface Stats { pending:number; in_progress:number; completed:number; failed:number; blocked:number; total:number }
+interface LLMS { total_calls:number; ok_calls:number; failed_calls:number; success_rate:number; avg_latency:number; by_provider:Record<string,number>; by_model:Record<string,number> }
+interface RevS { total:number; passed:number; rejected:number; fast_pass:number; pass_rate:number; by_reviewer:Record<string,{passed:number;rejected:number;fast_pass:number;total:number}> }
+interface TP { hourly:number[]; daily:Record<string,number>; avg_completion_sec:number; today_completed:number }
+interface DBH { connections:number; slow_queries:number; uptime_sec:number; health_score:number }
+interface ErrAgg { by_type:Record<string,number>; total:number; recent:string[] }
+interface SubS { total_runs:number; completed:number; success_rate:number; by_type:Record<string,{total:number;completed:number;avg_time_sec:number}> }
+interface MC { primary_model?:string; fallbacks?:string[]; providers_count:number; models_count:number }
+interface Task { task_id:number; step_tag:string; detail:string; status:string; ts:string }
+
+// ─── Helpers ───
+const bg=(p:number)=>p>90?'#ef4444':p>70?'#f59e0b':'#22c55e'
+const upt=(s:number)=>`${Math.floor(s/86400)}d ${Math.floor((s%86400)/3600)}h ${Math.floor((s%3600)/60)}m`
+const MAX=60
+
+// ─── Sparkline ───
+const Sp: React.FC<{d:number[];c?:string}> = ({d,c='#3b82f6'})=>{
+  if(d.length<2)return<svg width={100} height={28}><text x={50} y={18} textAnchor="middle" fill="#333" fontSize={10}>waiting...</text></svg>
+  const w=100,h=28,mn=Math.min(...d),mx=Math.max(...d),r=mx-mn||1
+  const pts=d.map((v,i)=>`${(i/(d.length-1))*w},${h-((v-mn)/r)*(h-4)-2}`).join(' ')
+  return<svg width={w} height={h}><polyline points={pts} fill="none" stroke={c} strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round"/><text x={w-4} y={10} textAnchor="end" fill={c} fontSize={10} fontWeight={600}>{d[d.length-1]}%</text></svg>
+}
+
+// ─── Bar Chart ───
+const Bar: React.FC<{d:number[];h?:number;c?:string}> = ({d,h=60,c='#3b82f6'})=>{
+  const mx=Math.max(...d,1),gap=1,bw=(120-d.length*gap)/d.length
+  return<svg width={120} height={h}>
+    {d.map((v,i)=><rect key={i} x={i*(bw+gap)} y={h-(v/mx)*(h-8)-4} width={bw} height={Math.max((v/mx)*(h-8),2)} fill={c} rx={1} opacity={0.8}/>)}
+  </svg>
+}
+
+const QC=[{id:'restart_scheduler',l:'⏩ 重启调度',c:'#3b82f6'},{id:'run_review',l:'🕵️ 触发审核',c:'#8b5cf6'},{id:'run_dependency',l:'🔗 依赖巡检',c:'#06b6d4'},{id:'flush_cache',l:'🧹 清缓存',c:'#f59e0b'},{id:'clear_stale_locks',l:'🧹 清锁',c:'#ef4444'},{id:'batch_rerun_failed',l:'🔄 重跑失败',c:'#22c55e'},{id:'trigger_patience',l:'🐢 耐心模式',c:'#f97316'},{id:'sync_config',l:'⚙️ 同步配置',c:'#14b8a6'},{id:'reload_sds_module',l:'🔄 热重载',c:'#ec4899'}]
+
+const SDS: React.FC = () => {
+  // ─── State ───
+  const [v,setV]=useState<V|null>(null)
+  const [st,setSt]=useState<Stats|null>(null)
+  const [llm,setLlm]=useState<LLMS|null>(null)
+  const [rev,setRev]=useState<RevS|null>(null)
+  const [tp,setTp]=useState<TP|null>(null)
+  const [dbh,setDbh]=useState<DBH|null>(null)
+  const [err,setErr]=useState<ErrAgg|null>(null)
+  const [sub,setSub]=useState<SubS|null>(null)
+  const [mc,setMc]=useState<MC|null>(null)
+  const [tasks,setTasks]=useState<Task[]>([])
+  const [evts,setEvts]=useState<{id:string;t:string;s:string;type:string}[]>([])
+  const [logs,setLogs]=useState<string[]>([])
+  const [logL,setLogL]=useState(true)
+  const [actC,setActC]=useState<string|null>(null)
+  const [mob,setMob]=useState(window.innerWidth<640)
+  const [tab,setTab]=useState<'all'|'stats'|'llm'|'tasks'|'review'|'system'>('all')
+  const [expandedErr,setExpandedErr]=useState<string|null>(null)
+  const [chartTab,setChartTab]=useState<'cpu'|'mem'|'both'>('both')
+  const [timelinePos,setTimelinePos]=useState<number>(0)
+  const [timelineActive,setTimelineActive]=useState(false)
+  const wsHistory=useRef<any[]>([])
+  const [ringCapture,setRingCapture]=useState(true)
+  // WS ring buffer - last 500 events stored automatically
+  window.__sds_ringBuffer = {events:[],max:500,add:function(ev){this.events.push({time:Date.now(),data:ev});if(this.events.length>this.max)this.events.shift()}}
+  const [replayMode,setReplayMode]=useState(false)
+  const [alertLog,setAlertLog]=useState<any[]>([])
+  const [sproutLeaves,setSproutLeaves]=useState<any[]>([])
+  const [sproutTab,setSproutTab]=useState(false)
+  const cpuH=useRef<number[]>([]),memH=useRef<number[]>([]),logE=useRef<HTMLDivElement>(null)
+
+  useEffect(()=>{const f=()=>setMob(window.innerWidth<640);window.addEventListener('resize',f);return ()=>window.removeEventListener('resize',f)},[])
+  useEffect(()=>{const t=setInterval(async()=>{try{const r=await fetch('/api/sprout/health');const d=await r.json();setSproutOnline(true);setSproutStats(p=>({...p,version:d.version}))}catch(e){setSproutOnline(false)}},30000);return ()=>clearInterval(t)},[])
+  useEffect(()=>{const t=setInterval(()=>setClock(new Date().toLocaleTimeString('zh-CN',{hour12:false})),5000);setClock(new Date().toLocaleTimeString('zh-CN',{hour12:false}));return ()=>clearInterval(t)},[])
+  useEffect(()=>{lastUpd.current=Date.now()},[v,st,llm,rev,tp,dbh,err,sub,tasks])
+  useEffect(()=>{err&&err.total>0&&setToast(`🔴 ${err.total}个错误`)},[err])
+  useEffect(()=>{if(!isConnected)setReconn(c=>c+1)},[isConnected])
+  useEffect(()=>{autoScroll&&logE.current?.scrollIntoView({behavior:'smooth'})},[logs])
+  useEffect(()=>{const f=(e:KeyboardEvent)=>{const n=parseInt(e.key);if(n>=1&&n<=9&&QC[n-1])hCmd(QC[n-1].id)};window.addEventListener('keydown',f);return ()=>window.removeEventListener('keydown',f)},[isConnected])
+  useEffect(()=>{typeof Notification!=='undefined'&&Notification.permission==='default'&&Notification.requestPermission()},[])
+
+  const addEv=(type:string,s:string,t:string)=>setEvts(p=>[{id:t+Math.random(),t,s,type},...p.slice(0,49)])
+
+  const {isConnected,sendCommand}=useRealtimeWS((ev)=>{
+    const t=new Date().toLocaleTimeString('zh-CN',{hour12:false})
+    if(ev.event==='metrics'&&ev.data?.metrics){
+      const m=ev.data.metrics,cp=m.cpu?.percent||0,me=m.memory?.percent||0
+      setV({cpu:cp,mem:me,disk:m.disk?.percent||0,up:m.uptime||0,proc:m.processes||0})
+      cpuH.current=[...cpuH.current.slice(-(range24h?299:MAX-1)),cp]
+      memH.current=[...memH.current.slice(-(range24h?299:MAX-1)),me]
+      if(tab==='all')addEv('metrics',`📊 CPU ${cp}% · MEM ${me}%`,t)
+    }
+    if(ev.event==='stats_snapshot'&&ev.data){setSt(ev.data as Stats);addEv('stats',`📊 pend=${ev.data.pending} done=${ev.data.completed} fail=${ev.data.failed}`,t)}
+    if(ev.event==='llm_stats'&&ev.data){setLlm(ev.data as LLMS);if(ev.data.total_calls>0)addEv('llm',`🤖 ${ev.data.total_calls}次 ${(ev.data.success_rate*100).toFixed(0)}%`,t)}
+    if(ev.event==='review_stats'&&ev.data){setRev(ev.data as RevS);if(ev.data.total>0)addEv('review',`🕵️ ${ev.data.total}条 通过${(ev.data.pass_rate*100).toFixed(0)}%`,t)}
+    if(ev.event==='task_throughput'&&ev.data){setTp(ev.data as TP);if(ev.data.today_completed>0)addEv('throughput',`📈 今日${ev.data.today_completed} 平${ev.data.avg_completion_sec}s`,t)}
+    if(ev.event==='db_health'&&ev.data){setDbh(ev.data as DBH)}
+    if(ev.event==='error_aggregation'&&ev.data&&ev.data.total>0){setErr(ev.data as ErrAgg);addEv('error',`🔴 ${ev.data.total}个错误`,t);if(ev.data.total>5&&typeof Notification!=='undefined'&&Notification.permission==='granted')new Notification('SDS 错误',{body:`${ev.data.total}个错误`})}
+    if(ev.event==='subagent_stats'&&ev.data){setSub(ev.data as SubS);if(ev.data.total_runs>0)addEv('subagent',`🧬 ${ev.data.total_runs}次 ${(ev.data.success_rate*100).toFixed(0)}%`,t)}
+    if(ev.event==='model_config_data'&&ev.data){setMc(ev.data as MC)}
+    if(ev.event==='subagent_progress'&&ev.data){const d=ev.data;setTasks(p=>{const ei=p.findIndex(x=>x.task_id===d.task_id);const e:Task={task_id:d.task_id,step_tag:d.step_tag||'',detail:d.detail||'',status:d.status,ts:t};if(ei>=0){const n=[...p];n[ei]=e;return n}return[e,...p.slice(0,19)]});addEv('task',`T${d.task_id} ${d.step_tag||''}`,t)}
+    if(ev.event==='review'&&ev.data)addEv('review',`${ev.data.decision==='rejected'?'⛔':'✅'} T${ev.data.task_id} ${ev.data.decision}`,t)
+    if(ev.event==='log_tail'&&ev.data?.lines){setLogs(ev.data.lines);setLogL(false)}
+  })
+
+  const hCmd=(id:string)=>{if(!isConnected)return;setActC(id);sendCommand(id);addEv('cmd',`🎮 ${id}`,new Date().toLocaleTimeString('zh-CN',{hour12:false}));setTimeout(()=>setActC(null),3000)}
+  const growSprout = async (speech: string) => {
+    try {
+      const r = await fetch(SPROUT_API + '/api/sprout/grow', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({speech, current_leaves: sproutLeaves})
+      })
+      const res = await r.json()
+      if(res.action === 'grow' && res.leaf) {
+        setSproutLeaves(p => [...p, {...res.leaf, status: 'growing', children: []}])
+        addEv('sprout',`🌱 长出了新叶子: ${res.leaf.name}`,new Date().toLocaleTimeString('zh-CN',{hour12:false}))
+        setTimeout(() => setSproutLeaves(p => p.map(l => l.id===res.leaf.id ? {...l, status:'alive'} : l)), 2000)
+      } else if(res.action === 'prune' && res.target) {
+        setSproutLeaves(p => p.map(l => l.id===res.target ? {...l, status:'withered'} : l))
+        addEv('sprout',`✂️ 修剪了: ${res.target}`,new Date().toLocaleTimeString('zh-CN',{hour12:false}))
+      }
+    } catch(e) {
+      console.error('SproutOS error:', e)
+    }
+  }
+
+  const pruneSprout = (leafId: string) => {
+    setSproutLeaves(p => p.map(l => l.id===leafId ? {...l, status:'withered'} : l))
+    addEv('sprout',`✂️ 修剪了叶子`,new Date().toLocaleTimeString('zh-CN',{hour12:false}))
+  }
+
+  const initSprout = async (goal: string) => {
+    try {
+      const r = await fetch(SPROUT_API + '/api/sprout/parse', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({goal, existing_leaves: []})
+      })
+      const leaves = await r.json()
+      if(Array.isArray(leaves) && leaves.length > 0) {
+        setSproutLeaves(leaves.map((l:any) => ({...l, status: 'growing', children: []})))
+        addEv('sprout',`🌱 种子破土! 长出了${leaves.length}片叶子`,new Date().toLocaleTimeString('zh-CN',{hour12:false}))
+        setTimeout(() => setSproutLeaves(p => p.map(l => ({...l, status: 'alive'}))), 2000)
+      }
+    } catch(e) {
+      console.error('SproutOS init error:', e)
+    }
+  }
+
+  // ─── Compute derived stats ───
+  const healthScore = dbh?.health_score ?? (
+    (v&&v.cpu<80?30:0)+(v&&v.mem<80?30:0)+(st&&st.failed<10?20:0)+(st&&st.blocked<5?20:0)
+  )
+  
+  const G=(title?:any,children?:any,opts?:any)=>(
+    <div style={{background:'#1e293b',borderRadius:12,border:'1px solid #334155',overflow:'hidden',marginBottom:mob?8:12,...opts}}>
+      {title&&<div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:mob?'8px 10px':'10px 14px',borderBottom:'1px solid #334155',...title.props?.style}}>{title}</div>}
+      <div style={{padding:mob?8:12,...opts?.body}}>{children}</div>
+    </div>
+  )
+
+  const tabBadges=()=>{
+    const m=records.filter(r=>r.status==='open'||r.status==='in_progress').length
+    const f=records.filter(r=>r.status==='open').length
+    return {all:m>0?m:null,review:f>0?f:null}
+  }
+  const b=tabBadges()
+  const COMMAND_MODE = document.body.classList.contains('command-center')
+  const tabs = [
+    {id:'sprout',l:'🌱 养'},{id:'alert',l:'🚨 告警'+(alertRules.length>0?' '+alertRules.length:'')},{id:'all',l:'🏠 概览'+(b.all?' '+b.all:'')},{id:'stats',l:'📊 大盘'},{id:'llm',l:'🤖 LLM'},{id:'tasks',l:'🏃 任务'},{id:'review',l:'🕵️ 审核'+(b.review?' '+b.review:'')},{id:'system',l:'⚙️ 系统'}
+  ]
+
+    const freshnessColor=freshness==='fresh'?'#22c55e':freshness==='stale'?'#eab308':'#ef4444'
+  const freshnessDot=lastUpdate?(
+    <span style={{fontSize:9,color:freshnessColor,display:'flex',alignItems:'center',gap:4}}>
+      <span style={{width:6,height:6,borderRadius:'50%',background:freshnessColor,display:'inline-block'}}/>
+      {lastUpdate}
+    </span>
+  ):null
+
+  const sec=(title:string,val:string|number,badge?:string)=>(
+    <div style={{background:'#0f172a',borderRadius:8,padding:mob?8:10,textAlign:'center',border:'1px solid #1e293b'}}>
+      <div style={{color:'#64748b',fontSize:mob?10:11,marginBottom:2}}>{title}</div>
+      <div style={{fontSize:mob?18:24,fontWeight:700,color:'#e2e8f0',fontFamily:'monospace'}}>{val}</div>
+      {badge&&<div style={{color:'#475569',fontSize:10,marginTop:2}}>{badge}</div>}
+    </div>
+  )
+
+  return (
+    <div style={{padding:mob?10:20,maxWidth:mob?'100%':1400,margin:'0 auto',background:'#0f172a',minHeight:'calc(100vh-64px)',color:'#e2e8f0',fontSize:mob?13:14}}>
+      {/* ───── Header ───── */}
+      <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:mob?8:12,flexWrap:'wrap'}}>
+        <h1 style={{margin:0,fontSize:mob?16:22,fontWeight:700}}>🖥️ SDS Ultimate</h1>
+        <span style={{fontSize:mob?10:11,padding:'2px 8px',borderRadius:4,background:isConnected?'#065f4622':'#7f1d1d22',color:isConnected?'#22c55e':'#ef4444',animation:isConnected?'none':'pulse-wait 1.5s ease-in-out infinite'}}>{isConnected?'● 在线':'○ 离线'}</span>
+        {mc&&<span style={{fontSize:10,color:'#475569'}}>{mc.providers_count}个Provider · {mc.models_count}个模型</span>}
+        <span style={{color:'#475569',fontSize:9,fontFamily:'monospace',marginLeft:'auto'}}>{clock||new Date().toLocaleTimeString('zh-CN',{hour12:false})}</span>
+        <span style={{padding:'2px 6px',borderRadius:4,background:Date.now()-lastUpd.current<60000?'#065f4622':'#7f1d1d22',color:Date.now()-lastUpd.current<60000?'#22c55e':'#ef4444',fontSize:9}}>{(Date.now()-lastUpd.current)/1000>120?'>2m':'<2m'}</span>
+        <span style={{color:'#333',fontSize:8}}>WS:{reconnCount}</span>
+        <button onClick={()=>{const d={v,st,llm,rev,tp,dbh,err,sub,mc};navigator.clipboard.writeText(JSON.stringify(d,null,2))}} style={{background:'none',border:'none',color:'#475569',cursor:'pointer',fontSize:10,padding:2}}>📋</button>
+      </div>
+
+      <style>{'@keyframes pulse-wait{0%,100%{opacity:1}50%{opacity:0.3}}'}</style>
+      {/* ───── WS Disconnect Banner ───── */}
+      {!isConnected&&<div style={{background:'#7f1d1d',border:'1px solid #ef4444',borderRadius:8,padding:'8px 12px',marginBottom:8,display:'flex',alignItems:'center',gap:8,fontSize:mob?11:13,color:'#fca5a5'}}>
+        <span style={{fontSize:18}}>⚠️</span>
+        <span>WebSocket 已断开 — 数据不会更新。尝试 <a href="javascript:location.reload()" style={{color:'#fca5a5',textDecoration:'underline',cursor:'pointer'}}>刷新页面</a></span>
+      </div>}
+
+      {/* ───── Tabs ───── */}
+      <div style={{display:'flex',gap:mob?2:4,marginBottom:mob?8:12,overflowX:'auto',paddingBottom:4}}>
+        {tabs.map(t=><button key={t.id} onClick={()=>setTab(t.id as any)}
+          style={{padding:mob?'8px 12px':'6px 14px',minHeight:36,border:'none',borderRadius:8,cursor:'pointer',
+            background:tab===t.id?'#334155':'transparent',color:tab===t.id?'#e2e8f0':'#64748b',
+            fontSize:mob?13:12,fontWeight:600,whiteSpace:'nowrap',transition:'all 0.15s',position:'relative'}}>{t.l}{(t.id==='tasks'&&st&&st.in_progress>0)&&<span style={{position:'absolute',top:0,right:0,background:'#f59e0b',color:'#000',fontSize:8,fontWeight:700,fontFamily:'monospace',padding:'1px 4px',borderRadius:8,lineHeight:'12px'}}>{st.in_progress}</span>}{(t.id==='system'&&st&&st.failed>0)&&<span style={{position:'absolute',top:0,right:0,background:'#ef4444',color:'#fff',fontSize:8,fontWeight:700,fontFamily:'monospace',padding:'1px 4px',borderRadius:8,lineHeight:'12px'}}>{st.failed}</span>}</button>)}
+      </div>
+
+      {/* ════════════════════ SPROUTOS ════════════════════ */}
+      {tab==='sprout'&&<>
+        <div style={{marginBottom:12}}>
+          {sproutLeaves.length===0&&<SproutTree leaves={[]} onGrow={growSprout} onPrune={pruneSprout} />}
+          {sproutLeaves.length>0&&<SproutTree leaves={sproutLeaves} onGrow={growSprout} onPrune={pruneSprout} />}
+        </div>
+        {sproutLeaves.length===0&&<div style={{textAlign:'center',padding:12}}>
+          <div style={{fontSize:14,color:'#64748b',marginBottom:8}}>🌱 说一个目标，开始养你的第一个系统</div>
+          <input id="sprout-init-input" placeholder="比如：我想搞一个科研财务管理系统..." 
+            style={{width:'80%',maxWidth:400,padding:'10px 16px',background:'#1e293b',border:'1px solid #334155',borderRadius:8,color:'#e2e8f0',fontSize:14,outline:'none'}}
+            onKeyDown={e => e.key==='Enter' && initSprout((e.target as HTMLInputElement).value)}/>
+        </div>}
+      </>}
+
+      {/* ════════════════════ ALL / OVERVIEW ════════════════════ */}
+      {tab==='all'&&<>
+    {/* Alert log widget */}
+    {alertLog.length>0&&<div style={{marginBottom:8,background:'#1e293b',border:'1px solid #334155',borderRadius:8,padding:8}}>
+      <div style={{fontSize:10,color:'#64748b',fontWeight:600,marginBottom:4}}>🚨 最近告警</div>
+      {alertLog.slice(-5).reverse().map((a,i)=>(
+        <div key={i} style={{fontSize:9,color:'#94a3b8',padding:'2px 0',display:'flex',gap:6}}>
+          <span style={{color:'#ef4444'}}>●</span>
+          <span>{a.name||'Alert'}: {a.metric} {a.current} (阈值{a.threshold})</span>
+        </div>
+      ))}
+    </div>}
+    {timeTravelBar()}
+        {/* ── 4 Gauge Cards ── */}
+        <div style={{display:'grid',gridTemplateColumns:mob?'repeat(2,1fr)':'repeat(4,1fr)',gap:mob?6:10,marginBottom:mob?8:12}}>
+          <div style={{background:'#1e293b',borderRadius:12,border:'1px solid #334155',padding:mob?'10px 8px':'14px 12px'}}>
+            <div style={{display:'flex',justifyContent:'space-between',marginBottom:4}}>
+              <span style={{color:'#94a3b8',fontSize:mob?10:11,fontWeight:600}}>🖥️ 系统健康 {healthScore>80?'💚':healthScore>50?'💛':'❤️'}</span>
+              <span style={{fontSize:mob?14:18,fontWeight:700,color:healthScore>80?'#22c55e':healthScore>50?'#f59e0b':'#ef4444',fontFamily:'monospace'}}>{healthScore}</span>
+            </div>
+            <div style={{height:6,background:'#0f172a',borderRadius:3,overflow:'hidden'}}>
+              <div style={{width:`${healthScore}%`,height:'100%',background:`linear-gradient(90deg,${healthScore>80?'#22c55e':healthScore>50?'#f59e0b':'#ef4444'},${healthScore>90?'#4ade80':healthScore>60?'#fbbf24':'#f87171'})`,borderRadius:3,transition:'width 0.5s'}}/>
+            </div>
+            {dbh&&<div style={{color:'#475569',fontSize:10,marginTop:4}}>{dbh.connections}连接 · {dbh.slow_queries}慢查询</div>}
+          </div>
+          <div style={{background:'#1e293b',borderRadius:12,border:'1px solid #334155',padding:mob?'10px 8px':'14px 12px'}}>
+            <div style={{color:'#94a3b8',fontSize:mob?10:11,fontWeight:600,marginBottom:4}}>📊 今日完成</div>
+            <div style={{fontSize:mob?18:24,fontWeight:700,color:'#22c55e',fontFamily:'monospace',animation:tp?undefined:'pulse-wait 1.5s ease-in-out infinite'}}>{tp?.today_completed??'...'}</div>
+            <div style={{color:'#475569',fontSize:10,marginTop:2}}>平均{tp?.avg_completion_sec??'...'}s/个</div>
+          </div>
+          <div style={{background:'#1e293b',borderRadius:12,border:'1px solid #334155',padding:mob?'10px 8px':'14px 12px'}}>
+            <div style={{color:'#94a3b8',fontSize:mob?10:11,fontWeight:600,marginBottom:4}}>🤖 LLM 调用</div>
+            <div style={{fontSize:mob?18:24,fontWeight:700,color:'#3b82f6',fontFamily:'monospace',animation:llm?undefined:'pulse-wait 1.5s ease-in-out infinite'}}>{llm?.total_calls??'...'}</div>
+            <div style={{color:'#475569',fontSize:10,marginTop:2}}>成功率{llm?`${(llm.success_rate*100).toFixed(0)}%`:'...'}</div>
+          </div>
+          <div style={{background:'#1e293b',borderRadius:12,border:'1px solid #334155',padding:mob?'10px 8px':'14px 12px'}}>
+            <div style={{color:'#94a3b8',fontSize:mob?10:11,fontWeight:600,marginBottom:4}}>🧬 子代理运行</div>
+            <div style={{fontSize:mob?18:24,fontWeight:700,color:'#8b5cf6',fontFamily:'monospace',animation:sub?undefined:'pulse-wait 1.5s ease-in-out infinite'}}>{sub?.total_runs??'...'}</div>
+            <div style={{color:'#475569',fontSize:10,marginTop:2}}>成功率{sub?`${(sub.success_rate*100).toFixed(0)}%`:'...'}</div>
+          </div>
+        </div>
+
+        {/* ── Stats Badges ── */}
+        {st&&<div style={{display:'flex',gap:mob?4:8,marginBottom:mob?8:12,flexWrap:'wrap'}}>
+          {[{l:'待处理',v:st.pending,c:'#3b82f6'},{l:'运行中',v:st.in_progress,c:'#f59e0b'},{l:'已完成',v:st.completed,c:'#22c55e'},{l:'失败',v:st.failed,c:'#ef4444'},{l:'阻塞',v:st.blocked,c:'#8b5cf6'}].map(b=><div key={b.l} style={{padding:mob?'4px 10px':'6px 14px',background:'#0f172a',borderRadius:8,border:'1px solid #1e293b',display:'flex',alignItems:'center',gap:6}}>
+            <span style={{color:b.c,fontWeight:700,fontFamily:'monospace',fontSize:mob?14:18}}>{b.v}</span>
+            <span style={{color:'#64748b',fontSize:mob?10:11}}>{b.l}</span>
+          </div>)}
+        </div>}
+
+        {/* ── CPU/MEM charts + Stats ── */}
+        <div style={{display:'grid',gridTemplateColumns:mob?'1fr':'1.2fr 1fr',gap:mob?0:12,marginBottom:mob?8:12}}>
+          <G title={<><span style={{color:'#94a3b8',fontSize:13,fontWeight:600}}>📈 实时指标</span></>}>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+              {[{l:'CPU',d:cpuH.current,c:'#3b82f6',p:v?.cpu||0},{l:'内存',d:memH.current,c:'#22c55e',p:v?.mem||0}].map(m=><div key={m.l} style={{background:'#0f172a',borderRadius:8,padding:8,border:'1px solid #1e293b'}}>
+                <div style={{display:'flex',justifyContent:'space-between',marginBottom:4}}>
+                  <span style={{color:'#94a3b8',fontSize:11,fontWeight:600}}>{m.l}</span>
+                  <span style={{color:m.c,fontSize:16,fontWeight:700,fontFamily:'monospace'}}>{m.p}%</span>
+                </div>
+                <Sp d={m.d} c={m.c}/>
+                <div style={{height:3,background:'#1e293b',borderRadius:2,marginTop:4,overflow:'hidden'}}>
+                  <div style={{width:`${m.p}%`,height:'100%',background:m.c,borderRadius:2,transition:'width 0.5s'}}/>
+                </div>
+              </div>)}
+            </div>
+            <div style={{display:'flex',gap:4,marginTop:4,justifyContent:'flex-end'}}>
+              <button onClick={()=>setRange24h(!range24h)} style={{padding:'2px 8px',border:'1px solid #334155',borderRadius:4,cursor:'pointer',background:range24h?'#334155':'transparent',color:range24h?'#e2e8f0':'#64748b',fontSize:10,fontWeight:600}}>{range24h?'24h':'5min'}</button>
+            </div>
+            {v&&<div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:6,marginTop:8}}>
+              <div style={{textAlign:'center',color:'#475569',fontSize:10}}><span style={{color:'#64748b'}}>磁盘</span><br/><span style={{color:bg(v.disk),fontWeight:600,fontFamily:'monospace'}}>{v.disk}%</span></div>
+              <div style={{textAlign:'center',color:'#475569',fontSize:10}}><span style={{color:'#64748b'}}>进程</span><br/><span style={{color:'#64748b',fontWeight:600,fontFamily:'monospace'}}>{v.proc}</span></div>
+              <div style={{textAlign:'center',color:'#475569',fontSize:10}}><span style={{color:'#64748b'}}>运行</span><br/><span style={{color:'#64748b',fontWeight:600,fontFamily:'monospace'}}>{upt(v.up)}</span></div>
+              <div style={{textAlign:'center',color:'#475569',fontSize:10}}><span style={{color:'#64748b'}}>DB</span><br/><span style={{color:dbh?'#22c55e':'#475569',fontWeight:600,fontFamily:'monospace'}}>{dbh?.connections??'?'}</span></div>
+            </div>}
+          </G>
+
+          <G title={<><span style={{color:'#94a3b8',fontSize:13,fontWeight:600}}>📊 大盘</span></>}>
+            <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:mob?4:6}}>
+              {[
+                {l:'待处理',v:st?.pending??'...',c:'#3b82f6'},{l:'运行中',v:st?.in_progress??'...',c:'#f59e0b'},
+                {l:'已完成',v:st?.completed??'...',c:'#22c55e'},{l:'失败',v:st?.failed??'...',c:'#ef4444'},
+                {l:'阻塞',v:st?.blocked??'...',c:'#8b5cf6'},{l:'总计',v:st?.total??'...',c:'#64748b'},
+              ].map(m=><div key={m.l} style={{backgroundColor:'#0f172a',borderRadius:6,padding:'8px 4px',textAlign:'center',border:'1px solid #1e293b'}}>
+                <div style={{color:'#64748b',fontSize:mob?9:10,marginBottom:2}}>{m.l}</div>
+                <div style={{fontSize:mob?16:20,fontWeight:700,color:m.c,fontFamily:'monospace'}}>{m.v}</div>
+              </div>)}
+            </div>
+            {tp&&<div style={{marginTop:8}}>
+              <div style={{display:'flex',justifyContent:'space-between',color:'#64748b',fontSize:10,marginBottom:4}}>
+                <span>📈 今日吞吐</span><span>{tp.today_completed}个</span>
+              </div>
+              <Bar d={tp.hourly} h={36} c="#3b82f6"/>
+              <div style={{display:'flex',justifyContent:'space-between',color:'#475569',fontSize:8,marginTop:2}}>
+                <span>0时</span><span>12时</span><span>24时</span>
+              </div>
+            </div>}
+          </G>
+        </div>
+
+        {/* ── LLM + Review + Errors ── */}
+        <div style={{display:'grid',gridTemplateColumns:mob?'1fr':'1fr 1fr',gap:mob?0:12,marginBottom:mob?8:12}}>
+          <G title={<><span style={{color:'#94a3b8',fontSize:13,fontWeight:600}}>🤖 LLM 调用</span><span style={{color:'#475569',fontSize:11,fontWeight:400}}>每60s</span></>}>
+            {llm?<div>
+              <div style={{display:'flex',gap:12,marginBottom:8,flexWrap:'wrap'}}>
+                <div><span style={{color:'#64748b',fontSize:10}}>总调用</span><br/><span style={{fontSize:18,fontWeight:700,color:'#3b82f6',fontFamily:'monospace'}}>{llm.total_calls}</span></div>
+                <div><span style={{color:'#64748b',fontSize:10}}>成功</span><br/><span style={{fontSize:18,fontWeight:700,color:'#22c55e',fontFamily:'monospace'}}>{llm.ok_calls}</span></div>
+                <div><span style={{color:'#64748b',fontSize:10}}>失败</span><br/><span style={{fontSize:18,fontWeight:700,color:'#ef4444',fontFamily:'monospace'}}>{llm.failed_calls}</span></div>
+                <div><span style={{color:'#64748b',fontSize:10}}>平均延迟</span><br/><span style={{fontSize:18,fontWeight:700,color:'#f59e0b',fontFamily:'monospace'}}>{llm.avg_latency}s</span></div>
+              </div>
+              <div style={{fontSize:11}}>
+                <div style={{color:'#94a3b8',marginBottom:4,fontWeight:600}}>按 Provider:</div>
+                {Object.entries(llm.by_provider).sort((a,b)=>b[1]-a[1]).slice(0,5).map(([k,v])=><div key={k} style={{display:'flex',justifyContent:'space-between',padding:'2px 0',borderBottom:'1px solid #1e293b'}}>
+                  <span style={{color:'#cbd5e1'}}>{k}</span><span style={{color:'#3b82f6',fontWeight:600,fontFamily:'monospace'}}>{v}</span>
+                </div>)}
+              </div>
+            </div>:<div style={{color:'#333',fontSize:11,padding:16,textAlign:'center'}}>等待 LLM 统计数据...</div>}
+          </G>
+          <G title={<><span style={{color:'#94a3b8',fontSize:13,fontWeight:600}}>🕵️ 审核统计</span><span style={{color:'#475569',fontSize:11,fontWeight:400}}>24h</span></>}>
+            {rev?<div>
+              <div style={{display:'flex',gap:12,marginBottom:8}}>
+                <div><span style={{color:'#64748b',fontSize:10}}>总数</span><br/><span style={{fontSize:18,fontWeight:700,color:'#8b5cf6',fontFamily:'monospace'}}>{rev.total}</span></div>
+                <div><span style={{color:'#64748b',fontSize:10}}>通过</span><br/><span style={{fontSize:18,fontWeight:700,color:'#22c55e',fontFamily:'monospace'}}>{rev.passed}</span></div>
+                <div><span style={{color:'#64748b',fontSize:10}}>驳回</span><br/><span style={{fontSize:18,fontWeight:700,color:'#ef4444',fontFamily:'monospace'}}>{rev.rejected}</span></div>
+                <div><span style={{color:'#64748b',fontSize:10}}>快过</span><br/><span style={{fontSize:18,fontWeight:700,color:'#06b6d4',fontFamily:'monospace'}}>{rev.fast_pass}</span></div>
+              </div>
+              <div style={{marginTop:4}}>
+                <div style={{display:'flex',justifyContent:'space-between',color:'#94a3b8',fontSize:11,marginBottom:4}}>
+                  <span>通过率</span><span style={{fontWeight:600}}>{(rev.pass_rate*100).toFixed(1)}%</span>
+                </div>
+                <div style={{height:6,background:'#0f172a',borderRadius:3,overflow:'hidden'}}>
+                  <div style={{width:`${rev.pass_rate*100}%`,height:'100%',background:'#22c55e',borderRadius:3}}/>
+                </div>
+              </div>
+              {Object.keys(rev.by_reviewer).length>0&&<div style={{fontSize:11,marginTop:8}}>
+                <div style={{color:'#94a3b8',marginBottom:4,fontWeight:600}}>审核官:</div>
+                {Object.entries(rev.by_reviewer).map(([k,v])=><div key={k} style={{display:'flex',gap:8,padding:'2px 0',fontSize:10,borderBottom:'1px solid #1e293b'}}>
+                  <span style={{color:'#cbd5e1',minWidth:50}}>{k}</span>
+                  <span style={{color:'#22c55e',fontFamily:'monospace'}}>{v.passed}✓</span>
+                  <span style={{color:'#ef4444',fontFamily:'monospace'}}>{v.rejected}✗</span>
+                  <span style={{color:'#06b6d4',fontFamily:'monospace'}}>{v.fast_pass}🏃</span>
+                </div>)}
+              </div>}
+            </div>:<div style={{color:'#333',fontSize:11,padding:16,textAlign:'center'}}>等待审核数据...</div>}
+          </G>
+        </div>
+
+        {/* ── Errors + Subagent Stats ── */}
+        <div style={{display:'grid',gridTemplateColumns:mob?'1fr':'1fr 1fr',gap:mob?0:12,marginBottom:mob?8:12}}>
+          <G title={<><span style={{color:'#94a3b8',fontSize:13,fontWeight:600}}>🔴 错误聚类</span><span style={{color:'#475569',fontSize:11,fontWeight:400}}>{err?`${err.total}个`:'等待...'}</span></>}>
+            {err?<div>
+              <div style={{display:'flex',flexWrap:'wrap',gap:4,marginBottom:8}}>
+                {Object.entries(err.by_type).sort((a,b)=>b[1]-a[1]).map(([k,v])=><span key={k} style={{padding:'2px 8px',borderRadius:4,background:'#ef444418',color:'#ef4444',fontSize:11}}>{k}:{v}</span>)}
+              </div>
+              {err.recent.length>0&&<div style={{fontSize:10,fontFamily:'monospace',maxHeight:80,overflow:'hidden'}}>
+                <div style={{color:'#475569',marginBottom:2}}>最近:</div>
+                {err.recent.slice(0,5).map((l,i)=><div key={i} style={{color:'#64748b',padding:'1px 0',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{l.slice(0,80)}</div>)}
+              </div>}
+            </div>:<div style={{color:'#333',fontSize:11,padding:16,textAlign:'center'}}>等待错误数据...</div>}
+          </G>
+          <G title={<><span style={{color:'#94a3b8',fontSize:13,fontWeight:600}}>🧬 子代理统计</span><span style={{color:'#475569',fontSize:11,fontWeight:400}}>24h</span></>}>
+            {sub?<div>
+              <div style={{display:'flex',gap:12,marginBottom:8}}>
+                <div><span style={{color:'#64748b',fontSize:10}}>运行次数</span><br/><span style={{fontSize:18,fontWeight:700,color:'#8b5cf6',fontFamily:'monospace'}}>{sub.total_runs}</span></div>
+                <div><span style={{color:'#64748b',fontSize:10}}>成功</span><br/><span style={{fontSize:18,fontWeight:700,color:'#22c55e',fontFamily:'monospace'}}>{sub.completed}</span></div>
+                <div><span style={{color:'#64748b',fontSize:10}}>成功率</span><br/><span style={{fontSize:18,fontWeight:700,color:(sub.success_rate*100>80?'#22c55e':'#f59e0b'),fontFamily:'monospace'}}>{(sub.success_rate*100).toFixed(0)}%</span></div>
+              </div>
+              {Object.keys(sub.by_type).length>0&&<div style={{fontSize:10}}>
+                <div style={{color:'#94a3b8',marginBottom:4,fontWeight:600}}>按类型:</div>
+                {Object.entries(sub.by_type).sort((a,b)=>b[1].total-a[1].total).slice(0,5).map(([k,v])=><div key={k} style={{display:'flex',gap:8,padding:'2px 0',borderBottom:'1px solid #1e293b'}}>
+                  <span style={{color:'#cbd5e1',minWidth:60,overflow:'hidden',textOverflow:'ellipsis'}}>{k.slice(0,20)}</span>
+                  <span style={{color:'#64748b',fontFamily:'monospace'}}>{v.total}x</span>
+                  <span style={{color:v.avg_time_sec>60?'#f59e0b':'#64748b',fontFamily:'monospace',fontSize:9}}>{v.avg_time_sec}s</span>
+                </div>)}
+              </div>}
+            </div>:<div style={{color:'#333',fontSize:11,padding:16,textAlign:'center'}}>等待子代理数据...</div>}
+          </G>
+        </div>
+
+        {/* ── Running Tasks + Events ── */}
+        <div style={{display:'grid',gridTemplateColumns:mob?'1fr':'1fr 1fr',gap:mob?0:12}}>
+          <G title={<><span style={{color:'#94a3b8',fontSize:13,fontWeight:600}}>🏃 运行中</span><span style={{color:'#475569',fontSize:11,fontWeight:400}}>{tasks.length}个</span></>}>
+            <div style={{maxHeight:180,overflowY:'auto'}}>
+              {tasks.length===0&&<div style={{textAlign:'center',color:'#475569',fontSize:11,padding:12}}>暂无运行中任务</div>}
+              {tasks.map((t,i)=><div key={`${t.task_id}-${i}`} style={{display:'flex',gap:6,alignItems:'center',padding:'4px 6px',fontSize:10,fontFamily:'monospace',borderBottom:i<tasks.length-1?'1px solid #0f172a':'none',cursor:'pointer'}} onClick={()=>window.open('https://kanbanyun.com/task/'+t.task_id,'_blank')}>
+                <span style={{color:'#f59e0b'}}>⏳</span>
+                <span style={{color:'#94a3b8',minWidth:50}}>T{t.task_id}</span>
+                <span style={{color:'#3b82f6',minWidth:40,fontSize:9}}>{t.step_tag}</span>
+                <span style={{color:'#64748b',flex:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{t.detail.slice(0,40)}</span>
+              </div>)}
+            </div>
+          </G>
+          <G title={<><span style={{color:'#94a3b8',fontSize:13,fontWeight:600}}>📡 事件流</span><span style={{color:'#475569',fontSize:11,fontWeight:400}}>{evts.length}条</span></>}>
+            <div style={{maxHeight:180,overflowY:'auto'}}>
+              {evts.length===0&&<div style={{textAlign:'center',color:'#475569',fontSize:11,padding:12}}>等待事件...</div>}
+              {evts.map((e,i)=><div key={e.id} style={{display:'flex',gap:4,padding:'2px 6px',fontSize:9,fontFamily:'monospace',borderBottom:i<evts.length-1?'1px solid #0f172a':'none',
+                color:e.type==='metrics'?'#3b82f6':e.type==='llm'?'#f59e0b':e.type==='review'?'#8b5cf6':e.type==='cmd'?'#22c55e':e.type==='error'?'#ef4444':e.type==='task'?'#06b6d4':e.type==='stats'?'#14b8a6':e.type==='throughput'?'#6366f1':e.type==='subagent'?'#ec4899':'#64748b'}}>
+                <span style={{color:'#333',minWidth:40,flexShrink:0}}>{e.t}</span>
+                <span style={{overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{e.s}</span>
+              </div>)}
+            </div>
+          </G>
+        </div>
+
+        {/* ── Commands ── */}
+        <div style={{display:'flex',alignItems:'center',gap:8,marginTop:mob?8:12,marginBottom:4}}>
+          <span style={{color:'#64748b',fontSize:11,fontWeight:600,cursor:'pointer'}} onClick={()=>setCmdOpen(!cmdOpen)}>{cmdOpen?'▾':'▸'} 遥控命令</span>
+        </div>
+        {cmdOpen&&<div style={{display:'flex',gap:mob?4:6,flexWrap:'wrap',marginBottom:12}}>
+          {QC.map((cmd,i)=><button key={cmd.id} onClick={()=>hCmd(cmd.id)} style={{
+            padding:mob?'4px 8px':'5px 12px',border:'none',borderRadius:6,cursor:'pointer',
+            background:actC===cmd.id?cmd.c:`${cmd.c}15`,color:actC===cmd.id?'#fff':cmd.c,
+            fontSize:mob?10:11,fontWeight:600,transition:'all 0.15s'
+          }}><span style={{opacity:0.4,marginRight:3}}>{i+1}</span>{cmd.l}</button>)}
+        </div>}
+
+        {/* ── Logs ── */}
+        <div style={{marginTop:12,background:'#0a0f1a',borderRadius:10,border:'1px solid #1e293b',overflow:'hidden'}}>
+          <div style={{display:'flex',justifyContent:'space-between',padding:'8px 12px',borderBottom:'1px solid #1e293b'}}>
+            <span style={{color:'#94a3b8',fontSize:12,fontWeight:600}}>📝 日志</span>
+            <label style={{display:'flex',alignItems:'center',gap:4,cursor:'pointer',fontSize:10,color:'#475569'}}><input type='checkbox' checked={autoScroll} onChange={e=>setAutoScroll(e.target.checked)} style={{accentColor:'#3b82f6'}}/>自动滚动</label>
+          </div>
+          <div style={{maxHeight:mob?150:200,overflowY:'auto',padding:8,fontFamily:'monospace',fontSize:9,lineHeight:1.5}}>
+            {logL&&<div style={{textAlign:'center',color:'#475569',padding:12}}>等待日志推送...</div>}
+            {!logL&&logs.length===0&&<div style={{textAlign:'center',color:'#475569',padding:12}}>暂无日志</div>}
+            {logs.map((l,i)=><div key={i} style={{padding:'1px 0',whiteSpace:'pre-wrap',wordBreak:'break-all',
+              color:l.includes('ERROR')||l.includes('❌')?'#ef4444':l.includes('WARNING')||l.includes('⚠️')||l.includes('失败')?'#f59e0b':l.includes('✅')||l.includes('OK')||l.includes('pushed')?'#22c55e':l.includes('📊')||l.includes('Stats')?'#14b8a6':l.includes('🤖')||l.includes('LLM')?'#f59e0b':l.includes('INFO')?'#475569':'#333'}}>{l}</div>)}
+            <div ref={logE}/>
+          </div>
+        </div>
+      </>}
+
+      {/* ════════════════════ STATS TAB ════════════════════ */}
+      {tab==='stats'&&<>
+        <div style={{display:'grid',gridTemplateColumns:mob?'repeat(2,1fr)':'repeat(6,1fr)',gap:mob?6:10,marginBottom:12}}>
+          {[
+            {l:'待处理',v:st?.pending??'...',c:'#3b82f6',d:'等待调度的任务'},{l:'运行中',v:st?.in_progress??'...',c:'#f59e0b',d:'正在执行'},
+            {l:'已完成',v:st?.completed??'...',c:'#22c55e',d:'生命周期结束'},{l:'失败',v:st?.failed??'...',c:'#ef4444',d:'需要关注'},
+            {l:'阻塞',v:st?.blocked??'...',c:'#8b5cf6',d:'依赖或资源不足'},{l:'总计',v:st?.total??'...',c:'#64748b',d:'全部任务'},
+          ].map(m=><div key={m.l} style={{background:'#1e293b',borderRadius:10,border:'1px solid #334155',padding:mob?12:16,textAlign:'center'}}>
+            <div style={{color:'#64748b',fontSize:mob?11:12,marginBottom:4}}>{m.l}</div>
+            <div style={{fontSize:mob?24:32,fontWeight:700,color:m.c,fontFamily:'monospace'}}>{m.v}</div>
+            <div style={{color:'#475569',fontSize:10,marginTop:4}}>{m.d}</div>
+          </div>)}
+        </div>
+        {tp&&<>
+          <G title={<span style={{color:'#94a3b8',fontSize:13,fontWeight:600}}>📈 吞吐量 (24h小时分布)</span>}>
+            <Bar d={tp.hourly} h={80} c="#3b82f6"/>
+            <div style={{display:'flex',justifyContent:'space-between',color:'#475569',fontSize:9,marginTop:2}}>
+              {[0,2,4,6,8,10,12,14,16,18,20,22].map(h=><span key={h}>{h}:00</span>)}
+            </div>
+            <div style={{display:'flex',gap:20,marginTop:8}}>
+              <div><span style={{color:'#64748b',fontSize:10}}>今日完成</span><br/><span style={{fontSize:20,fontWeight:700,color:'#22c55e',fontFamily:'monospace'}}>{tp.today_completed}</span></div>
+              <div><span style={{color:'#64748b',fontSize:10}}>平均耗时</span><br/><span style={{fontSize:20,fontWeight:700,color:'#f59e0b',fontFamily:'monospace'}}>{tp.avg_completion_sec}s</span></div>
+            </div>
+          </G>
+          {Object.keys(tp.daily).length>0&&<G title={<span style={{color:'#94a3b8',fontSize:13,fontWeight:600}}>📅 每日完成 (7天)</span>}>
+            <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+              {Object.entries(tp.daily).sort().map(([k,v])=><div key={k} style={{padding:'6px 12px',background:'#0f172a',borderRadius:6,border:'1px solid #1e293b',textAlign:'center'}}>
+                <div style={{color:'#64748b',fontSize:9}}>{k.slice(5)}</div>
+                <div style={{fontSize:16,fontWeight:700,color:'#3b82f6',fontFamily:'monospace'}}>{v}</div>
+              </div>)}
+            </div>
+          </G>}
+        </>}
+      </>}
+
+      {/* ════════════════════ LLM TAB ════════════════════ */}
+      {tab==='llm'&&<>
+        {llm?<>
+          <div style={{display:'grid',gridTemplateColumns:mob?'repeat(2,1fr)':'repeat(4,1fr)',gap:mob?6:10,marginBottom:12}}>
+            {sec('总调用',llm.total_calls),sec('成功',llm.ok_calls),sec('失败',llm.failed_calls),sec('成功率',`${(llm.success_rate*100).toFixed(0)}%`)}
+          </div>
+          <G title={<span style={{color:'#94a3b8',fontSize:13,fontWeight:600}}>🤖 Provider 分布</span>}>
+            {Object.entries(llm.by_provider).sort((a,b)=>b[1]-a[1]).map(([k,v],i)=>(
+              <div key={k} style={{display:'flex',alignItems:'center',gap:8,padding:'6px 0',borderBottom:i<Object.keys(llm.by_provider).length-1?'1px solid #1e293b':'none'}}>
+                <span style={{color:'#94a3b8',fontSize:11,minWidth:80,fontWeight:600}}>{k}</span>
+                <div style={{flex:1,height:16,background:'#0f172a',borderRadius:8,overflow:'hidden'}}>
+                  <div style={{width:`${(v/llm.total_calls)*100}%`,height:'100%',background:'#3b82f6',borderRadius:8,transition:'width 0.5s'}}/>
+                </div>
+                <span style={{color:'#e2e8f0',fontSize:12,fontWeight:600,fontFamily:'monospace',minWidth:40,textAlign:'right'}}>{v}</span>
+              </div>
+            ))}
+            {Object.keys(llm.by_provider).length===0&&<div style={{color:'#333',fontSize:11,padding:8,textAlign:'center'}}>暂无Provider数据</div>}
+          </G>
+          <G title={<span style={{color:'#94a3b8',fontSize:13,fontWeight:600}}>🤖 Model 分布</span>} body={{padding:8}}>
+            <div style={{display:'flex',flexWrap:'wrap',gap:6}}>
+              {Object.entries(llm.by_model).sort((a,b)=>b[1]-a[1]).map(([k,v])=><div key={k} style={{padding:'4px 10px',background:'#0f172a',borderRadius:6,border:'1px solid #1e293b',display:'flex',gap:6,alignItems:'center'}}>
+                <span style={{color:'#cbd5e1',fontSize:11}}>{k}</span>
+                <span style={{color:'#3b82f6',fontSize:13,fontWeight:700,fontFamily:'monospace'}}>{v}</span>
+              </div>)}
+              {Object.keys(llm.by_model).length===0&&<div style={{color:'#333',fontSize:11,padding:8}}>暂无Model数据</div>}
+            </div>
+          </G>
+        </>:<div style={{textAlign:'center',color:'#333',padding:40,fontSize:13}}>等待首次 LLM 统计数据推送 (每60s)...</div>}
+      </>}
+
+      {/* ════════════════════ TASKS TAB ════════════════════ */}
+      {tab==='tasks'&&<>
+        <G title={<span style={{color:'#94a3b8',fontSize:13,fontWeight:600}}>🏃 运行中任务 <span style={{color:'#475569',fontWeight:400}}>{tasks.length}个</span></span>}>
+          {tasks.length===0&&<div style={{textAlign:'center',color:'#475569',padding:20,fontSize:12}}>暂无运行中任务</div>}
+          {(searchQ?tasks.filter(t=>String(t.task_id).includes(searchQ)||(t.step_tag||'').toLowerCase().includes(searchQ.toLowerCase())):tasks).map((t,i)=><React.Fragment key={`${t.task_id}-${i}`}><div style={{display:'flex',gap:8,alignItems:'center',padding:'8px 10px',fontSize:12,fontFamily:'monospace',borderBottom:i<tasks.length-1?'1px solid #334155':'none',cursor:'pointer'}} onClick={()=>setExpTask(expTask===t.task_id?null:t.task_id)}>
+            <span style={{color:'#f59e0b',fontSize:14}}>⏳</span>
+            <span style={{color:'#94a3b8',fontWeight:600,minWidth:80}}>T{t.task_id}</span>
+            <span style={{color:'#3b82f6',minWidth:60,fontSize:11}}>{t.step_tag}</span>
+            <span style={{color:'#cbd5e1',flex:1}}>{t.detail}</span>
+            <span style={{color:'#475569',fontSize:10}}>{t.ts}</span>
+          </div>{expTask===t.task_id&&<div style={{padding:'6px 12px',background:'#0f172a',margin:'0 6px 6px',borderRadius:6,border:'1px solid #1e293b',fontSize:11}}><div style={{color:'#94a3b8',marginBottom:4}}>📋 详情</div><div style={{color:'#cbd5e1'}}>T{t.task_id} | {t.step_tag||'-'}</div><div style={{color:'#64748b',marginTop:2}}>{t.detail}</div><div style={{color:'#475569',fontSize:10,marginTop:2}}>{t.status} @ {t.ts}</div></div>}</React.Fragment>)}
+        </G>
+        {sub&&<G title={<span style={{color:'#94a3b8',fontSize:13,fontWeight:600}}>🧬 子代理类型分布</span>}>
+          {Object.entries(sub.by_type).sort((a,b)=>b[1].total-a[1].total).map(([k,v],i)=><div key={k} style={{display:'flex',gap:8,padding:'8px 0',borderBottom:i<Object.keys(sub.by_type).length-1?'1px solid #334155':'none'}}>
+            <div style={{flex:1}}>
+              <div style={{display:'flex',justifyContent:'space-between',marginBottom:4}}>
+                <span style={{color:'#cbd5e1',fontSize:11}}>{k.slice(0,30)}</span>
+                <span style={{color:'#8b5cf6',fontWeight:600,fontFamily:'monospace'}}>{v.total}x</span>
+              </div>
+              <div style={{height:4,background:'#0f172a',borderRadius:2,overflow:'hidden'}}>
+                <div style={{width:`${(v.completed/v.total)*100}%`,height:'100%',background:'#22c55e',borderRadius:2}}/>
+              </div>
+              <div style={{display:'flex',gap:12,fontSize:10,color:'#475569',marginTop:2}}>
+                <span>✅{v.completed} 成功率{(v.completed/v.total*100).toFixed(0)}%</span>
+                <span>⏱️{v.avg_time_sec}s</span>
+              </div>
+            </div>
+          </div>)}
+        </G>}
+      </>}
+
+      {/* ════════════════════ REVIEW TAB ════════════════════ */}
+      {tab==='review'&&<>
+        {rev?<>
+          <div style={{display:'grid',gridTemplateColumns:mob?'repeat(2,1fr)':'repeat(4,1fr)',gap:mob?6:10,marginBottom:12}}>
+            {sec('审核总数',rev.total,'24h'),sec('通过',rev.passed,`${(rev.passed/rev.total*100).toFixed(0)}%`),sec('驳回',rev.rejected,`${(rev.rejected/rev.total*100).toFixed(0)}%`),sec('快速通过',rev.fast_pass)}
+          </div>
+          <G title={<span style={{color:'#94a3b8',fontSize:13,fontWeight:600}}>🎯 通过率</span>}>
+            <div style={{display:'flex',alignItems:'center',gap:12}}>
+              <div style={{flex:1}}>
+                <div style={{height:24,background:'#0f172a',borderRadius:12,overflow:'hidden',display:'flex'}}>
+                  {rev.passed>0&&<div style={{flex:rev.passed,background:'#22c55e',display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,fontWeight:600,color:'#fff',minWidth:40}}>通过 {(rev.passed/rev.total*100).toFixed(0)}%</div>}
+                  {rev.fast_pass>0&&<div style={{flex:rev.fast_pass,background:'#06b6d4',display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,fontWeight:600,color:'#fff',minWidth:40}}>快过 {(rev.fast_pass/rev.total*100).toFixed(0)}%</div>}
+                  {rev.rejected>0&&<div style={{flex:rev.rejected,background:'#ef4444',display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,fontWeight:600,color:'#fff'}}>驳回 {(rev.rejected/rev.total*100).toFixed(0)}%</div>}
+                </div>
+              </div>
+            </div>
+          </G>
+          {Object.keys(rev.by_reviewer).length>0&&<G title={<span style={{color:'#94a3b8',fontSize:13,fontWeight:600}}>👤 审核官表现</span>}>
+            {Object.entries(rev.by_reviewer).map(([k,v],i)=><div key={k} style={{padding:'8px 0',borderBottom:i<Object.keys(rev.by_reviewer).length-1?'1px solid #334155':'none'}}>
+              <div style={{display:'flex',justifyContent:'space-between',marginBottom:4}}>
+                <span style={{color:'#e2e8f0',fontWeight:600,fontSize:12}}>🕵️ {k}</span>
+                <span style={{color:'#94a3b8',fontFamily:'monospace'}}>{v.total}条</span>
+              </div>
+              <div style={{display:'flex',gap:8,fontSize:11}}>
+                <span style={{color:'#22c55e'}}>✅ {v.passed}</span>
+                <span style={{color:'#ef4444'}}>❌ {v.rejected}</span>
+                <span style={{color:'#06b6d4'}}>🏃 {v.fast_pass}</span>
+                <span style={{color:'#64748b'}}>通过率{(v.passed/(v.total||1)*100).toFixed(0)}%</span>
+              </div>
+              <div style={{height:3,background:'#0f172a',borderRadius:2,marginTop:4,overflow:'hidden',display:'flex'}}>
+                {v.passed>0&&<div style={{flex:v.passed,background:'#22c55e'}}/>}
+                {v.rejected>0&&<div style={{flex:v.rejected,background:'#ef4444'}}/>}
+                {v.fast_pass>0&&<div style={{flex:v.fast_pass,background:'#06b6d4'}}/>}
+              </div>
+            </div>)}
+          </G>}
+        </>:<div style={{textAlign:'center',color:'#333',padding:40,fontSize:13}}>等待审核统计数据推送 (每5min)...</div>}
+      </>}
+
+      {/* ════════════════════ SYSTEM TAB ════════════════════ */}
+      {tab==='system'&&<>
+        <div style={{display:'grid',gridTemplateColumns:mob?'1fr':'1fr 1fr',gap:mob?0:12,marginBottom:12}}>
+          <G title={<><span style={{color:'#94a3b8',fontSize:13,fontWeight:600}}>⚙️ 系统信息</span><span style={{fontSize:10,color:'#475569',cursor:'pointer'}} onClick={()=>{const t=Date.now();setScreenshot(`http://127.0.0.1:18794/screen?_=${t}`)}}>📷 截屏</span></>}>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
+              {[
+                {l:'CPU',v:v?`${v.cpu}%`:'...',c:bg(v?.cpu??0)},
+                {l:'内存',v:v?`${v.mem}%`:'...',c:bg(v?.mem??0)},
+                {l:'磁盘',v:v?`${v.disk}%`:'...',c:bg(v?.disk??0)},
+                {l:'运行时间',v:v?upt(v.up):'...',c:'#64748b'},
+                {l:'进程数',v:v?.proc??'...',c:'#64748b'},
+                {l:'DB连接',v:dbh?.connections??'...',c:'#64748b'},
+                {l:'慢查询',v:dbh?.slow_queries??'...',c:dbh&&dbh.slow_queries>0?'#f59e0b':'#22c55e'},
+                {l:'DB健康',v:dbh?`${dbh.health_score}分`:'...',c:'#64748b'},
+              ].map(m=><div key={m.l} style={{display:'flex',justifyContent:'space-between',padding:'6px 8px',background:'#0f172a',borderRadius:6,border:'1px solid #1e293b'}}>
+                <span style={{color:'#64748b',fontSize:11}}>{m.l}</span>
+                <span style={{color:m.c,fontWeight:600,fontFamily:'monospace',fontSize:12}}>{m.v}</span>
+              </div>)}
+            <div style={{textAlign:'center',color:'#475569',fontSize:9,marginTop:8}}>推送:metrics=5s / stats=5min</div>
+            <div style={{textAlign:'center',color:'#475569',fontSize:9}}>数据: {Math.round((Date.now()-lastUpd.current)/1000)}s前</div>
+          </div>
+          </G>
+          <G title={<span style={{color:'#94a3b8',fontSize:13,fontWeight:600}}>🧠 模型配置</span>}>
+            {mc?<div>
+              <div style={{display:'flex',gap:12,marginBottom:8}}>
+                <div style={{background:'#0f172a',borderRadius:8,padding:'8px 12px',border:'1px solid #1e293b'}}>
+                  <div style={{color:'#64748b',fontSize:10}}>主模型</div>
+                  <div style={{color:'#3b82f6',fontSize:13,fontWeight:600,fontFamily:'monospace',marginTop:2}}>{mc.primary_model??'-'}</div>
+                </div>
+                <div style={{background:'#0f172a',borderRadius:8,padding:'8px 12px',border:'1px solid #1e293b'}}>
+                  <div style={{color:'#64748b',fontSize:10}}>Prov/模型</div>
+                  <div style={{color:'#e2e8f0',fontSize:13,fontWeight:600,fontFamily:'monospace',marginTop:2}}>{mc.providers_count}/{mc.models_count}</div>
+                </div>
+              </div>
+              {mc.fallbacks&&mc.fallbacks.length>0&&<div>
+                <div style={{color:'#94a3b8',fontSize:11,fontWeight:600,marginBottom:4}}>Fallback 链:</div>
+                <div style={{display:'flex',gap:4,flexWrap:'wrap'}}>
+                  {mc.fallbacks.map((f,i)=><span key={i} style={{padding:'2px 8px',background:'#0f172a',borderRadius:4,border:'1px solid #1e293b',color:'#64748b',fontSize:10}}>
+                    {i>0&&<span style={{color:'#333',marginRight:2}}>→</span>}{f}
+                  </span>)}
+                </div>
+              </div>}
+            </div>:<div style={{color:'#333',fontSize:11,padding:16,textAlign:'center'}}>等待模型配置...</div>}
+          </G>
+        </div>
+        {screenshot&&<div style={{marginBottom:12}}>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:4}}>
+            <span style={{color:'#94a3b8',fontSize:11,fontWeight:600}}>🖼️ 实时桌面</span>
+            <button onClick={()=>setScreenshot(null)} style={{background:'none',border:'none',color:'#475569',cursor:'pointer',fontSize:12}}>✕</button>
+          </div>
+          <img src={screenshot} style={{width:'100%',borderRadius:8,border:'1px solid #334155',maxHeight:mob?200:400,objectFit:'contain'}}/>
+        </div>}
+        <G title={<span style={{color:'#94a3b8',fontSize:13,fontWeight:600}}>🔴 错误日志分析</span>}>
+          {err?<div style={{display:'flex',flexWrap:'wrap',gap:8}}>
+            {Object.entries(err.by_type).sort((a,b)=>b[1]-a[1]).map(([k,v])=><div key={k} style={{padding:'8px 14px',background:'#0f172a',borderRadius:8,border:'1px solid #1e293b',textAlign:'center',cursor:'pointer'}} onClick={()=>setExpandedErr(expandedErr===k?null:k)}>
+              <div style={{color:'#ef4444',fontSize:18,fontWeight:700,fontFamily:'monospace'}}>{v}</div>
+              <div style={{color:'#64748b',fontSize:10,marginTop:2}}>{k}</div>
+              {expandedErr===k&&err.recent&&<div style={{marginTop:6,paddingTop:6,borderTop:'1px solid #1e293b',maxHeight:120,overflowY:'auto',textAlign:'left'}}>
+                {err.recent.map((rl,i)=><div key={i} style={{color:'#94a3b8',fontSize:9,fontFamily:'monospace',marginBottom:2,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{rl}</div>)}
+              </div>}
+            </div>)}
+            {err.total===0&&<div style={{color:'#22c55e',padding:8,fontSize:12}}>✅ 暂无错误</div>}
+          </div>:<div style={{color:'#333',fontSize:11,padding:16,textAlign:'center'}}>等待错误数据...</div>}
+        </G>
+      </>}
+    </div>
+  )
+}
+export default SDS
+
+// BUILDMARKER:30MAY2026_0054
+
+import SproutTree from '../components/SproutTree'
+

@@ -1,0 +1,126 @@
+{
+  "timestamp": "2026-04-20T13:43:26.582308",
+  "system_info": {
+    "total_memory_gb": 64.0,
+    "available_memory_gb": 43.2,
+    "memory_percent": 32.5,
+    "platform": "Darwin",
+    "arch": "arm64",
+    "python_version": "3.9.6"
+  },
+  "mcp_latency": {
+    "github_search": {
+      "iterations": 5,
+      "p50": 1340.39,
+      "p95": 1363.01,
+      "p99": 1363.01,
+      "avg": 1294.4,
+      "min": 1103.22,
+      "max": 1363.01
+    },
+    "file_read": {
+      "iterations": 5,
+      "p50": 58.17,
+      "p95": 63.07,
+      "p99": 63.07,
+      "avg": 54.46,
+      "min": 34.58,
+      "max": 63.07
+    },
+    "memory_search": {
+      "iterations": 5,
+      "p50": 63.92,
+      "p95": 95.27,
+      "p99": 95.27,
+      "avg": 71.29,
+      "min": 60.94,
+      "max": 95.27
+    },
+    "web_search": {
+      "iterations": 5,
+      "p50": 839.25,
+      "p95": 1171.54,
+      "p99": 1171.54,
+      "avg": 856.95,
+      "min": 447.35,
+      "max": 1171.54
+    }
+  },
+  "memory_retrieval": {
+    "queries_tested": 4,
+    "correct": 4,
+    "accuracy": 100.0,
+    "avg_latency_ms": 103.0,
+    "details": [
+      {
+        "query": "T109项目进展",
+        "category": "project",
+        "found": true,
+        "expected": true,
+        "correct": true,
+        "latency_ms": 95.5
+      },
+      {
+        "query": "Server 1配置",
+        "category": "infrastructure",
+        "found": true,
+        "expected": true,
+        "correct": true,
+        "latency_ms": 103.5
+      },
+      {
+        "query": "北航联合实验室",
+        "category": "academic",
+        "found": true,
+        "expected": true,
+        "correct": true,
+        "latency_ms": 110.5
+      },
+      {
+        "query": "不存在的随机测试词xyz",
+        "category": "negative",
+        "found": false,
+        "expected": false,
+        "correct": true,
+        "latency_ms": 102.5
+      }
+    ]
+  },
+  "subagent_startup": {
+    "iterations": 3,
+    "cold_start_ms": {
+      "p50": 9380.4,
+      "avg": 9101.49,
+      "min": 8399.02,
+      "max": 9525.06
+    },
+    "target_ms": 5000,
+    "status": "NEEDS_OPTIMIZATION"
+  },
+  "memory_footprint": {
+    "rss_mb": 14.0,
+    "vms_mb": 425065.6,
+    "session_files": 53,
+    "metrics_db_size_kb": 69276.0
+  },
+  "cost_efficiency": {
+    "daily_budget_cny": 50.0,
+    "per_task_budget_cny": 0.5,
+    "current_daily_cny": 0.0073,
+    "budget_usage_percent": 0.015,
+    "status": "PASS"
+  },
+  "summary": {
+    "overall_status": "BASELINE_ESTABLISHED",
+    "mcp_avg_p95_ms": 673.22,
+    "memory_accuracy_percent": 100.0,
+    "subagent_startup_status": "NEEDS_OPTIMIZATION",
+    "cost_status": "PASS",
+    "recommendations": [
+      "安装sqlite-vec以启用记忆向量化",
+      "部署GitHub MCP Server（P0）",
+      "实现trace_collector与Gateway集成",
+      "配置成本告警（日预算¥50）"
+    ]
+  }
+}

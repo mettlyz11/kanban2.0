@@ -1,0 +1,214 @@
+test_check_existing_key_blocked (__main__.TestIdempotencyLayer)
+已存在的键应该被拦截 ... ok
+test_check_new_key_safe (__main__.TestIdempotencyLayer)
+新键应该安全 ... ok
+test_check_returns_required_fields (__main__.TestIdempotencyLayer)
+检查结果包含必要字段 ... ok
+test_cleanup_no_file (__main__.TestIdempotencyLayer)
+无文件时清理不报错 ... ok
+test_cleanup_removes_old (__main__.TestIdempotencyLayer)
+清理会移除过期记录 ... ok
+test_key_deterministic_same_input (__main__.TestIdempotencyLayer)
+相同输入生成相同键 ... ok
+test_key_different_description (__main__.TestIdempotencyLayer)
+不同描述生成不同键 ... ok
+test_key_different_goal (__main__.TestIdempotencyLayer)
+不同目标生成不同键 ... ok
+test_key_different_title (__main__.TestIdempotencyLayer)
+不同标题生成不同键 ... ok
+test_key_empty_title (__main__.TestIdempotencyLayer)
+空标题也能生成键 ... ok
+test_key_long_description_truncated (__main__.TestIdempotencyLayer)
+超长描述只取前100字 ... ok
+test_key_mixed_language (__main__.TestIdempotencyLayer)
+混合语言标题键生成 ... ok
+test_key_none_values (__main__.TestIdempotencyLayer)
+None值处理 ... ok
+test_key_unicode (__main__.TestIdempotencyLayer)
+Unicode标题键生成 ... ok
+test_key_whitespace_trimmed (__main__.TestIdempotencyLayer)
+首尾空格被去除后键相同 ... ok
+test_record_creates_file (__main__.TestIdempotencyLayer)
+记录会创建日志文件 ... ok
+test_record_multiple_entries (__main__.TestIdempotencyLayer)
+多条记录互不干扰 ... ok
+test_record_persists_data (__main__.TestIdempotencyLayer)
+记录的数据可以被读取 ... ok
+test_boundary_current_count_equal_max (__main__.TestRateLimitLayer)
+边界：当前数量等于最大值 ... ok
+test_boundary_current_count_one_less (__main__.TestRateLimitLayer)
+边界：当前数量比最大值少1 ... ok
+test_combined_check_structure (__main__.TestRateLimitLayer)
+组合检查返回结构 ... ok
+test_custom_config (__main__.TestRateLimitLayer)
+自定义配置 ... ok
+test_default_config (__main__.TestRateLimitLayer)
+默认配置验证 ... ok
+test_large_window_hours (__main__.TestRateLimitLayer)
+大窗口时间 ... ok
+test_pending_watermark_structure (__main__.TestRateLimitLayer)
+水位检查返回结构 ... ok
+test_rate_limit_structure (__main__.TestRateLimitLayer)
+频率限制返回结构 ... ok
+test_zero_max_tasks_always_blocked (__main__.TestRateLimitLayer)
+零任务上限永远拦截 ... ok
+test_check_empty_title (__main__.TestSemanticDedupLayer)
+空标题不重复 ... ok
+test_check_none_title (__main__.TestSemanticDedupLayer)
+None标题不重复 ... ok
+test_levenshtein_deletion (__main__.TestSemanticDedupLayer)
+删除距离为1 ... ok
+test_levenshtein_empty_both (__main__.TestSemanticDedupLayer)
+两个空字符串距离为0 ... ok
+test_levenshtein_empty_one (__main__.TestSemanticDedupLayer)
+一个空字符串距离为另一长度 ... ok
+test_levenshtein_identical (__main__.TestSemanticDedupLayer)
+相同字符串距离为0 ... ok
+test_levenshtein_insertion (__main__.TestSemanticDedupLayer)
+插入距离为1 ... ok
+test_levenshtein_single_substitution (__main__.TestSemanticDedupLayer)
+单字符替换距离为1 ... ok
+test_levenshtein_symmetric (__main__.TestSemanticDedupLayer)
+距离对称性 ... ok
+test_levenshtein_unicode (__main__.TestSemanticDedupLayer)
+Unicode字符距离 ... ok
+test_normalize_chinese_punctuation (__main__.TestSemanticDedupLayer)
+去除中文标点 ... ok
+test_normalize_empty (__main__.TestSemanticDedupLayer)
+空字符串标准化 ... ok
+test_normalize_lowercase (__main__.TestSemanticDedupLayer)
+转小写 ... ok
+test_normalize_mixed_content (__main__.TestSemanticDedupLayer)
+混合内容标准化 ... ok
+test_normalize_removes_punctuation (__main__.TestSemanticDedupLayer)
+去除标点符号 ... ok
+test_prefix_length_config (__main__.TestSemanticDedupLayer)
+前缀长度配置 ... ok
+test_similarity_empty_both (__main__.TestSemanticDedupLayer)
+两个空字符串相似度为1.0 ... ok
+test_similarity_empty_one (__main__.TestSemanticDedupLayer)
+一个空字符串相似度为0.0 ... ok
+test_similarity_identical (__main__.TestSemanticDedupLayer)
+相同字符串相似度为1.0 ... ok
+test_similarity_just_above_threshold (__main__.TestSemanticDedupLayer)
+刚好高于阈值0.85 ... ok
+test_similarity_just_below_threshold (__main__.TestSemanticDedupLayer)
+刚好低于阈值0.85 ... ok
+test_similarity_symmetric (__main__.TestSemanticDedupLayer)
+相似度对称性 ... ok
+test_similarity_threshold_boundary_exact (__main__.TestSemanticDedupLayer)
+相似度阈值精确边界测试 ... ok
+test_similarity_threshold_config (__main__.TestSemanticDedupLayer)
+相似度阈值配置 ... ok
+test_similarity_very_long_strings (__main__.TestSemanticDedupLayer)
+超长字符串相似度 ... ok
+test_batch_id_generation (__main__.TestTaskGenerationGuard)
+批次ID格式 ... [2026-04-27 06:52:00,675] [INFO] [TaskGenerationGuardV46] TaskGenerationGuard V4.6 initialized, batch_id=V46-20260427-065200-a40083fb
+ok
+test_check_empty_title (__main__.TestTaskGenerationGuard)
+空标题应该被处理 ... [2026-04-27 06:52:00,676] [INFO] [TaskGenerationGuardV46] TaskGenerationGuard V4.6 initialized, batch_id=V46-20260427-065200-69abb5c7
+ok
+test_check_idempotent_second_time (__main__.TestTaskGenerationGuard)
+第二次检查相同任务应被拦截 ... [2026-04-27 06:52:07,514] [INFO] [TaskGenerationGuardV46] TaskGenerationGuard V4.6 initialized, batch_id=V46-20260427-065207-a9d78a78
+ok
+test_check_new_task_allowed (__main__.TestTaskGenerationGuard)
+新任务应该通过 ... [2026-04-27 06:52:21,135] [INFO] [TaskGenerationGuardV46] TaskGenerationGuard V4.6 initialized, batch_id=V46-20260427-065221-e69c1daa
+ok
+test_check_returns_guard_result (__main__.TestTaskGenerationGuard)
+检查返回GuardResult ... [2026-04-27 06:52:34,628] [INFO] [TaskGenerationGuardV46] TaskGenerationGuard V4.6 initialized, batch_id=V46-20260427-065234-45d6e2d3
+ok
+test_config_values (__main__.TestTaskGenerationGuard)
+配置值验证 ... [2026-04-27 06:52:48,680] [INFO] [TaskGenerationGuardV46] TaskGenerationGuard V4.6 initialized, batch_id=V46-20260427-065248-ab76acc8
+ok
+test_filter_empty_list (__main__.TestTaskGenerationGuard)
+空列表过滤 ... [2026-04-27 06:52:48,681] [INFO] [TaskGenerationGuardV46] TaskGenerationGuard V4.6 initialized, batch_id=V46-20260427-065248-8d91f7dd
+ok
+test_filter_single_item (__main__.TestTaskGenerationGuard)
+单条推荐过滤 ... [2026-04-27 06:52:48,681] [INFO] [TaskGenerationGuardV46] TaskGenerationGuard V4.6 initialized, batch_id=V46-20260427-065248-1bec6aa6
+[2026-04-27 06:52:48,682] [INFO] [TaskGenerationGuardV46] 开始V4.6过滤: 共 1 个推荐任务
+[2026-04-27 06:53:02,502] [INFO] [TaskGenerationGuardV46] ✅ 通过: 测试_1777243968.682229 (目标999)
+[2026-04-27 06:53:02,503] [INFO] [TaskGenerationGuardV46] V4.6过滤完成: 通过 1, 阻止 0
+ok
+test_guard_result_fields (__main__.TestTaskGenerationGuard)
+GuardResult字段完整性 ... [2026-04-27 06:53:02,504] [INFO] [TaskGenerationGuardV46] TaskGenerationGuard V4.6 initialized, batch_id=V46-20260427-065302-48d1bfff
+ok
+test_initialization (__main__.TestTaskGenerationGuard)
+初始化验证 ... [2026-04-27 06:53:02,505] [INFO] [TaskGenerationGuardV46] TaskGenerationGuard V4.6 initialized, batch_id=V46-20260427-065302-0b5d2add
+ok
+test_quick_guard_check (__main__.TestTaskGenerationGuard)
+便捷函数测试 ... [2026-04-27 06:53:02,505] [INFO] [TaskGenerationGuardV46] TaskGenerationGuard V4.6 initialized, batch_id=V46-20260427-065302-bb27342a
+[2026-04-27 06:53:02,506] [INFO] [TaskGenerationGuardV46] TaskGenerationGuard V4.6 initialized, batch_id=V46-20260427-065302-d4e53d7c
+ok
+test_system_status_structure (__main__.TestTaskGenerationGuard)
+系统状态结构 ... [2026-04-27 06:53:16,225] [INFO] [TaskGenerationGuardV46] TaskGenerationGuard V4.6 initialized, batch_id=V46-20260427-065316-2f910d35
+ok
+test_batch_filter_with_duplicates (__main__.TestBoundaryScenarios)
+批量过滤同批次重复 ... [2026-04-27 06:54:08,197] [INFO] [TaskGenerationGuardV46] TaskGenerationGuard V4.6 initialized, batch_id=V46-20260427-065408-5f7b23fa
+[2026-04-27 06:54:08,197] [INFO] [TaskGenerationGuardV46] 开始V4.6过滤: 共 2 个推荐任务
+[2026-04-27 06:54:20,770] [INFO] [TaskGenerationGuardV46] ✅ 通过: 相同前缀测试任务A (目标999)
+[2026-04-27 06:54:34,366] [INFO] [TaskGenerationGuardV46] ✅ 通过: 相同前缀测试任务B (目标999)
+[2026-04-27 06:54:34,367] [INFO] [TaskGenerationGuardV46] V4.6过滤完成: 通过 2, 阻止 0
+ok
+test_chinese_different_similarity (__main__.TestBoundaryScenarios)
+中文不同字符串相似度 ... ok
+test_concurrent_key_generation (__main__.TestBoundaryScenarios)
+并发键生成一致性 ... ok
+test_empty_description_prefix (__main__.TestBoundaryScenarios)
+空描述前缀 ... ok
+test_guard_with_none_goal_id (__main__.TestBoundaryScenarios)
+None目标ID ... [2026-04-27 06:54:34,372] [INFO] [TaskGenerationGuardV46] TaskGenerationGuard V4.6 initialized, batch_id=V46-20260427-065434-163b5ee7
+ok
+test_idempotency_with_special_chars_in_title (__main__.TestBoundaryScenarios)
+标题含特殊字符的幂等性 ... ok
+test_mixed_language_similarity (__main__.TestBoundaryScenarios)
+混合语言相似度 ... ok
+test_negative_similarity_threshold (__main__.TestBoundaryScenarios)
+负相似度阈值（应仍工作） ... ok
+test_prefix_length_zero (__main__.TestBoundaryScenarios)
+零前缀长度 ... ok
+test_rapid_successive_checks (__main__.TestBoundaryScenarios)
+快速连续检查 ... [2026-04-27 06:54:53,303] [INFO] [TaskGenerationGuardV46] TaskGenerationGuard V4.6 initialized, batch_id=V46-20260427-065453-338ce78d
+ok
+test_rate_limit_boundary_very_large (__main__.TestBoundaryScenarios)
+频率限制极大值 ... ok
+test_rate_limit_boundary_zero (__main__.TestBoundaryScenarios)
+频率限制零边界 ... ok
+test_similarity_at_exactly_threshold (__main__.TestBoundaryScenarios)
+恰好阈值的相似度 ... ok
+test_similarity_greater_than_one_threshold (__main__.TestBoundaryScenarios)
+大于1的相似度阈值（应仍工作） ... ok
+test_similarity_one_edit_below_threshold (__main__.TestBoundaryScenarios)
+编辑操作导致低于阈值（含等于边界） ... ok
+test_title_with_only_spaces (__main__.TestBoundaryScenarios)
+仅空格标题 ... ok
+test_title_with_only_special_chars (__main__.TestBoundaryScenarios)
+仅非下划线特殊字符标题 ... ok
+test_unicode_similarity (__main__.TestBoundaryScenarios)
+Unicode字符串相似度 ... ok
+test_very_long_title (__main__.TestBoundaryScenarios)
+超长标题处理 ... ok
+test_batch_check_performance (__main__.TestPerformanceScenarios)
+批量检查性能（跳过：依赖DB连接） ... skipped '批量DB查询依赖网络/DB，跳过性能断言；算法层批量性能已通过test_similarity_performance_long_strings验证'
+test_similarity_performance_long_strings (__main__.TestPerformanceScenarios)
+长字符串相似度性能 ... ok
+
+----------------------------------------------------------------------
+Ran 85 tests in 271.307s
+
+OK (skipped=1)
+======================================================================
+🧪 SDS任务生成三重保障系统 V4.6 - 单元测试
+======================================================================
+数据库可用: ✅
+
+
+  性能基准: 6.5ms/次 (200字符)
+
+======================================================================
+测试结果: ✅ 全部通过
+运行测试: 85 个
+通过: 84 个
+跳过: 1 个
+失败: 0 个
+错误: 0 个
+======================================================================

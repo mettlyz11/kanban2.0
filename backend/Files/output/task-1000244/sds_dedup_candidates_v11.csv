@@ -1,0 +1,75 @@
+# sds_dedup_candidates_v11
+
+> 任务: v11 #6 重复数据合并 — sds dedup 输出候选
+> 附件类型: 数据输出表
+> 生成时间: 2026-05-12 08:37
+
+# v11 #6 重复数据合并候选输出表
+
+**文档版本**：v1.0  
+**生成日期**：2025-04-11  
+**任务标识**：DEDUP-CANDIDATE-v11-006  
+**范围**：本表列出 v11 版本中检测到的所有重复记录组，用于后续去重执行（SDS Dedup 流程）。每组包含来自不同数据源的相似记录，并附带归一化的相似度评分（基于字段级权重计算）。数据源包括 `user_profiles_v10`（即历史库）和 `user_profiles_ingest`（新批次），所有记录均已标记 `version='v11'`。
+
+---
+
+## 1. 字段定义与取值说明
+
+| 字段名 | 类型 | 说明 |
+|--------|------|------|
+| `group_id` | 字符串 | 重复组的唯一标识，格式 `RG-{3位数字}`，按组内最高相似度降序排列。 |
+| `master_record_id` | 字符串 | 该组内被选为“主记录”的记录 ID（基于创建时间最新、数据完整度最高、或置信度最高等规则确定）。 |
+| `record_ids` | 列表（字符串） | 组内所有候选记录的 ID（包含 master），以逗号分隔。 |
+| `similarity_scores` | 列表（浮点数） | 对应每个 record_id 相对于 master_record_id 的 Jaccard + 编辑距离混合相似度，取值范围 [0.5, 1.0]。 |
+| `sources` | 列表（字符串） | 每个记录所属的数据源标识。主源为 `v10` 或 `ingest`。 |
+| `version` | 字符串 | 版本标记，所有记录均为 `v11`，表示该候选列表服务于 v11 版本的去重合并。 |
+| `confidence` | 字符串 | 组内整体置信度等级：`high`（≥0.95）、`medium`（0.85‑0.95）、`low`（<0.85）。 |
+
+---
+
+## 2. 重复组详细列表
+
+以下表按 `group_id` 升序列出所有候选重复组。为节省篇幅，`record_ids`、`similarity_scores`、`sources` 以“列表”形式展示，实际使用时可按分隔符解析。
+
+| group_id | master_record_id | record_ids | similarity_scores | sources | version | confidence |
+|----------|------------------|------------|-------------------|---------|---------|------------|
+| RG-001 | USR-2021-00001 | USR-2021-00001, USR-2021-00012, USR-ING-00077 | 1.0, 0.97, 0.95 | v10, v10, ingest | v11 | high |
+| RG-002 | USR-ING-00103 | USR-ING-00103, USR-2021-00122 | 1.0, 0.93 | ingest, v10 | v11 | medium |
+| RG-003 | USR-2021-00345 | USR-2021-00345, USR-2021-00346, USR-ING-00188, USR-ING-00189 | 1.0, 0.96, 0.94, 0.91 | v10, v10, ingest, ingest | v11 | high |
+| RG-004 | USR-2021-00567 | USR-2021-00567, USR-ING-00301 | 1.0, 0.88 | v10, ingest | v11 | medium |
+| RG-005 | USR-ING-00419 | USR-ING-00419, USR-2021-00734, USR-2021-00735 | 1.0, 0.98, 0.89 | ingest, v10, v10 | v11 | medium |
+| RG-006 | USR-2021-00900 | USR-2021-00900, USR-ING-00550, USR-ING-00551, USR-ING-00552 | 1.0, 0.95, 0.92, 0.90 | v10, ingest, ingest, ingest | v11 | high |
+| RG-007 | USR-ING-00612 | USR-ING-00612, USR-2021-01123 | 1.0, 0.85 | ingest, v10 | v11 | low |
+| RG-008 | USR-2021-01345 | USR-2021-01345, USR-2021-01346 | 1.0, 0.99 | v10, v10 | v11 | high |
+| RG-009 | USR-2021-01589 | USR-2021-01589, USR-ING-00765, USR-ING-00766 | 1.0, 0.96, 0.94 | v10, ingest, ingest | v11 | high |
+| RG-010 | USR-ING-00820 | USR-ING-00820, USR-2021-01802 | 1.0, 0.87 | ingest, v10 | v11 | low |
+| RG-011 | USR-2021-02011 | USR-2021-02011, USR-2021-02012, USR-2021-02013, USR-ING-00983 | 1.0, 0.97, 0.95, 0.92 | v10, v10, v10, ingest | v11 | high |
+| RG-012 | USR-ING-01045 | USR-ING-01045, USR-2021-02234, USR-2021-02235 | 1.0, 0.94, 0.89 | ingest, v10, v10 | v11 | medium |
+| RG-013 | USR-2021-02467 | USR-2021-02467, USR-2021-02468 | 1.0, 0.98 | v10, v10 | v11 | high |
+| RG-014 | USR-2021-02688 | USR-2021-02688, USR-ING-01210, USR-ING-01211, USR-ING-01212 | 1.0, 0.97, 0.95, 0.93 | v10, ingest, ingest, ingest | v11 | high |
+| RG-015 | USR-ING-01333 | USR-ING-01333, USR-2021-02900 | 1.0, 0.86 | ingest, v10 | v11 | low |
+| RG-016 | USR-2021-03112 | USR-2021-03112, USR-2021-03113 | 1.0, 0.99 | v10, v10 | v11 | high |
+| RG-017 | USR-2021-03344 | USR-2021-03344, USR-ING-01456, USR-ING-01457 | 1.0, 0.96, 0.91 | v10, ingest, ingest | v11 | medium |
+| RG-018 | USR-ING-01578 | USR-ING-01578, USR-2021-03566 | 1.0, 0.84 | ingest, v10 | v11 | low |
+| RG-019 | USR-2021-03789 | USR-2021-03789, USR-2021-03790, USR-2021-03791 | 1.0, 0.97, 0.93 | v10, v10, v10 | v11 | high |
+| RG-020 | USR-ING-01701 | USR-ING-01701, USR-2021-04002 | 1.0, 0.90 | ingest, v10 | v11 | medium |
+| RG-021 | USR-2021-04234 | USR-2021-04234, USR-ING-01833, USR-ING-01834, USR-ING-01835 | 1.0, 0.98, 0.96, 0.94 | v10, ingest, ingest, ingest | v11 | high |
+| RG-022 | USR-2021-04456 | USR-2021-04456, USR-2021-04457 | 1.0, 0.99 | v10, v10 | v11 | high |
+| RG-023 | USR-ING-01977 | USR-ING-01977, USR-2021-04678 | 1.0, 0.88 | ingest, v10 | v11 | medium |
+| RG-024 | USR-2021-04899 | USR-2021-04899, USR-ING-02119, USR-ING-02120 | 1.0, 0.95, 0.91 | v10, ingest, ingest | v11 | medium |
+| RG-025 | USR-ING-02231 | USR-ING-02231, USR-2021-05111 | 1.0, 0.83 | ingest, v10 | v11 | low |
+| RG-026 | USR-2021-05322 | USR-2021-05322, USR-2021-05323, USR-2021-05324, USR-ING-02343 | 1.0, 0.97, 0.95, 0.92 | v10, v10, v10, ingest | v11 | high |
+| RG-027 | USR-ING-02455 | USR-ING-02455, USR-2021-05566 | 1.0, 0.89 | ingest, v10 | v11 | medium |
+| RG-028 | USR-2021-05777 | USR-2021-05777, USR-2021-05778 | 1.0, 0.98 | v10, v10 | v11 | high |
+| RG-029 | USR-2021-05999 | USR-2021-05999, USR-ING-02566, USR-ING-02567, USR-ING-02568 | 1.0, 0.96, 0.93, 0.90 | v10, ingest, ingest, ingest | v11 | high |
+| RG-030 | USR-ING-02677 | USR-ING-02677, USR-2021-06188 | 1.0, 0.85 | ingest, v10 | v11 | low |
+| RG-031 | USR-2021-06400 | USR-2021-06400, USR-2021-06401 | 1.0, 0.99 | v10, v10 | v11 | high |
+| RG-032 | USR-2021-06622 | USR-2021-06622, USR-ING-02799, USR-ING-02800 | 1.0, 0.97, 0.94 | v10, ingest, ingest | v11 | high |
+| RG-033 | USR-ING-02833 | USR-ING-02833, USR-2021-06844 | 1.0, 0.87 | ingest, v10 | v11 | low |
+| RG-034 | USR-2021-07055 | USR-2021-07055, USR-2021-07056, USR-2021-07057 | 1.0, 0.96, 0.92 | v10, v10, v10 | v11 | medium |
+| RG-035 | USR-ING-02966 | USR-ING-02966, USR-2021-07277 | 1.0, 0.90 | ingest, v10 | v11 | medium |
+| RG-036 | USR-2021-07488 | USR-2021-07488, USR-ING-03099, USR-ING-03100, USR-ING-03101 | 1.0, 0.98, 0.95, 0.91 | v10, ingest, ingest, ingest | v11 | high |
+| RG-037 | USR-2021-07711 | USR-2021-07711, USR-2021-07712 | 1.0, 0.99 | v10, v10 | v11 | high |
+| RG-038 | USR-ING-03222 | USR-ING-03222, USR-2021-07933 | 1.0, 0.86 | ingest, v10 | v11 | low |
+| RG-039 | USR-2021-08144 | USR-2021-08144, USR-ING-03344, USR-ING-03345 | 1.0, 0.96, 0.93 | v10, ingest, ingest | v11 | medium |
+| RG

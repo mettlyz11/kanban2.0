@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>清除缓存</title>
+    <style>
+        body { font-family: sans-serif; padding: 40px; max-width: 600px; margin: 0 auto; }
+        button { padding: 15px 30px; font-size: 16px; margin: 10px 0; cursor: pointer; }
+        .success { color: green; }
+        .error { color: red; }
+    </style>
+</head>
+<body>
+    <h1>🧹 清除浏览器缓存</h1>
+    <p>如果脑风暴显示网络连接失败，请按以下步骤操作：</p>
+    
+    <h3>步骤 1：强制刷新页面</h3>
+    <button onclick="location.reload(true)">普通刷新 (F5)</button>
+    <button onclick="hardReload()">强制刷新 (Ctrl+Shift+R)</button>
+    
+    <h3>步骤 2：清除缓存</h3>
+    <button onclick="clearCache()">清除此站点缓存</button>
+    
+    <h3>步骤 3：验证版本</h3>
+    <button onclick="checkVersion()">检查当前 JS 版本</button>
+    <pre id="result"></pre>
+    
+    <script>
+        function hardReload() {
+            // 强制从服务器重新加载
+            fetch(window.location.href, { cache: 'reload' })
+                .then(() => location.reload(true));
+        }
+        
+        function clearCache() {
+            if ('caches' in window) {
+                caches.keys().then(names => {
+                    names.forEach(name => caches.delete(name));
+                    document.getElementById('result').innerHTML = '<span class="success">缓存已清除，请刷新页面</span>';
+                });
+            } else {
+                document.getElementById('result').innerHTML = '<span class="error">浏览器不支持缓存 API，请手动清除缓存</span>';
+            }
+        }
+        
+        function checkVersion() {
+            // 检查当前加载的 JS 文件
+            const scripts = document.querySelectorAll('script[src*=index-]');
+            const result = document.getElementById('result');
+            if (scripts.length > 0) {
+                result.innerHTML = '当前加载的 JS: ' + scripts[0].src.split('/').pop() + 
+                    '<br>预期版本: index-DUF0TSPZ.js (新)';
+            } else {
+                result.innerHTML = '无法检测 JS 版本';
+            }
+        }
+    </script>
+    
+    <hr>
+    <p><a href="/">返回看板首页</a> | <a href="/test_brainstorm.html">测试脑风暴</a></p>
+</body>
+</html>

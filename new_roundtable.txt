@@ -1,0 +1,212 @@
+
+@bp.route('/api/actor/roundtable', methods=['POST'])
+def actor_roundtable():
+    """圆桌模式：主持人引导的多轮讨论（孔子主持）"""
+    data = request.get_json(silent=True) or {}
+    question = data.get('question', '')
+    selected = data.get('roles', ROLES.get('ROLE_LIST', ['researcher','analyst','strategist']))
+    if not question:
+        return jsonify({'ok': False, 'error': 'question required'}), 400
+
+    max_rounds = 3
+    all_rounds = []
+    consensus = False
+    vote_result = None
+
+    def _ce(role_key, rn, pt=""):
+        if role_key not in ROLES or role_key == 'ROLE_LIST':
+            return None
+        cfg = ROLES[role_key]
+        sm = cfg['prompt']
+        if rn > 1 and pt:
+            sm += "\n\n--- 上一轮讨论记录 ---\n" + pt
+            sm += "\n\n请参考其他专家的观点，补充、修正或深化你的分析。"
+        msgs = [
+            {'role': 'system', 'content': sm},
+            {'role': 'user', 'content': "请从你的专业角度分析以下问题：\n\n" + question}
+        ]
+        if rn > 1:
+            msgs[1]['content'] += "\n\n（这是第" + str(rn) + "轮讨论）"
+        body = json.dumps({
+            'model': 'actor', 'messages': msgs,
+            'max_tokens': 1500, 'knowledge_scope': cfg['scope'],
+            'role': role_key,
+        }).encode()
+        try:
+            req = urllib.request.Request('http://127.0.0.1:18791/v1/chat/completions',
+                data=body, headers={'Content-Type': 'application/json'}, method='POST')
+            with urllib.request.urlopen(req, timeout=120) as r:
+                resp = json.loads(r.read())
+            reply = resp.get('choices', [{}])[0].get('message', {}).get('content', '')
+            return {'role': role_key, 'name': cfg.get('name', role_key),
+                    'emoji': cfg.get('emoji', ''), 'reply': reply, 'ok': True}
+        except Exception as e:
+            return {'role': role_key, 'name': cfg.get('name', role_key),
+                    'emoji': cfg.get('emoji', ''), 'error': str(e), 'ok': False}
+
+    def _fmt(rounds):
+        lines = []
+        for ri, rd in enumerate(rounds, 1):
+            lines.append("【第" + str(ri) + "轮】")
+            for res in rd:
+                name = res.get('name', res.get('role', '?'))
+                reply = res.get('reply', '')[:500].replace('\n', ' ')
+                lines.append("  " + name + ": " + reply)
+        return '\n'.join(lines)
+
+    def _mod(round_num, transcript):
+        prompt_lines = [
+            "你是孔子，睿智圆融的圆桌主持人。讨论主题：" + question,
+            "",
+            "当前讨论记录：",
+            transcript,
+            "",
+            "请判断讨论状态，以以下格式回复：",
+            "",
+            "如果已达成共识：",
+            "[共识]",
+            "（综合报告）",
+            "",
+            "如果还需继续讨论：",
+            "[分歧]",
+            "（指出分歧点）",
+            "",
+            "如果已到第3轮仍未达成共识：",
+            "[投票]",
+            "（组织投票）",
+        ]
+        prompt = "\n".join(prompt_lines)
+        msgs = [
+            {'role': 'system', 'content': '你是孔子，睿智圆融的圆桌主持人。'},
+            {'role': 'user', 'content': prompt}
+        ]
+        body = json.dumps({
+            'model': 'actor', 'messages': msgs,
+            'max_tokens': 2000, 'knowledge_scope': 'full',
+        }).encode()
+        try:
+            req = urllib.request.Request('http://127.0.0.1:18791/v1/chat/completions',
+                data=body, headers={'Content-Type': 'application/json'}, method='POST')
+            with urllib.request.urlopen(req, timeout=120) as r:
+                resp = json.loads(r.read())
+            return resp.get('choices', [{}])[0].get('message', {}).get('content', '')
+        except Exception:
+            return None
+
+    def _save(q, rounds, cons, final_rpt):
+        try:
+            path = '/opt/kanban-react/backend/data/roundtable_history.json'
+            try:
+                with open(path, 'r', encoding='utf-8') as f:
+                    history = json.load(f)
+            except (FileNotFoundError, json.JSONDecodeError):
+                history = []
+            entry = {
+                'timestamp': time.strftime('%Y-%m-%d %H:%M:%S'),
+                'question': q,
+                'participants': [r.get('name') for r in rounds[0]] if rounds else [],
+                'round_count': len(rounds),
+                'consensus': cons,
+                'final_report': (final_rpt or '')[:200],
+            }
+            history.append(entry)
+            if len(history) > 100:
+                history = history[-100:]
+            with open(path, 'w', encoding='utf-8') as f:
+                json.dump(history, f, ensure_ascii=False, indent=2)
+        except Exception:
+            pass
+
+    # ===== Main loop =====
+    for round_num in range(1, max_rounds + 1):
+        prior = _fmt(all_rounds) if all_rounds else ""
+        round_results = []
+        with ThreadPoolExecutor(max_workers=min(len(selected), 6)) as executor:
+            futures = {executor.submit(_ce, rk, round_num, prior): rk for rk in selected}
+            for future in as_completed(futures):
+                result = future.result()
+                if result:
+                    round_results.append(result)
+        round_results.sort(key=lambda r: selected.index(r['role']) if r['role'] in selected else 999)
+        all_rounds.append(round_results)
+
+        ct = _fmt(all_rounds)
+        mod_resp = _mod(round_num, ct)
+
+        if mod_resp:
+            if '[共识]' in mod_resp:
+                parts = mod_resp.split('[共识]')
+                final = parts[-1].strip() if len(parts) > 1 else mod_resp
+                _save(question, all_rounds, True, final)
+                return jsonify({
+                    'ok': True, 'results': all_rounds[-1],
+                    'rounds': all_rounds, 'final_report': final,
+                    'consensus': True, 'moderator_reasoning': mod_resp
+                })
+            elif '[投票]' in mod_resp or round_num == max_rounds:
+                vr = _run_vote(question, ct, selected)
+                vs = _fmt_vote(vr)
+                final = "经过" + str(round_num) + "轮讨论未达成共识，投票结果：\n" + vs
+                _save(question, all_rounds, False, final)
+                return jsonify({
+                    'ok': True, 'results': all_rounds[-1],
+                    'rounds': all_rounds, 'final_report': final,
+                    'consensus': False, 'vote_result': vr,
+                    'moderator_reasoning': mod_resp
+                })
+        else:
+            pass  # moderator failed, continue to next round
+
+    # All rounds exhausted, force vote
+    ct = _fmt(all_rounds)
+    vr = _run_vote(question, ct, selected)
+    vs = _fmt_vote(vr)
+    final = "讨论已达" + str(max_rounds) + "轮上限，投票结果：\n" + vs
+    _save(question, all_rounds, False, final)
+    return jsonify({
+        'ok': True, 'results': all_rounds[-1],
+        'rounds': all_rounds, 'final_report': final,
+        'consensus': False, 'vote_result': vr
+    })
+
+def _run_vote(question, transcript, selected):
+    vr = []
+    for rk in selected:
+        if rk not in ROLES or rk == 'ROLE_LIST':
+            continue
+        cfg = ROLES[rk]
+        msgs = [
+            {'role': 'system', 'content': cfg['prompt'] + "\n\n现在进入投票环节。"},
+            {'role': 'user', 'content': "讨论主题：" + question + "\n\n讨论记录：\n" + transcript + "\n\n请给出最终立场，格式：\n立场：支持/反对/弃权\n理由：（100字以内）"}
+        ]
+        body = json.dumps({
+            'model': 'actor', 'messages': msgs,
+            'max_tokens': 500, 'knowledge_scope': cfg.get('scope', 'full'),
+            'role': rk,
+        }).encode()
+        try:
+            req = urllib.request.Request('http://127.0.0.1:18791/v1/chat/completions',
+                data=body, headers={'Content-Type': 'application/json'}, method='POST')
+            with urllib.request.urlopen(req, timeout=60) as r:
+                resp = json.loads(r.read())
+            reply = resp.get('choices', [{}])[0].get('message', {}).get('content', '')
+            stance = '弃权'
+            if '支持' in reply: stance = '支持'
+            elif '反对' in reply: stance = '反对'
+            vr.append({'role': rk, 'name': cfg.get('name', rk),
+                       'emoji': cfg.get('emoji', ''), 'stance': stance, 'reason': reply[:200]})
+        except Exception as e:
+            vr.append({'role': rk, 'name': cfg.get('name', rk),
+                       'emoji': cfg.get('emoji', ''), 'stance': '弃权', 'reason': str(e)})
+    return vr
+
+def _fmt_vote(vr):
+    s = len([v for v in vr if v['stance'] == '支持'])
+    o = len([v for v in vr if v['stance'] == '反对'])
+    a = len([v for v in vr if v['stance'] == '弃权'])
+    lines = ["支持：" + str(s) + "人 / 反对：" + str(o) + "人 / 弃权：" + str(a) + "人"]
+    for v in vr:
+        lines.append(v.get('emoji','') + " " + v.get('name','') + "：" + v['stance'])
+        if v.get('reason'):
+            lines.append("  -> " + v['reason'][:100])
+    return '\n'.join(lines)

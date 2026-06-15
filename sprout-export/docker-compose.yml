@@ -1,0 +1,12 @@
+services:
+  sproutos:
+    build: .
+    ports:
+      - "8080:8080"
+      - "18795:18795"
+    environment:
+      - HUOSHAN_API_KEY=${HUOSHAN_API_KEY:-}
+    volumes:
+      - sprout_data:/root/.sprout
+volumes:
+  sprout_data:

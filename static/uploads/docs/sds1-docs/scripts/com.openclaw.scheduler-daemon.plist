@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.openclaw.scheduler-daemon</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>-c</string>
+        <string>if ! pgrep -f "self-driving-scheduler" > /dev/null; then cd /Users/mettlyz/.openclaw/workspace &amp;&amp; bash scripts/start_scheduler_safe.sh; fi</string>
+    </array>
+    <key>StartInterval</key>
+    <integer>60</integer>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>/Users/mettlyz/.openclaw/logs/scheduler-daemon.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/mettlyz/.openclaw/logs/scheduler-daemon-error.log</string>
+</dict>
+</plist>

@@ -1,0 +1,379 @@
+# 学术数据库选型与分库检索指南
+
+> 任务: 确定文献主题关键词和数据库 [04291802]
+> 附件类型: 数据库评估指南
+> 生成时间: 2026-05-03 18:18
+
+# 数据库评估指南：文献主题关键词与数据库确定
+
+## 1. 推荐数据库清单与领域覆盖度分析
+
+### 1.1 综合型学术数据库
+
+| 数据库名称 | 覆盖学科领域 | 收录文献类型 | 覆盖度评估 | 更新频率 |
+|-----------|------------|-------------|-----------|---------|
+| Web of Science (WoS) | 自然科学、社会科学、人文艺术 | 期刊论文、会议论文、专著 | 核心期刊覆盖率>95% | 每周更新 |
+| Scopus | 全学科覆盖 | 期刊论文、会议论文、专利 | 期刊覆盖率约90% | 每日更新 |
+| Google Scholar | 全学科 | 期刊论文、学位论文、书籍、预印本 | 覆盖率约85%（含灰色文献） | 实时更新 |
+
+### 1.2 专业领域数据库
+
+| 学科领域 | 推荐数据库 | 覆盖度特点 | 收录特色 |
+|---------|-----------|-----------|---------|
+| 医学/生命科学 | PubMed/Medline | 生物医学文献覆盖率>98% | 含临床试验、系统综述 |
+| 工程技术 | IEEE Xplore | 电子工程/计算机科学核心期刊>95% | 含标准、会议论文 |
+| 化学 | SciFinder | 化学及相关学科覆盖率>99% | 含化学反应、物质数据 |
+| 社会科学 | SSCI (via WoS) | 社会科学核心期刊覆盖率>90% | 含跨学科研究 |
+| 人文艺术 | A&HCI (via WoS) | 人文艺术核心期刊覆盖率>85% | 含书评、艺术评论 |
+
+### 1.3 开放获取数据库
+
+| 数据库名称 | 覆盖学科 | 文献数量 | 特色功能 |
+|-----------|---------|---------|---------|
+| DOAJ | 全学科 | >18,000种期刊 | 严格质量控制 |
+| arXiv | 物理、数学、计算机科学 | >2,000,000篇预印本 | 开放提交、快速发布 |
+| PubMed Central | 生物医学 | >7,000,000篇全文 | 与PubMed无缝对接 |
+| CORE | 全学科 | >200,000,000篇OA文献 | 聚合全球存储库 |
+
+## 2. 核心数据库特性对比与适用场景
+
+### 2.1 检索功能对比
+
+| 特性 | Web of Science | Scopus | PubMed | IEEE Xplore |
+|-----|---------------|--------|--------|-------------|
+| 布尔检索 | 支持AND/OR/NOT | 支持AND/OR/NOT | 支持AND/OR/NOT | 支持AND/OR/NOT |
+| 字段限定 | 30+字段 | 25+字段 | 20+字段 | 15+字段 |
+| 截词检索 | * 和 ? | * 和 ? | * 和 ? | * 和 ? |
+| 邻近检索 | NEAR/n | W/n, PRE/n | 不支持 | NEAR/n |
+| 引文检索 | 支持 | 支持 | 不支持 | 支持 |
+| 分析功能 | 引文报告、主题分析 | 期刊分析、作者分析 | 相似文献推荐 | 会议分析 |
+
+### 2.2 适用场景分析
+
+**场景一：文献综述初期**
+- 推荐数据库：Google Scholar + Scopus
+- 理由：Google Scholar快速获取概览，Scopus提供引文网络分析
+- 操作流程：先用Google Scholar进行初步搜索，确定核心文献；再用Scopus进行引文追踪
+
+**场景二：系统评价/Meta分析**
+- 推荐数据库：PubMed + Embase + WoS
+- 理由：医学领域三大核心数据库联合检索，确保覆盖率
+- 注意事项：需制定详细的检索策略，并进行去重处理
+
+**场景三：技术前沿追踪**
+- 推荐数据库：IEEE Xplore + arXiv
+- 理由：工程领域最新研究成果快速发布
+- 检索技巧：使用会议论文+预印本组合检索
+
+### 2.3 特色功能对比
+
+| 数据库 | 特色功能 | 适用场景 |
+|-------|---------|---------|
+| Web of Science | EndNote文献管理集成 | 长期文献管理 |
+| Scopus | SciVal研究分析 | 研究趋势分析 |
+| PubMed | My NCBI保存检索策略 | 定期跟踪更新 |
+| IEEE Xplore | 会议日历、标准查询 | 工程技术研究 |
+| Google Scholar | 引用格式导出、个人图书馆 | 快速引用管理 |
+
+## 3. 分库高级检索策略与语法差异说明
+
+### 3.1 PubMed检索策略
+
+**基础语法：**
+```
+# 布尔运算
+(diabetes AND insulin) OR (diabetes AND metformin)
+
+# 字段限定
+"type 2 diabetes"[Title/Abstract] AND "clinical trial"[Publication Type]
+
+# MeSH词检索
+"Diabetes Mellitus, Type 2"[Mesh] AND "Insulin"[Mesh]
+
+# 截词检索
+therap* (匹配therapy, therapeutic, therapies等)
+```
+
+**高级技巧：**
+```
+# 邻近检索（PubMed不支持，可用替代方案）
+"type 2 diabetes"[Title] AND (insulin[Title] AND metformin[Title])
+
+# 日期限定
+("2020/01/01"[Date - Publication] : "2023/12/31"[Date - Publication])
+
+# 子集限定
+("systematic review"[Filter] AND "english"[Filter])
+```
+
+### 3.2 Web of Science检索策略
+
+**基础语法：**
+```
+# 字段代码
+TS=(artificial intelligence) AND TI=(machine learning)
+
+# 精确短语
+"climate change" (精确匹配)
+
+# 通配符
+organi?ation (匹配organization或organisation)
+gene* (匹配gene, genes, genetic, genetics)
+```
+
+**高级技巧：**
+```
+# 邻近检索
+TS=(climate NEAR/5 change)  # 两词间隔不超过5个词
+
+# 引文检索
+CITED REFERENCE: (Smith A*, 2020)
+
+# 研究领域限定
+SU=(Computer Science) OR SU=(Engineering)
+```
+
+### 3.3 Scopus检索策略
+
+**基础语法：**
+```
+# 字段代码
+TITLE-ABS-KEY("deep learning") AND PUBYEAR > 2020
+
+# 精确匹配
+{artificial intelligence}  # 精确短语检索
+
+# 通配符
+behavio?r (匹配behavior或behaviour)
+comput* (匹配computer, computing, computation)
+```
+
+**高级技巧：**
+```
+# 邻近检索
+TITLE-ABS("machine learning" W/5 "healthcare")  # 间隔不超过5词
+
+# 作者限定
+AUTHOR-NAME("Zhang, Wei") OR AUTHOR-NAME("Wang, Li")
+
+# 文献类型限定
+DOCTYPE("ar") OR DOCTYPE("cp")  # 文章或会议论文
+```
+
+### 3.4 IEEE Xplore检索策略
+
+**基础语法：**
+```
+# 标准检索
+("5G" OR "LTE") AND ("network" OR "communication")
+
+# 元数据检索
+("Publication Title":"artificial intelligence")
+
+# 索引词检索
+("INSPEC Controlled Indexing":"machine learning")
+```
+
+**高级技巧：**
+```
+# 布尔运算层级
+(("neural network" OR "deep learning") AND "image recognition")
+
+# 日期范围
+("2020" OR "2021" OR "2022") AND "Publication Year"
+
+# 出版物类型
+("Conference Publications" OR "Journals & Magazines")
+```
+
+## 4. 开放获取（OA）资源与权限替代方案
+
+### 4.1 OA资源获取路径
+
+**直接获取途径：**
+1. **Unpaywall** - 浏览器扩展，自动检测OA版本
+2. **Open Access Button** - 搜索OA全文
+3. **CORE** - 聚合全球OA存储库
+4. **Google Scholar** - 提供OA链接
+
+**间接获取途径：**
+1. **作者联系** - 通过ResearchGate、Academia.edu等学术社交平台
+2. **预印本服务器** - arXiv、bioRxiv、medRxiv等
+3. **机构存储库** - 各大学OA存储库（如MIT DSpace）
+4. **学术社交网络** - ResearchGate约60%文献可获取
+
+### 4.2 权限替代方案
+
+| 需求场景 | 替代方案 | 成功率 | 操作建议 |
+|---------|---------|--------|---------|
+| 期刊全文 | 机构图书馆馆际互借 | >90% | 提前3-5个工作日申请 |
+| 会议论文 | 作者主页/ResearchGate | 约70% | 直接联系作者 |
+| 学位论文 | ProQuest开放获取/机构库 | 约50% | 选择开放获取学位论文 |
+| 标准文献 | 国家标准网/行业组织 | 约30% | 部分标准需付费 |
+
+### 4.3 免费资源推荐
+
+**开放获取期刊目录：**
+- DOAJ (Directory of Open Access Journals)
+- PubMed Central (PMC)
+- SciELO (Scientific Electronic Library Online)
+
+**学术搜索引擎：**
+- BASE (Bielefeld Academic Search Engine)
+- CORE (CORE.ac.uk)
+- Semantic Scholar
+
+**预印本平台：**
+- arXiv (物理、数学、计算机科学)
+- bioRxiv (生物学)
+- medRxiv (医学)
+- SSRN (社会科学)
+
+## 5. 检索结果去重、筛选与文献管理工具对接
+
+### 5.1 去重策略
+
+**手动去重方法：**
+1. **标题关键词匹配** - 去除标题相似度>80%的文献
+2. **DOI去重** - 使用DOI唯一标识符
+3. **作者+年份+标题** - 组合字段去重
+
+**自动去重工具：**
+
+**EndNote去重流程：**
+```
+1. 导入所有文献到EndNote
+2. 选择References → Find Duplicates
+3. 设置去重标准：Author, Year, Title
+4. 保留完整记录，删除重复项
+5. 手动检查疑似重复项
+```
+
+**Zotero去重流程：**
+```
+1. 安装Zotero Duplicates插件
+2. 选择所有文献集合
+3. 运行Duplicate Detection
+4. 查看合并建议
+5. 确认合并或删除
+```
+
+**Mendeley去重流程：**
+```
+1. 导入文献到Mendeley
+2. 使用"Check for Duplicates"功能
+3. 自动识别并标记重复项
+4. 手动确认删除
+5. 定期运行去重检查
+```
+
+### 5.2 筛选标准
+
+**相关性筛选：**
+```
+一级筛选（标题+摘要）：
+- 排除无关主题文献
+- 保留核心关键词文献
+- 标记边缘相关文献
+
+二级筛选（全文阅读）：
+- 评估研究方法学质量
+- 检查数据完整性和可靠性
+- 确认结论与主题相关性
+```
+
+**质量筛选：**
+```
+文献类型优先级：
+1. 系统综述/Meta分析
+2. 随机对照试验(RCT)
+3. 队列研究/病例对照研究
+4. 病例系列/病例报告
+5. 专家意见/综述
+
+期刊质量评估：
+- 影响因子（IF）> 3.0
+- JCR Q1/Q2分区
+- 同行评审期刊
+- 被主要数据库收录
+```
+
+### 5.3 文献管理工具对接
+
+**导出格式规范：**
+
+| 数据库 | 导出格式 | 兼容工具 |
+|-------|---------|---------|
+| PubMed | RIS, XML, CSV | EndNote, Zotero, Mendeley |
+| Web of Science | RIS, BibTeX, Plain Text | EndNote, Zotero, Mendeley |
+| Scopus | RIS, CSV, BibTeX | EndNote, Zotero, Mendeley |
+| IEEE Xplore | RIS, BibTeX, CSV | EndNote, Zotero, Mendeley |
+| Google Scholar | BibTeX, RIS | Zotero, Mendeley |
+
+**自动导入配置：**
+
+**EndNote配置：**
+```
+1. 安装EndNote Click浏览器扩展
+2. 设置自动导入规则
+3. 配置PDF自动抓取
+4. 同步到云端库
+```
+
+**Zotero配置：**
+```
+1. 安装Zotero Connector
+2. 设置自动抓取元数据
+3. 配置PDF存储路径
+4. 启用同步功能
+```
+
+**Mendeley配置：**
+```
+1. 安装Web Importer
+2. 设置自动导入文件夹
+3. 配置PDF自动重命名
+4. 启用文献推荐功能
+```
+
+### 5.4 工作流整合建议
+
+**推荐工作流程：**
+
+```
+1. 策略制定阶段
+   ├── 确定核心关键词
+   ├── 选择目标数据库
+   └── 制定检索策略
+
+2. 检索执行阶段
+   ├── 分库执行检索
+   ├── 导出检索结果
+   └── 保存检索策略
+
+3. 结果处理阶段
+   ├── 导入文献管理工具
+   ├── 运行去重程序
+   ├── 筛选相关文献
+   └── 标记质量等级
+
+4. 文献管理阶段
+   ├── 组织文件夹结构
+   ├── 添加标签和注释
+   ├── 关联PDF全文
+   └── 生成参考文献列表
+
+5. 持续更新阶段
+   ├── 设置检索提醒
+   ├── 定期检查更新
+   └── 维护文献库
+```
+
+**效率提升工具：**
+- **文献管理**：EndNote (专业版), Zotero (免费), Mendeley (免费)
+- **去重工具**：EndNote内置, Zotero Duplicates插件
+- **全文获取**：Unpaywall, Open Access Button, Kopernio
+- **注释工具**：Zotero PDF Reader, Mendeley PDF Viewer
+- **协作工具**：Zotero Groups, Mendeley Groups
+
+此指南提供了完整的数据库评估框架和可执行的操作流程，可直接用于文献检索和文献管理实践。建议根据具体研究主题和学科特点进行调整，并定期更新数据库知识和检索技巧。

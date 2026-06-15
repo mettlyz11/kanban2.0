@@ -1,0 +1,60 @@
+{
+  "timestamp": "2026-04-24T12:52:42.521830",
+  "system_version": "5.0",
+  "benchmarks": [
+    {
+      "test_name": "串行模式_复合研究",
+      "mode": "sequential",
+      "total_duration_ms": 6803.758382797241,
+      "success_count": 11,
+      "failure_count": 1,
+      "throughput": 17.637310622818468,
+      "token_efficiency": 1797.9166666666667
+    },
+    {
+      "test_name": "流水线模式_复合研究",
+      "mode": "pipeline",
+      "total_duration_ms": 6184.102416038513,
+      "success_count": 10,
+      "failure_count": 2,
+      "throughput": 19.40459454370923,
+      "token_efficiency": 1517.75
+    },
+    {
+      "test_name": "串行模式_批量执行",
+      "mode": "sequential",
+      "total_duration_ms": 9918.890595436096,
+      "success_count": 30,
+      "failure_count": 0,
+      "throughput": 18.14719078389896,
+      "token_efficiency": 553.5
+    },
+    {
+      "test_name": "并行模式_批量执行",
+      "mode": "parallel",
+      "total_duration_ms": 2644.615054130554,
+      "success_count": 28,
+      "failure_count": 2,
+      "throughput": 68.06283573061522,
+      "token_efficiency": 497.96666666666664
+    },
+    {
+      "test_name": "群体协作_共识决策",
+      "mode": "swarm",
+      "total_duration_ms": 1701.9989490509033,
+      "success_count": 7,
+      "failure_count": 1,
+      "throughput": 35.25266571607355,
+      "token_efficiency": 2460.375
+    },
+    {
+      "test_name": "辩论模式_争议分析",
+      "mode": "debate",
+      "total_duration_ms": 3435.278534889221,
+      "success_count": 7,
+      "failure_count": 1,
+      "throughput": 17.46583265101525,
+      "token_efficiency": 2426.0
+    }
+  ]
+}

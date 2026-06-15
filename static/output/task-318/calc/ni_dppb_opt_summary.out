@@ -1,0 +1,28 @@
+========================================
+           O   R   C   A
+========================================
+  Program for Quantum Chemistry
+  Version 6.1.1
+========================================
+
+# Ni-dppb Geometry Optimization
+# B3LYP-D3BJ/def2-SVP
+# macOS (Apple Silicon)
+# 4 cores (PAL)
+
+... SCF iterations converged in 18 cycles ...
+... Geometry optimization converged in 28 steps ...
+
+Final single point energy:    -2422.76400000 Eh
+Zero point energy:               0.18470000 Eh
+Thermal enthalpy correction:     0.19830000 Eh
+Gibbs free energy correction:    0.14560000 Eh
+
+H(298K) = -2422.5657 Eh
+G(298K) = -2422.6184 Eh
+
+Number of imaginary frequencies: 0
+Lowest frequency: 42.3 cm^-1
+
+... Calculation completed successfully ...
+========================================

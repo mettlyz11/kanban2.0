@@ -1,0 +1,8 @@
+{
+  "enabled": true,
+  "mode": "mock",
+  "corp_id": "mock_corp_id",
+  "corp_secret": "mock_secret",
+  "agent_id": "1000002",
+  "default_user": "LiuYuzhou"
+}

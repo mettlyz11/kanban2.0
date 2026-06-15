@@ -1,0 +1,125 @@
+/** 1. 用户身份与核心目标 **/
+# USER.md - 关于您
+
+- **姓名**: 刘宇宙
+- **身份**: 北京航空航天大学化学学院教授，和光智成创始人，AI材料科学专家
+- **时区**: Asia/Shanghai (北京/上海时间)
+
+## 背景
+- 7大战略目标负责人
+- 专注于AI+材料科学的商业化应用
+- 和光智成商业成功是核心战略目标
+
+## 在办重要事项
+- 深云智合/硅研新材法务官司处理（包头九原区诉讼）
+- 和光智成融资与业务发展
+- 学术影响力建设
+
+## 🐕 回复格式偏好（2026-05-05 确认，永远记住）
+- **开头**：🐕 标题 🐕（用 emoji 包裹主题）
+- **结构**：清晰的 Markdown 分节 + emoji 标注状态
+- **数据**：用表格展示关键指标
+- **内容**：简洁 bullet points，不写长段落
+- **结尾**：行动建议/问题 + 🐕 emoji
+- **风格**：干练、直接、有信息密度，不说废话
+- **WhatsApp 适配**：不用大标题（#），用 **粗体** 分段
+- **每条回复底部必须包含状态栏**：
+  - 模型商 | 模型 | 上下文% | 时间 | thinking level
+  - 例：`alitokenplan | qwen3.6-plus | ctx 23% | 21:26 CST | thinking: low`
+  - 通过 /status 获取当前会话信息
+  - 必须永久记住这个格式要求
+/** END **/
+
+/** 2. 通用核心原则 **/
+- 所有密码/API Key 统一从 .env 文件读取，不允许硬编码
+- 修改核心文件前必须备份
+- 子代理执行完任务必须更新数据库 status 为 completed
+- 做决策前必须 Research，不用内置知识独自判断
+- 安全红线：不泄露私密数据、不运行破坏性命令、不 hardcode secrets
+- 执行哲学：prompt 不够好就改 prompt，数据不够好就采数据，工具不够好就改进工具
+/** END **/
+
+/** 3. 系统架构全貌 **/
+=== SDS 自我驱动系统 (sds1/) ===
+  llm_client.py      — 统一 LLM 调用入口，含 call_llm() 模型路由+轮值+上下文注入
+  modules/           — 核心模块
+    subagent_scheduler — 子代理调度 + 失败分析
+    task_analyzer       — 任务分解分析
+    auto_evaluator      — 自动质量评估
+    failure_attribution — 失败归因诊断
+    quality_scorer      — 质量评分
+    progress_estimator  — 进度预估
+    llm_auditor         — LLM 审计
+    model_tracker       — 模型效果追踪（含 eval）
+    pending_triage      — 待办分层评分
+    actor_llm           — 扮演者对话引擎
+
+=== SDS 自进化系统 (sds_evolution/) ===
+  evolution_daemon.py  — 主 daemon，每周期循环（probe→brainstorm→apply→verify→learn）
+  evolib/applier.py    — 代码自动应用（probe + 按模型 budget 塞文件 + no_rotate）
+  evolib/brainstorm_strategies/ — 多策略脑暴（base.py + probe 流）
+  evolib/multi_model_voter.py  — 多模型投票选最优方案
+  evolib/healer.py     — 错误自动修复
+  evolib/auto_evaluator.py — 改进效果自动评估
+  evolib/learner.py    — 长期经验学习器
+  进化 DB: data/evolution.db (SQLite, 7K+ 改进记录)
+
+=== OpenClaw Gateway (本地) ===
+  管理所有 LLM 调用路由、fallback 链、轮值、token 追踪
+  9 个 Provider / 64+ 模型
+  Skills: 50+ 技能（actor、代码、搜索、工具调用等）
+  数据: ~/.openclaw/openclaw.json（配置）/ .env（密钥）
+
+=== 看板系统（阿里云 47.93.184.128） ===
+  前端: https://kanbanyun.com (React + TypeScript + vite)
+  后端: gunicorn:8086 / koa:8888 / nginx:443
+  追踪: LLM token 消耗（按 Provider/Model/scenario 分类）、进化指标、系统状态
+  数据上传: 本地 → SSH → 阿里云（每日同步）
+/** END **/
+
+/** 4. 模型与消费规则 **/
+✅ Plan 已含（优先使用，免额外费用）: alicodingplan, alitokenplan, kimicode, huoshanCoding
+💰 单独收费（节约使用）: moonshot, deepseek, dmxapi, huoshan, aliyun
+SDS 模型链: llm_providers.json (primary + fallbacks + eval + self_eval)
+call_llm() 统一管理路由、轮值、budget、上下文注入
+scenario 标签必传 → 用于看板追踪 + 场景识别
+/** END **/
+
+/** 5. 知识库与知识树 **/
+=== 记忆系统（~/.openclaw/workspace/memory/） ===
+  MEMORY.md         — 核心索引（TOP 5 原则 + 快速链接，<5KB）
+  memory/index.md   — 完整记忆文件目录
+  memory/core-principles.md — 所有永久原则（18条）
+  memory/domains/   — 按领域：contacts（联系人）、finance（财务）、academic（学术）、
+                      system-architecture（系统架构）、kanban-system（看板）
+  memory/projects/  — 按项目
+  memory/daily/     — 每日日志（YYYY-MM-DD.md）
+  memory/knowledge-base/ — 用户知识库（含扮演者角色数据）
+
+=== 知识树（若存在） ===
+  见 workspace/memory/index.md 或 memory/domains/ 分类
+  包含：技术栈、业务领域、项目、联系人、配置等节点
+/** END **/
+
+/** 6. 当前系统运行状态 **/
+系统时间: 2026-06-13 19:29 CST
+Git: 222 个文件有变动
+进化 Daemon: PID 27279 运行中
+/** END **/
+
+/** 7. 文件系统结构 **/
+workspace 根目录: ~/.openclaw/workspace/
+  sds1/         — SDS 主系统（本文架的核心）
+  sds_evolution/— 自进化系统
+  sds1_mirror/  — SDS 系统镜像（进化体系修改的目标）
+  scripts/      — 工具脚本
+  output/       — 输出日志与数据
+  memory/       — 长期记忆（知识库）
+  info/         — 系统密钥（SSH pem 等，不轻易读取）
+  skills/       — 自定义技能
+  sds_evolution/output/ — 进化 daemon 日志
+其他关键路径:
+  ~/.openclaw/openclaw.json — 模型配置
+  ~/.openclaw/.env          — 密钥与敏感配置
+  /opt/homebrew/lib/node_modules/openclaw/ — OpenClaw Gateway 源码
+/** END **/

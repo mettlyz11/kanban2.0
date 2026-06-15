@@ -1,0 +1,1121 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#0f172a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="看板">
+<link rel="manifest" href="/manifest.json">
+<link rel="apple-touch-icon" href="/icons/icon-192x192.png">
+<title>看板指挥中心 v1.0</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+:root {
+  --bg: #0f172a; --bg2: #1e293b; --bg3: #334155;
+  --text: #e2e8f0; --text2: #94a3b8;
+  --primary: #3b82f6; --success: #22c55e; --warning: #f59e0b; --danger: #ef4444;
+  --info: #06b6d4; --purple: #8b5cf6;
+}
+body { font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+/* Top Nav */
+.topnav { background: var(--bg2); border-bottom: 1px solid #334155; padding: 0 24px; display: flex; align-items: center; height: 56px; position: sticky; top: 0; z-index: 100; }
+.topnav h1 { font-size: 18px; font-weight: 600; margin-right: 32px; }
+.topnav h1 span { color: var(--primary); }
+.topnav .nav-links { display: flex; gap: 4px; }
+.topnav .nav-links a { padding: 16px 16px; color: var(--text2); text-decoration: none; font-size: 14px; border-bottom: 2px solid transparent; transition: all 0.2s; }
+.topnav .nav-links a:hover { color: var(--text); background: rgba(255,255,255,0.05); }
+.topnav .nav-links a.active { color: var(--primary); border-bottom-color: var(--primary); }
+/* Main Content */
+.main { max-width: 1400px; margin: 0 auto; padding: 24px; }
+.page { display: none; }
+.page.active { display: block; }
+/* Cards */
+.card { background: var(--bg2); border-radius: 12px; padding: 20px; margin-bottom: 16px; border: 1px solid #334155; }
+.card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+.card-header h2 { font-size: 16px; font-weight: 600; }
+.card-header h2 .badge { 
+  display: inline-block; background: var(--primary); color: white; 
+  font-size: 11px; padding: 2px 8px; border-radius: 10px; margin-left: 8px; vertical-align: middle;
+}
+/* Grids */
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+.grid-4 { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+/* Stats */
+.stat-card { background: var(--bg3); border-radius: 10px; padding: 16px; text-align: center; }
+.stat-card .num { font-size: 28px; font-weight: 700; }
+.stat-card .label { font-size: 12px; color: var(--text2); margin-top: 4px; }
+.stat-card .num.green { color: var(--success); }
+.stat-card .num.blue { color: var(--primary); }
+.stat-card .num.yellow { color: var(--warning); }
+.stat-card .num.red { color: var(--danger); }
+.stat-card .num.purple { color: var(--purple); }
+/* Buttons */
+.btn { padding: 8px 16px; border-radius: 8px; border: none; cursor: pointer; font-size: 13px; transition: all 0.2s; }
+.btn-xs { padding: 3px 10px; font-size: 11px; border-radius: 4px; }
+.btn-primary { background: var(--primary); color: white; }
+.btn-primary:hover { background: #2563eb; }
+.btn-success { background: var(--success); color: white; }
+.btn-success:hover { background: #16a34a; }
+.btn-danger { background: var(--danger); color: white; }
+.btn-danger:hover { background: #dc2626; }
+.btn-warning { background: var(--warning); color: white; }
+.btn-warning:hover { background: #d97706; }
+.btn-outline { background: transparent; border: 1px solid var(--text2); color: var(--text2); }
+.btn-outline:hover { border-color: var(--text); color: var(--text); }
+.btn-sm { padding: 4px 10px; font-size: 12px; }
+/* Inputs */
+textarea, input[type="text"] {
+  width: 100%; padding: 10px 14px; border-radius: 8px; border: 1px solid #475569;
+  background: var(--bg3); color: var(--text); font-size: 14px; outline: none;
+  transition: border-color 0.2s;
+}
+textarea:focus, input[type="text"]:focus { border-color: var(--primary); }
+textarea { resize: vertical; min-height: 80px; font-family: inherit; }
+/* Table */
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #334155; }
+th { color: var(--text2); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+tr:hover td { background: rgba(255,255,255,0.03); }
+/* Status Badges */
+.status-badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 500; }
+.status-badge.running { background: #1e3a5f; color: #60a5fa; }
+.status-badge.completed { background: #14532d; color: #4ade80; }
+.status-badge.pending { background: #451a03; color: #fb923c; }
+.status-badge.failed { background: #450a0a; color: #f87171; }
+.status-badge.waiting { background: #3b0764; color: #c084fc; }
+/* Command Input Area */
+.command-area { display: flex; gap: 12px; align-items: flex-start; }
+.command-area textarea { flex: 1; }
+.command-area .send-btn { padding: 10px 24px; font-size: 15px; white-space: nowrap; }
+/* Feature Flag */
+.flag-row { display: flex; align-items: center; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #334155; }
+.flag-row:last-child { border: none; }
+.flag-row .flag-info { flex: 1; }
+.flag-row .flag-name { font-weight: 500; font-size: 14px; }
+.flag-row .flag-desc { font-size: 12px; color: var(--text2); margin-top: 2px; }
+/* Toggle Switch */
+.toggle { position: relative; width: 44px; height: 24px; display: inline-block; }
+.toggle input { display: none; }
+.toggle .slider { position: absolute; inset: 0; background: #475569; border-radius: 12px; cursor: pointer; transition: 0.3s; }
+.toggle .slider:before { content: ''; position: absolute; width: 18px; height: 18px; left: 3px; bottom: 3px; background: white; border-radius: 50%; transition: 0.3s; }
+.toggle input:checked + .slider { background: var(--primary); }
+.toggle input:checked + .slider:before { transform: translateX(20px); }
+/* Rate Stars */
+.rate-stars { cursor: pointer; }
+.rate-stars .star { font-size: 24px; color: #475569; transition: color 0.2s; margin-right: 4px; }
+.rate-stars .star.active { color: var(--warning); }
+/* Alert */
+.alert { padding: 12px 16px; border-radius: 8px; font-size: 13px; margin-bottom: 12px; }
+.alert.info { background: #1e3a5f; border: 1px solid #1d4ed8; color: #93c5fd; }
+.alert.success { background: #14532d; border: 1px solid #16a34a; color: #86efac; }
+.alert.warning { background: #451a03; border: 1px solid #d97706; color: #fcd34d; }
+.alert.danger { background: #450a0a; border: 1px solid #dc2626; color: #fca5a5; }
+/* Loading */
+.loading { text-align: center; padding: 40px; color: var(--text2); }
+.loading::after { content: '...'; animation: dots 1.5s steps(4, end) infinite; }
+@keyframes dots { 0%, 20% { content: ''; } 40% { content: '.'; } 60% { content: '..'; } 80%, 100% { content: '...'; } }
+/* Empty state */
+.empty { text-align: center; padding: 40px; color: var(--text2); font-size: 14px; }
+/* Feedback cards */
+.feedback-card { background: var(--bg3); border-radius: 10px; padding: 16px; margin-bottom: 12px; border-left: 3px solid var(--primary); }
+.feedback-card.rated { border-left-color: var(--success); }
+.feedback-card .task-title { font-weight: 500; margin-bottom: 4px; }
+.feedback-card .task-meta { font-size: 12px; color: var(--text2); }
+.feedback-card .actions { margin-top: 10px; display: flex; gap: 8px; align-items: center; }
+/* Rule card */
+.rule-card { background: var(--bg3); border-radius: 10px; padding: 14px; margin-bottom: 8px; }
+.rule-card .rule-context { font-size: 12px; color: var(--text2); margin-bottom: 4px; }
+.rule-card .rule-text { font-weight: 500; }
+.rule-card .rule-meta { font-size: 11px; color: var(--text2); margin-top: 4px; display: flex; gap: 12px; }
+/* Health result */
+.health-item { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid #334155; }
+.health-item:last-child { border: none; }
+.health-icon { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.health-icon.ok { background: var(--success); }
+.health-icon.warning { background: var(--warning); }
+.health-icon.error { background: var(--danger); }
+.health-icon.info { background: var(--info); }
+/* Modal */
+.modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 200; align-items: center; justify-content: center; }
+.modal-overlay.show { display: flex; }
+.modal { background: var(--bg2); border-radius: 12px; padding: 24px; max-width: 500px; width: 90%; border: 1px solid #475569; }
+.modal h3 { font-size: 16px; margin-bottom: 16px; }
+.modal .form-group { margin-bottom: 12px; }
+.modal .form-group label { display: block; font-size: 13px; color: var(--text2); margin-bottom: 4px; }
+.modal .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: #475569; border-radius: 3px; }
+/* Responsive */
+@media (max-width: 768px) { .grid-2, .grid-3 { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+
+<div class="topnav">
+  <h1>🪧 <span>看板</span>指挥中心</h1>
+  <div class="nav-links">
+    <a href="#" class="active" data-page="command">🎮 指挥台</a>
+    <a href="#" data-page="monitor">📊 监控台</a>
+    <a href="#" data-page="feedback">💬 反馈台</a>
+    <a href="#" data-page="settings">⚙️ 配置台</a>
+    <a href="#" data-page="learning">📚 学习中心</a>
+  </div>
+</div>
+
+<div class="main">
+
+<!-- ============ PAGE: Command Center ============ -->
+<div class="page active" id="page-command">
+  <div class="card">
+    <div class="card-header"><h2>🎮 给AI下指令</h2></div>
+    <div class="command-area">
+      <textarea id="command-input" placeholder="输入自然语言指令，例如：帮我分析T109项目的技术路线..."></textarea>
+      <button class="btn btn-primary send-btn" onclick="sendCommand()">🚀 发送</button>
+    </div>
+    <div id="command-result" style="margin-top:12px"></div>
+  </div>
+  <div class="card">
+    <div class="card-header"><h2>📋 指令历史</h2></div>
+    <div id="command-history"><div class="loading">加载中</div></div>
+  </div>
+</div>
+
+<!-- ============ PAGE: Monitor ============ -->
+<div class="page" id="page-monitor">
+  <div class="grid-4" id="monitor-stats"></div>
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-header"><h2>▶️ 当前执行 <span class="badge" id="current-task-count">0</span></h2></div>
+      <div id="current-tasks"><div class="empty">暂无执行中的任务</div></div>
+    </div>
+    <div class="card">
+      <div class="card-header"><h2>⏸️ 等待用户 <span class="badge" id="waiting-task-count">0</span></h2></div>
+      <div id="waiting-tasks"><div class="empty">暂无等待用户的任务</div></div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-header"><h2>📅 今日任务时间线</h2></div>
+    <div id="today-timeline"><div class="loading">加载中</div></div>
+  </div>
+</div>
+
+<!-- ============ PAGE: Feedback ============ -->
+<div class="page" id="page-feedback">
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-header"><h2>⏳ 待评价 <span class="badge" id="pending-feedback-count">0</span></h2></div>
+      <div id="pending-feedback"><div class="loading">加载中</div></div>
+    </div>
+    <div class="card">
+      <div class="card-header"><h2>✅ 已评价</h2></div>
+      <div id="rated-feedback"><div class="loading">加载中</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ PAGE: Settings ============ -->
+<div class="page" id="page-settings">
+  <div class="card">
+    <div class="card-header"><h2>🏷️ Feature Flags</h2></div>
+    <div id="feature-flags"><div class="loading">加载中</div></div>
+  </div>
+  <div class="card">
+    <div class="card-header">
+      <h2>🏥 系统健康检查</h2>
+      <button class="btn btn-primary btn-sm" onclick="runHealthCheck()">🔍 立即检查</button>
+    </div>
+    <div id="health-result"></div>
+  </div>
+  <div class="card">
+    <div class="card-header"><h2>❌ 失败归因（近7天）</h2></div>
+    <div id="failure-attribution"><div class="loading">加载中</div></div>
+  </div>
+  <div class="card">
+    <div class="card-header"><h2>📊 健康检查历史</h2></div>
+    <div id="health-history"><div class="loading">加载中</div></div>
+  </div>
+</div>
+
+<!-- ============ PAGE: Learning Center ============ -->
+<div class="page" id="page-learning">
+  <div class="card">
+    <div class="card-header">
+      <h2>📚 规则列表 <span class="badge" id="rule-count">0</span></h2>
+      <button class="btn btn-primary btn-sm" onclick="openAddRuleModal()">➕ 手动添加</button>
+    </div>
+    <div id="rule-list"><div class="loading">加载中</div></div>
+  </div>
+</div>
+
+</div><!-- /main -->
+
+<!-- Modal: Phase R 思维可视化 -->
+<div class="modal-overlay" id="phaser-modal">
+  <div class="modal modal-xl">
+    <h3>🧠 Phase R 思考过程</h3>
+    <div class="task-id-badge" id="phaser-task-badge">#0</div>
+    <div id="phaser-loading" class="loading" style="padding:24px">加载中...</div>
+    <div id="phaser-content" style="display:none">
+      <!-- 5步流程图 -->
+      <div id="phaser-flow" style="margin:16px 0"></div>
+      <!-- 详细分析 -->
+      <div id="phaser-detail" style="margin-top:16px"></div>
+    </div>
+    <div id="phaser-empty" class="empty" style="display:none;padding:40px;text-align:center">
+      <div style="font-size:48px;margin-bottom:12px">🔬</div>
+      <div style="font-size:14px;color:var(--text2)">该任务尚未经过 Phase R 思考</div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closePhaserModal()">关闭</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Edit JSON Description -->
+<div class="modal-overlay" id="edit-json-modal">
+  <div class="modal modal-lg">
+    <h3>📝 编辑任务 JSON 描述</h3>
+    <div class="task-id-badge" id="edit-json-task-badge">#0</div>
+    <div class="form-group">
+      <textarea class="json-editor" id="edit-json-textarea" spellcheck="false"></textarea>
+    </div>
+    <div id="edit-json-result"></div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeEditJsonModal()">取消</button>
+      <button class="btn btn-primary" onclick="saveEditJson()">💾 保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: 附件管理 -->
+<div class="modal-overlay" id="attach-modal">
+  <div class="modal modal-lg">
+    <h3>📎 参考文件附件管理</h3>
+    <div class="task-id-badge" id="attach-task-badge">#0</div>
+    
+    <!-- 当前附件列表 -->
+    <div id="attach-list" style="margin-bottom:16px">
+      <div class="loading">加载中...</div>
+    </div>
+    
+    <hr style="border-color:var(--bg3);margin:16px 0">
+    <h3 style="font-size:14px">添加附件</h3>
+    
+    <!-- 方式1：URL添加 -->
+    <div class="form-group">
+      <label>🔗 方式1: 通过URL添加</label>
+      <div style="display:flex;gap:8px">
+        <input type="text" id="attach-url-input" placeholder="https://example.com/file.pdf 或 /uploads/docs/xxx.md" style="flex:1">
+        <button class="btn btn-primary btn-xs" onclick="addAttachByUrl()">添加</button>
+      </div>
+    </div>
+    
+    <!-- 方式2：粘贴 -->
+    <div class="form-group">
+      <label>📋 方式2: 粘贴（从剪贴板粘贴图片/文件，Ctrl+V / Cmd+V）</label>
+      <div class="paste-zone" id="attach-paste-zone" style="border:2px dashed var(--bg3);border-radius:8px;padding:24px;text-align:center;color:var(--text2);font-size:13px;cursor:pointer;transition:all 0.2s"
+        tabindex="0"
+        onfocus="this.style.borderColor='var(--primary)'"
+        onblur="this.style.borderColor='var(--bg3)'">
+        点击此处后按 Ctrl+V / Cmd+V 粘贴<br>
+        <small>支持图片、文本、文件</small>
+      </div>
+      <div id="attach-paste-preview" style="margin-top:8px"></div>
+    </div>
+    
+    <!-- 方式3：本地上传 -->
+    <div class="form-group">
+      <label>💻 方式3: 本地上传</label>
+      <input type="file" id="attach-file-input" multiple style="font-size:13px" onchange="uploadLocalFiles(this.files)">
+      <div id="attach-upload-progress" style="margin-top:8px;font-size:12px;color:var(--text2)"></div>
+    </div>
+    
+    <div id="attach-result"></div>
+    
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeAttachModal()">关闭</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Add Rule -->
+<div class="modal-overlay" id="add-rule-modal">
+  <div class="modal">
+    <h3>📝 手动添加规则</h3>
+    <div class="form-group">
+      <label>场景/上下文</label>
+      <input type="text" id="rule-context" placeholder="例如：处理学术论文时">
+    </div>
+    <div class="form-group">
+      <label>规则内容</label>
+      <textarea id="rule-text" placeholder="例如：优先使用英文文献"></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeAddRuleModal()">取消</button>
+      <button class="btn btn-primary" onclick="addRule()">添加规则</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = '/api';
+
+// ==================== Navigation ====================
+document.querySelectorAll('.nav-links a').forEach(a => {
+  a.addEventListener('click', e => {
+    e.preventDefault();
+    document.querySelectorAll('.nav-links a').forEach(l => l.classList.remove('active'));
+    a.classList.add('active');
+    const page = a.dataset.page;
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.getElementById('page-' + page).classList.add('active');
+    // Refresh data on switch
+    if (page === 'monitor') loadMonitor();
+    if (page === 'feedback') loadFeedback();
+    if (page === 'settings') { loadFeatureFlags(); loadFailureAttribution(); loadHealthHistory(); }
+    if (page === 'learning') loadRules();
+    if (page === 'command') loadCommandHistory();
+  });
+});
+
+// ==================== API Helper ====================
+async function api(path, opts = {}) {
+  const res = await fetch(API + path, {
+    headers: { 'Content-Type': 'application/json', ...opts.headers },
+    ...opts
+  });
+  return res.json();
+}
+
+// ==================== Command Center ====================
+async function sendCommand() {
+  const input = document.getElementById('command-input');
+  const text = input.value.trim();
+  if (!text) return;
+  const btn = document.querySelector('.send-btn');
+  btn.disabled = true; btn.textContent = '⏳ 发送中...';
+  try {
+    const data = await api('/command', { method: 'POST', body: JSON.stringify({ instruction: text }) });
+    const result = document.getElementById('command-result');
+    if (data.success) {
+      result.innerHTML = `<div class="alert success">✅ 指令已提交！任务 #${data.task_id} 已创建</div>`;
+      input.value = '';
+      loadCommandHistory();
+    } else {
+      result.innerHTML = `<div class="alert danger">❌ ${data.error}</div>`;
+    }
+  } catch(e) {
+    document.getElementById('command-result').innerHTML = `<div class="alert danger">❌ 请求失败: ${e.message}</div>`;
+  }
+  btn.disabled = false; btn.textContent = '🚀 发送';
+}
+
+async function loadCommandHistory() {
+  const el = document.getElementById('command-history');
+  try {
+    const data = await api('/command/history?limit=30');
+    if (!data.success) { el.innerHTML = '<div class="empty">加载失败</div>'; return; }
+    if (!data.data.length) { el.innerHTML = '<div class="empty">暂无指令历史</div>'; return; }
+    el.innerHTML = '<table><tr><th>时间</th><th>指令</th><th>状态</th><th>任务</th></tr>' +
+      data.data.map(d => {
+        const op = JSON.parse(d.operation_data || '{}');
+        return `<tr>
+          <td>${formatTime(d.created_at)}</td>
+          <td>${escapeHtml((op.instruction || '').substring(0, 80))}</td>
+          <td><span class="status-badge ${d.status === 'processed' ? 'completed' : 'pending'}">${d.status}</span></td>
+          <td>${d.task_id ? `<a href="#" onclick="switchPage('monitor');return false">#${d.task_id}</a>` : '-'}</td>
+        </tr>`;
+      }).join('') + '</table>';
+  } catch(e) {
+    el.innerHTML = `<div class="alert danger">加载失败: ${e.message}</div>`;
+  }
+}
+
+// ==================== Monitor ====================
+async function loadMonitor() {
+  try {
+    const data = await api('/monitor/status');
+    if (!data.success) return;
+
+    const d = data.data;
+    // Stats
+    document.getElementById('monitor-stats').innerHTML = `
+      <div class="stat-card"><div class="num blue">${d.today_stats?.total || 0}</div><div class="label">今日任务</div></div>
+      <div class="stat-card"><div class="num green">${d.today_stats?.completed || 0}</div><div class="label">今日完成</div></div>
+      <div class="stat-card"><div class="num yellow">${d.current_tasks?.length || 0}</div><div class="label">执行中</div></div>
+      <div class="stat-card"><div class="num purple">${d.week_stats?.completed || 0}</div><div class="label">本周完成</div></div>
+    `;
+    // Current tasks
+    document.getElementById('current-task-count').textContent = d.current_tasks?.length || 0;
+    if (!d.current_tasks?.length) {
+      document.getElementById('current-tasks').innerHTML = '<div class="empty">暂无执行中的任务</div>';
+    } else {
+      document.getElementById('current-tasks').innerHTML = d.current_tasks.map(t => `
+        <div class="feedback-card">
+          <div class="task-title">#${t.id}: ${escapeHtml(t.title?.substring(0, 80))}</div>
+          <div class="task-meta">
+            阶段: ${t.current_stage || '-'} | 
+            运行: ${t.running_minutes || 0}分钟
+            <button class="btn btn-outline btn-xs" onclick="openEditJsonModal(${t.id}, '${escapeHtml(t.title || '').replace(/'/g, "\\'")}')" style="margin-left:auto;font-size:11px;padding:2px 8px">编辑JSON</button>
+            <button class="btn btn-outline btn-xs" onclick="openAttachModal(${t.id})" style="margin-left:4px;font-size:11px;padding:2px 8px">📎附件</button>
+            <button class="btn btn-outline btn-xs" onclick="openPhaserModal(${t.id}, '${escapeHtml(t.title || '').replace(/'/g, "\\'")}')" style="margin-left:4px;font-size:11px;padding:2px 8px">🧠PhaseR</button>
+          </div>
+        </div>
+      `).join('');
+    }
+    // Waiting tasks
+    document.getElementById('waiting-task-count').textContent = d.waiting_tasks?.length || 0;
+    if (!d.waiting_tasks?.length) {
+      document.getElementById('waiting-tasks').innerHTML = '<div class="empty">暂无等待用户的任务</div>';
+    } else {
+      document.getElementById('waiting-tasks').innerHTML = d.waiting_tasks.map(t => `
+        <div class="feedback-card" style="border-left-color: var(--purple)">
+          <div class="task-title">#${t.id}: ${escapeHtml(t.title?.substring(0, 80))}</div>
+          <div class="task-meta">⏸️ ${escapeHtml(t.waiting_reason || '等待用户决策')}
+            <button class="btn btn-outline btn-xs" onclick="openEditJsonModal(${t.id}, '${escapeHtml(t.title || '').replace(/'/g, "\\'")}')" style="margin-left:auto;font-size:11px;padding:2px 8px">编辑JSON</button>
+            <button class="btn btn-outline btn-xs" onclick="openAttachModal(${t.id})" style="margin-left:4px;font-size:11px;padding:2px 8px">📎附件</button>
+            <button class="btn btn-outline btn-xs" onclick="openPhaserModal(${t.id}, '${escapeHtml(t.title || '').replace(/'/g, "\\'")}')" style="margin-left:4px;font-size:11px;padding:2px 8px">🧠PhaseR</button>
+          </div>
+        </div>
+      `).join('');
+    }
+    // Today timeline
+    loadTodayTimeline();
+  } catch(e) {
+    console.error('Monitor load error:', e);
+  }
+}
+
+async function loadTodayTimeline() {
+  const el = document.getElementById('today-timeline');
+  try {
+    const data = await api('/monitor/today');
+    if (!data.success || !data.data?.length) {
+      el.innerHTML = '<div class="empty">今天暂无任务</div>'; return;
+    }
+    el.innerHTML = '<table><tr><th>时间</th><th>标题</th><th>状态</th><th>类型</th></tr>' +
+      data.data.map(t => `<tr>
+        <td>${formatTime(t.created_at)}</td>
+        <td>${escapeHtml(t.title?.substring(0, 60))}</td>
+        <td><span class="status-badge ${t.status}">${t.overall_status || t.status}</span>
+          ${t.waiting_for_user ? '⏸️' : ''}
+        </td>
+        <td>${t.task_type || '-'}</td>
+      </tr>`).join('') + '</table>';
+  } catch(e) {
+    el.innerHTML = `<div class="alert danger">加载失败: ${e.message}</div>`;
+  }
+}
+
+// ==================== Feedback ====================
+async function loadFeedback() {
+  try {
+    const data = await api('/feedback/pending');
+    if (!data.success) return;
+    const d = data.data;
+
+    // Pending
+    document.getElementById('pending-feedback-count').textContent = d.pending?.length || 0;
+    if (!d.pending?.length) {
+      document.getElementById('pending-feedback').innerHTML = '<div class="empty">暂无待评价的任务</div>';
+    } else {
+      document.getElementById('pending-feedback').innerHTML = d.pending.map(t => `
+        <div class="feedback-card">
+          <div class="task-title">#${t.id}: ${escapeHtml(t.title?.substring(0, 80))}</div>
+          <div class="task-meta">${t.task_type || ''} | ${formatTime(t.updated_at)}</div>
+          <div class="task-meta">${escapeHtml(t.result_summary?.substring(0, 100) || '')}</div>
+          <div class="actions">
+            <span class="rate-stars" data-task="${t.id}">
+              ${[1,2,3,4,5].map(i => `<span class="star" onclick="submitFeedback(${t.id}, ${i})" data-rating="${i}">★</span>`).join('')}
+            </span>
+            <input type="text" placeholder="评论（可选）" style="flex:1;padding:6px 10px;font-size:12px" id="comment-${t.id}">
+          </div>
+          <div id="feedback-result-${t.id}"></div>
+        </div>
+      `).join('');
+    }
+    // Rated
+    if (!d.rated?.length) {
+      document.getElementById('rated-feedback').innerHTML = '<div class="empty">暂无已评价的任务</div>';
+    } else {
+      document.getElementById('rated-feedback').innerHTML = d.rated.map(t => `
+        <div class="feedback-card rated">
+          <div class="task-title">#${t.id}: ${escapeHtml(t.title?.substring(0, 80))}</div>
+          <div class="task-meta">
+            {'★'.repeat(t.rating)}{'☆'.repeat(5-t.rating)} | ${formatTime(t.feedback_at)}
+          </div>
+          ${t.comment ? `<div class="task-meta">💬 ${escapeHtml(t.comment)}</div>` : ''}
+        </div>
+      `).join('');
+    }
+  } catch(e) {
+    console.error('Feedback load error:', e);
+  }
+}
+
+async function submitFeedback(taskId, rating) {
+  const comment = document.getElementById('comment-' + taskId)?.value || '';
+  const resultEl = document.getElementById('feedback-result-' + taskId);
+  try {
+    const data = await api('/feedback', {
+      method: 'POST',
+      body: JSON.stringify({ task_id: taskId, rating, comment })
+    });
+    if (data.success) {
+      resultEl.innerHTML = `<div class="alert success">✅ 已评分 ${rating}/5</div>`;
+      setTimeout(() => loadFeedback(), 1000);
+    } else {
+      resultEl.innerHTML = `<div class="alert danger">❌ ${data.error}</div>`;
+    }
+  } catch(e) {
+    resultEl.innerHTML = `<div class="alert danger">❌ 提交失败: ${e.message}</div>`;
+  }
+}
+
+// ==================== Settings ====================
+async function loadFeatureFlags() {
+  const el = document.getElementById('feature-flags');
+  try {
+    const data = await api('/feature-flags');
+    if (!data.success || !data.data?.length) {
+      el.innerHTML = '<div class="empty">暂无Feature Flag</div>'; return;
+    }
+    el.innerHTML = data.data.map(f => `
+      <div class="flag-row">
+        <div class="flag-info">
+          <div class="flag-name">${escapeHtml(f.flag_name || f.flag_key)}</div>
+          <div class="flag-desc">${escapeHtml(f.description || '')} (${f.category})</div>
+        </div>
+        <label class="toggle">
+          <input type="checkbox" ${f.enabled ? 'checked' : ''} onchange="toggleFlag('${f.flag_key}', this.checked)">
+          <span class="slider"></span>
+        </label>
+      </div>
+    `).join('');
+  } catch(e) {
+    el.innerHTML = `<div class="alert danger">加载失败: ${e.message}</div>`;
+  }
+}
+
+async function toggleFlag(key, enabled) {
+  try {
+    const data = await api('/feature-flags/toggle', {
+      method: 'POST', body: JSON.stringify({ flag_key: key, enabled: enabled ? 1 : 0 })
+    });
+    if (data.success) {
+      showToast(`${escapeHtml(key)}: ${enabled ? '✅ 已开启' : '❌ 已关闭'}`);
+    }
+  } catch(e) {
+    showToast('❌ 切换失败', 'danger');
+  }
+}
+
+async function runHealthCheck() {
+  const el = document.getElementById('health-result');
+  el.innerHTML = '<div class="loading">运行健康检查中</div>';
+  try {
+    const data = await api('/health/check');
+    if (!data.success) { el.innerHTML = `<div class="alert danger">❌ ${data.error}</div>`; return; }
+    const d = data.data;
+    el.innerHTML = Object.entries(d).map(([key, val]) => `
+      <div class="health-item">
+        <span class="health-icon ${val.status}"></span>
+        <div><strong>${escapeHtml(key)}</strong><br><small>${escapeHtml(val.detail || '')}</small></div>
+      </div>
+    `).join('');
+  } catch(e) {
+    el.innerHTML = `<div class="alert danger">❌ ${e.message}</div>`;
+  }
+}
+
+async function loadFailureAttribution() {
+  const el = document.getElementById('failure-attribution');
+  try {
+    const data = await api('/failure-attribution');
+    if (!data.success) { el.innerHTML = '<div class="empty">加载失败</div>'; return; }
+    const d = data.data;
+    // By type
+    let html = '<table><tr><th>任务类型</th><th>总数</th><th>失败</th><th>失败率</th></tr>';
+    (d.by_type || []).forEach(t => {
+      html += `<tr><td>${t.task_type || '-'}</td><td>${t.total}</td><td>${t.failed}</td><td>${t.fail_rate}%</td></tr>`;
+    });
+    html += '</table>';
+    // Recent failures
+    if (d.recent_failures?.length) {
+      html += '<h3 style="margin-top:16px;font-size:14px">最近失败任务</h3><table><tr><th>ID</th><th>标题</th><th>类型</th><th>错误</th></tr>';
+      d.recent_failures.forEach(t => {
+        html += `<tr><td>#${t.id}</td><td>${escapeHtml(t.title?.substring(0, 50))}</td><td>${t.task_type || '-'}</td><td>${escapeHtml((t.spawn_error || t.execution_log || '').substring(0, 60))}</td></tr>`;
+      });
+      html += '</table>';
+    }
+    el.innerHTML = html;
+  } catch(e) {
+    el.innerHTML = `<div class="alert danger">${e.message}</div>`;
+  }
+}
+
+async function loadHealthHistory() {
+  const el = document.getElementById('health-history');
+  try {
+    const data = await api('/health/history?limit=10');
+    if (!data.success || !data.data?.length) {
+      el.innerHTML = '<div class="empty">暂无健康检查记录</div>'; return;
+    }
+    el.innerHTML = '<table><tr><th>时间</th><th>检查类型</th><th>状态</th><th>详情</th></tr>' +
+      data.data.map(h => `<tr>
+        <td>${formatTime(h.checked_at)}</td>
+        <td>${h.check_type}</td>
+        <td><span class="status-badge ${h.status === 'ok' ? 'completed' : 'failed'}">${h.status}</span></td>
+        <td>${escapeHtml(JSON.stringify(h.details || '').substring(0, 80))}</td>
+      </tr>`).join('') + '</table>';
+  } catch(e) {
+    el.innerHTML = `<div class="alert danger">${e.message}</div>`;
+  }
+}
+
+// ==================== Learning Center ====================
+async function loadRules() {
+  const el = document.getElementById('rule-list');
+  try {
+    const data = await api('/learned-rules?limit=50');
+    if (!data.success) { el.innerHTML = '<div class="empty">加载失败</div>'; return; }
+    document.getElementById('rule-count').textContent = data.data?.length || 0;
+    if (!data.data?.length) {
+      el.innerHTML = '<div class="empty">暂无规则，您可以在反馈时告诉我您的偏好</div>'; return;
+    }
+    el.innerHTML = data.data.map(r => `
+      <div class="rule-card">
+        <div class="rule-context">📌 ${escapeHtml(r.context || '无上下文')}</div>
+        <div class="rule-text">${escapeHtml(r.rule)}</div>
+        <div class="rule-meta">
+          <span>来源: ${r.source || 'auto'}</span>
+          <span>置信度: ${(r.confidence * 100).toFixed(0)}%</span>
+          <span>${r.verified ? '✅ 已验证' : '⏳ 待验证'}</span>
+          <span>${formatTime(r.created_at)}</span>
+          ${!r.verified ? `<button class="btn btn-success btn-sm" onclick="verifyRule(${r.id})">✅ 验证</button>` : ''}
+          <button class="btn btn-danger btn-sm" onclick="deleteRule(${r.id})">🗑️</button>
+        </div>
+      </div>
+    `).join('');
+  } catch(e) {
+    el.innerHTML = `<div class="alert danger">${e.message}</div>`;
+  }
+}
+
+async function verifyRule(id) {
+  try {
+    await api(`/learned-rules/${id}/verify`, { method: 'POST' });
+    loadRules();
+  } catch(e) { showToast('验证失败', 'danger'); }
+}
+
+async function deleteRule(id) {
+  if (!confirm('确定删除这条规则？')) return;
+  try {
+    await api(`/learned-rules/${id}`, { method: 'DELETE' });
+    loadRules();
+  } catch(e) { showToast('删除失败', 'danger'); }
+}
+
+function openAddRuleModal() {
+  document.getElementById('add-rule-modal').classList.add('show');
+}
+function closeAddRuleModal() {
+  document.getElementById('add-rule-modal').classList.remove('show');
+}
+
+async function addRule() {
+  const context = document.getElementById('rule-context').value.trim();
+  const rule = document.getElementById('rule-text').value.trim();
+  if (!rule) { showToast('请输入规则内容', 'warning'); return; }
+  try {
+    const data = await api('/learned-rules', {
+      method: 'POST', body: JSON.stringify({ context, rule })
+    });
+    if (data.success) {
+      closeAddRuleModal();
+      document.getElementById('rule-context').value = '';
+      document.getElementById('rule-text').value = '';
+      loadRules();
+      showToast('✅ 规则已添加');
+    }
+  } catch(e) { showToast('添加失败', 'danger'); }
+}
+
+// ==================== Utilities ====================
+function formatTime(ts) {
+  if (!ts) return '-';
+  const d = new Date(ts);
+  return d.toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+}
+function escapeHtml(s) {
+  if (!s) return '';
+  const div = document.createElement('div');
+  div.textContent = s;
+  return div.innerHTML;
+}
+function showToast(msg, type = 'success') {
+  const t = document.createElement('div');
+  t.className = `alert ${type}`;
+  t.textContent = msg;
+  t.style.cssText = 'position:fixed;top:70px;right:24px;z-index:999;max-width:400px;animation:fadeIn 0.3s';
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 3000);
+}
+function switchPage(name) {
+  document.querySelectorAll('.nav-links a').forEach(a => {
+    a.classList.toggle('active', a.dataset.page === name);
+  });
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById('page-' + name).classList.add('active');
+  if (name === 'monitor') loadMonitor();
+}
+
+// ==================== Edit JSON Dialog ====================
+let editJsonTaskId = 0;
+
+async function openEditJsonModal(taskId, taskTitle) {
+  editJsonTaskId = taskId;
+  document.getElementById('edit-json-task-badge').textContent = '#' + taskId + ' ' + taskTitle;
+  const resultEl = document.getElementById('edit-json-result');
+  resultEl.innerHTML = '';
+  
+  try {
+    const data = await api('/tasks/detail/' + taskId);
+    if (data.success) {
+      const desc = data.task.description || '{}';
+      // 尝试格式化 JSON
+      try {
+        const parsed = JSON.parse(desc);
+        document.getElementById('edit-json-textarea').value = JSON.stringify(parsed, null, 2);
+      } catch(e) {
+        // 不是合法 JSON，直接展示原文
+        document.getElementById('edit-json-textarea').value = desc;
+      }
+    } else {
+      document.getElementById('edit-json-textarea').value = '{}';
+    }
+  } catch(e) {
+    document.getElementById('edit-json-textarea').value = '{}';
+    resultEl.innerHTML = '<div class="alert danger">❌ 加载失败: ' + e.message + '</div>';
+  }
+  
+  document.getElementById('edit-json-modal').classList.add('show');
+}
+
+function closeEditJsonModal() {
+  document.getElementById('edit-json-modal').classList.remove('show');
+}
+
+async function saveEditJson() {
+  const textarea = document.getElementById('edit-json-textarea');
+  const raw = textarea.value.trim();
+  const resultEl = document.getElementById('edit-json-result');
+  
+  // 尝试验证 JSON 合法性
+  try {
+    JSON.parse(raw);
+  } catch(e) {
+    resultEl.innerHTML = '<div class="alert danger">❌ JSON 格式错误: ' + e.message + '</div>';
+    return;
+  }
+  
+  resultEl.innerHTML = '<div class="loading">⏳ 保存中...</div>';
+  
+  try {
+    const data = await api('/tasks/' + editJsonTaskId + '/description', {
+      method: 'PUT',
+      body: JSON.stringify({ description: raw })
+    });
+    if (data.success) {
+      resultEl.innerHTML = '<div class="alert success">✅ 描述已更新</div>';
+      setTimeout(() => closeEditJsonModal(), 1000);
+    } else {
+      resultEl.innerHTML = '<div class="alert danger">❌ ' + (data.error || '保存失败') + '</div>';
+    }
+  } catch(e) {
+    resultEl.innerHTML = '<div class="alert danger">❌ 请求失败: ' + e.message + '</div>';
+  }
+}
+
+// ==================== Attachment Manager ====================
+let attachTaskId = 0;
+let clipboardImages = [];
+
+async function openAttachModal(taskId) {
+  attachTaskId = taskId;
+  document.getElementById('attach-task-badge').textContent = '#' + taskId;
+  document.getElementById('attach-url-input').value = '';
+  document.getElementById('attach-result').innerHTML = '';
+  document.getElementById('attach-paste-preview').innerHTML = '';
+  document.getElementById('attach-upload-progress').innerHTML = '';
+  clipboardImages = [];
+  document.getElementById('attach-modal').classList.add('show');
+  await loadAttachments(taskId);
+}
+
+function closeAttachModal() {
+  document.getElementById('attach-modal').classList.remove('show');
+}
+
+async function loadAttachments(taskId) {
+  const el = document.getElementById('attach-list');
+  el.innerHTML = '<div class="loading">加载中...</div>';
+  try {
+    const data = await api('/attachments/' + taskId);
+    if (!data.success || !data.data?.length) {
+      el.innerHTML = '<div class="empty" style="padding:16px;color:var(--text2);font-size:13px">暂无附件</div>';
+      return;
+    }
+    el.innerHTML = '<table style="width:100%;font-size:13px"><tr><th>文件名</th><th>大小</th><th>操作</th></tr>' +
+      data.data.map(a => {
+        const size = a.size ? (a.size > 1024 ? (a.size/1024).toFixed(1) + 'KB' : a.size + 'B') : '-';
+        return `<tr>
+          <td><a href="${escapeHtml(a.url)}" target="_blank">${escapeHtml(a.filename)}</a></td>
+          <td>${size}</td>
+          <td><button class="btn btn-danger btn-xs" onclick="deleteAttach(${a.id}, ${taskId})">删除</button></td>
+        </tr>`;
+      }).join('') + '</table>';
+  } catch(e) {
+    el.innerHTML = '<div class="alert danger">加载附件列表失败</div>';
+  }
+}
+
+async function deleteAttach(attachId, taskId) {
+  if (!confirm('确定删除此附件？')) return;
+  try {
+    const data = await api('/attachments/' + attachId, { method: 'DELETE' });
+    if (data.success) {
+      await loadAttachments(taskId);
+    }
+  } catch(e) {
+    showToast('删除失败', 'danger');
+  }
+}
+
+// 方式1: URL添加
+async function addAttachByUrl() {
+  const url = document.getElementById('attach-url-input').value.trim();
+  if (!url) { showToast('请输入URL', 'warning'); return; }
+  const resultEl = document.getElementById('attach-result');
+  resultEl.innerHTML = '<div class="loading">⏳ 添加中...</div>';
+  
+  try {
+    const data = await api('/attachments/' + attachTaskId + '/add-url', {
+      method: 'POST',
+      body: JSON.stringify({ url: url })
+    });
+    if (data.success) {
+      resultEl.innerHTML = '<div class="alert success">✅ 已添加</div>';
+      document.getElementById('attach-url-input').value = '';
+      await loadAttachments(attachTaskId);
+    } else {
+      resultEl.innerHTML = '<div class="alert danger">❌ ' + (data.error || '添加失败') + '</div>';
+    }
+  } catch(e) {
+    resultEl.innerHTML = '<div class="alert danger">❌ ' + e.message + '</div>';
+  }
+}
+
+// 方式2: 粘贴（监听粘贴事件）
+document.getElementById('attach-paste-zone').addEventListener('paste', async function(e) {
+  e.preventDefault();
+  const items = e.clipboardData.items;
+  const resultEl = document.getElementById('attach-result');
+  const previewEl = document.getElementById('attach-paste-preview');
+  resultEl.innerHTML = '';
+  
+  for (let item of items) {
+    if (item.kind === 'file') {
+      const file = item.getAsFile();
+      if (!file) continue;
+      // 显示预览
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        previewEl.innerHTML = `<div style="padding:8px;background:var(--bg3);border-radius:6px;font-size:12px">
+          📋 ${escapeHtml(file.name)} (${(file.size/1024).toFixed(1)}KB)
+        </div>`;
+      };
+      if (file.type.startsWith('image/')) {
+        reader.readAsDataURL(file);
+      }
+      
+      // 上传
+      await uploadFileViaForm(file);
+    } else if (item.kind === 'string') {
+      item.getAsString(async function(text) {
+        previewEl.innerHTML = `<div style="padding:8px;background:var(--bg3);border-radius:6px;font-size:12px">
+          📋 粘贴文本 (${text.length}字符)
+        </div>`;
+        // 将文本保存为 .txt 文件
+        const blob = new Blob([text], { type: 'text/plain' });
+        const file = new File([blob], 'paste_' + Date.now() + '.txt', { type: 'text/plain' });
+        await uploadFileViaForm(file);
+      });
+    }
+  }
+});
+
+// 方式3: 本地上传
+async function uploadLocalFiles(files) {
+  const progressEl = document.getElementById('attach-upload-progress');
+  for (let file of files) {
+    progressEl.innerHTML = '⏳ 上传 ' + escapeHtml(file.name) + '...';
+    await uploadFileViaForm(file);
+  }
+  progressEl.innerHTML = '✅ 上传完成';
+  await loadAttachments(attachTaskId);
+}
+
+async function uploadFileViaForm(file) {
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('task_id', attachTaskId);
+  
+  try {
+    const res = await fetch('/api/attachments/upload', {
+      method: 'POST',
+      body: formData
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast('✅ ' + escapeHtml(file.name) + ' 已上传');
+    } else {
+      showToast('❌ ' + escapeHtml(file.name) + ': ' + (data.error || '失败'), 'danger');
+    }
+  } catch(e) {
+    showToast('❌ 上传失败: ' + e.message, 'danger');
+  }
+}
+
+// ==================== Phase R 可视化 ====================
+const PHASER_COLORS = ['#3b82f6', '#8b5cf6', '#f59e0b', '#22c55e', '#06b6d4'];
+const PHASER_STEPS = [
+  { key: 'status_review', icon: '📋', label: '现状审查', desc: '评估当前进度与已有成果' },
+  { key: 'goal_confirmation', icon: '🎯', label: '目标对齐', desc: '确认任务真正目的' },
+  { key: 'brainstorming', icon: '💡', label: 'Brainstorming', desc: '多方案头脑风暴' },
+  { key: 'selected_approach', icon: '✅', label: '方案评估', desc: '对比优劣势选出最佳' },
+  { key: 'subtasks', icon: '📦', label: '子任务', desc: '生成结构化子任务' }
+];
+
+function openPhaserModal(taskId, taskTitle) {
+  document.getElementById('phaser-task-badge').textContent = '#' + taskId + ' ' + taskTitle;
+  document.getElementById('phaser-modal').classList.add('show');
+  document.getElementById('phaser-loading').style.display = 'block';
+  document.getElementById('phaser-content').style.display = 'none';
+  document.getElementById('phaser-empty').style.display = 'none';
+  
+  // 获取任务 execution_log（Phase R 分析写在这里）
+  api('/tasks/detail/' + taskId).then(data => {
+    document.getElementById('phaser-loading').style.display = 'none';
+    if (!data.success || !data.task) {
+      document.getElementById('phaser-empty').style.display = 'block';
+      return;
+    }
+    const log = data.task.execution_log || '';
+    if (!log || log.indexOf('Phase R') === -1) {
+      document.getElementById('phaser-empty').style.display = 'block';
+      return;
+    }
+    
+    // 解析 Phase R 数据
+    const phaser = {
+      status_review: extractSection(log, '现状', '目标'),
+      goal_confirmation: extractSection(log, '目标', '方案'),
+      brainstorming_count: (log.match(/方案/g) || []).length,
+      selected_approach: extractSection(log, '选中', null),
+      sub_tasks: (log.match(/子任务/g) || []).length
+    };
+    
+    // 渲染流程图
+    let flowHtml = '<div style="display:flex;align-items:flex-start;gap:4px;overflow-x:auto;padding:8px 0">';
+    let detailHtml = '';
+    
+    PHASER_STEPS.forEach((step, i) => {
+      const hasContent = log.indexOf(step.label) > -1 || 
+        (step.key === 'status_review' && phaser.status_review) ||
+        (step.key === 'goal_confirmation' && phaser.goal_confirmation) ||
+        (step.key === 'selected_approach' && phaser.selected_approach);
+      
+      const bgColor = hasContent ? PHASER_COLORS[i] : '#334155';
+      const statusIcon = hasContent ? '✅' : '⏳';
+      
+      flowHtml += '<div style="flex:1;min-width:120px;text-align:center">';
+      flowHtml += '<div style="width:48px;height:48px;border-radius:50%;background:' + bgColor + ';display:flex;align-items:center;justify-content:center;margin:0 auto 8px;font-size:20px">' + step.icon + '</div>';
+      flowHtml += '<div style="font-size:12px;font-weight:600;color:#fff">' + step.label + '</div>';
+      flowHtml += '<div style="font-size:10px;color:var(--text2);margin-top:2px">' + step.desc + '</div>';
+      flowHtml += '<div style="font-size:10px;color:' + (hasContent ? '#22c55e' : 'var(--text2)') + ';margin-top:4px">' + statusIcon + '</div>';
+      flowHtml += '</div>';
+      
+      if (i < PHASER_STEPS.length - 1) {
+        flowHtml += '<div style="flex:0 0 20px;padding-top:24px;color:var(--text2);font-size:16px">→</div>';
+      }
+    });
+    flowHtml += '</div>';
+    
+    // 详细分析区域
+    detailHtml = '<div class="card" style="margin-top:12px">';
+    detailHtml += '<div class="card-header"><h3 style="font-size:14px">📜 详细分析</h3></div>';
+    detailHtml += '<div style="padding:12px;font-size:13px;line-height:1.7;white-space:pre-wrap;color:var(--text)">';
+    detailHtml += escapeHtml(log.substring(0, 3000));
+    detailHtml += '</div></div>';
+    
+    document.getElementById('phaser-flow').innerHTML = flowHtml;
+    document.getElementById('phaser-detail').innerHTML = detailHtml;
+    document.getElementById('phaser-content').style.display = 'block';
+  }).catch(e => {
+    document.getElementById('phaser-loading').style.display = 'none';
+    document.getElementById('phaser-empty').style.display = 'block';
+  });
+}
+
+function closePhaserModal() {
+  document.getElementById('phaser-modal').classList.remove('show');
+}
+
+function extractSection(text, startKeyword, endKeyword) {
+  const start = text.indexOf(startKeyword);
+  if (start < 0) return '';
+  const from = start + startKeyword.length;
+  if (!endKeyword) return text.substring(from, from + 200).trim();
+  const end = text.indexOf(endKeyword, start + 10);
+  return text.substring(from, end > 0 ? end : from + 200).trim();
+}
+
+// ==================== Initial Load ====================
+// Load command history on start
+loadCommandHistory();
+</script>
+<script>
+// ===== PWA Service Worker 注册 =====
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').then(reg => {
+      console.log('[PWA] SW registered:', reg.scope)
+      // 检测更新
+      reg.addEventListener('updatefound', () => {
+        const newSW = reg.installing
+        newSW.addEventListener('statechange', () => {
+          if (newSW.state === 'installed' && navigator.serviceWorker.controller) {
+            // 新版本可用，静默通知
+            console.log('[PWA] New version available')
+          }
+        })
+      })
+    }).catch(err => {
+      console.warn('[PWA] SW registration failed:', err)
+    })
+
+    // 处理离线/在线状态变化
+    window.addEventListener('online', () => console.log('[PWA] Network online'))
+    window.addEventListener('offline', () => console.log('[PWA] Network offline'))
+  })
+}
+</script>
+</body>
+</html>

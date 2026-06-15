@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from "react"
 const A = "/api/actor"
+const C = "/api/crews"
 const PRESETS = [
   { label: "AI催化化学调研", task: "调研AI催化化学三个前沿方向（Diffusion逆向设计、GNN过渡态搜索、主动学习高通量），做商业化分析，给出All-in决策" },
   { label: "竞争对手分析", task: "调研深势科技、深度原理、Matlantis等AI+材料公司的产品线、融资、团队，分析和光智成差异化竞争力，给出应对策略" },
@@ -19,7 +20,7 @@ interface Hist { id:string; task:string; status:string; created_at:string; durat
 interface RTHist { timestamp:string; question:string; participants:string[]; round_count:number; consensus:boolean }
 
 export default function ActorPipeline() {
-  const [tab,setTab]=useState<"run"|"history"|"chat"|"brainstorm">("run")
+  const [tab,setTab]=useState<"run"|"crew"|"history"|"chat"|"brainstorm">("run")
   const [chatMode,setChatMode]=useState<"single"|"roundtable">("single")
   const [task,setTask]=useState(PRESETS[0].task)
   const [running,setRunning]=useState(false); const [stage,setStage]=useState("")
@@ -30,6 +31,10 @@ export default function ActorPipeline() {
   const [rtRoles,setRtRoles]=useState(["researcher","analyst","strategist"]); const [rtQ,setRtQ]=useState("")
   const [rtRes,setRtRes]=useState<any>(null); const [rtLoad,setRtLoad]=useState(false)
   const [rtHist,setRtHist]=useState<RTHist[]>([]); const [rtHistTab,setRtHistTab]=useState(false)
+  const [crewData,setCrewData]=useState<any>(null); const [crewLoading,setCrewLoading]=useState(false); const [crewMsg,setCrewMsg]=useState("")
+  const loadCrew=useCallback(async()=>{setCrewLoading(true);try{const r=await fetch(C+"/status");const d=await r.json();setCrewData(d);setCrewMsg(d.ok?"":"⚠️ "+(d.error||"加载失败"))}catch(e:any){setCrewMsg("⚠️ 网络错误: "+(e.message||""))}finally{setCrewLoading(false)}},[])
+  const triggerCrew=async(name:string)=>{setCrewMsg("启动中: "+name);try{const r=await fetch(C+"/trigger",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({crew:name})});const d=await r.json();setCrewMsg(d.ok?"✅ 已启动 "+name+" pid="+d.pid:"⚠️ "+(d.error||"启动失败"));setTimeout(loadCrew,1200)}catch(e:any){setCrewMsg("⚠️ 网络错误: "+(e.message||""))}}
+  const resolveEsc=async(id:number,action="resolved_by_actor")=>{try{await fetch(C+"/resolve",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({id,action})});loadCrew()}catch(e:any){setCrewMsg("⚠️ 网络错误: "+(e.message||""))}}
 // 脑风暴状态
   const [brainstormQ,setBrainstormQ]=useState("")
   const [brainstormAgentA,setBrainstormAgentA]=useState("")
@@ -42,7 +47,7 @@ export default function ActorPipeline() {
   const pr=useRef<ReturnType<typeof setInterval>>(); const st=useRef(0); const ld=useRef(false)
   const lh=useCallback(async()=>{try{const r=await fetch(A+"/crew-history");const d=await r.json();if(d.ok)setHistory(d.history||[])}catch{}},[])
   const lrt=useCallback(async()=>{try{const r=await fetch(A+"/roundtable-history");const d=await r.json();if(d.ok)setRtHist(d.history||[])}catch{}},[])
-  useEffect(()=>{if(!ld.current){ld.current=true;lh();lrt()}},[])
+  useEffect(()=>{if(!ld.current){ld.current=true;lh();lrt();loadCrew()}},[])
   useEffect(()=>()=>clearInterval(pr.current),[])
   const sr=async()=>{setRunning(true);setStage("启动中");setRawOut("");setResult(null);setError("");st.current=Date.now()
     try{const r=await fetch(A+"/crew-run",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({task})});const d=await r.json();if(d.error){setStage("启动失败");setError(d.error);setRunning(false);return}
@@ -133,15 +138,16 @@ export default function ActorPipeline() {
   const hc=history.length
   return <div style={{maxWidth:960,margin:"0 auto",padding:"16px 24px"}}>
     <div style={{display:"flex",gap:0,marginBottom:16,borderBottom:"1px solid #e8e8e8"}}>
-      {[{k:"run",l:"🤖 管道"},{k:"brainstorm",l:"🧠 脑风暴"},{k:"chat",l:"💬 对话"},{k:"history",l:"📜 历史"}].map(t=><button key={t.k} onClick={()=>setTab(t.k as any)} style={{padding:"8px 20px",border:"none",background:tab===t.k?"#fff":"transparent",borderBottom:tab===t.k?"2px solid #1677ff":"2px solid transparent",cursor:"pointer",fontSize:14,color:tab===t.k?"#1677ff":"#888",fontWeight:tab===t.k?500:400}}>{t.l}</button>)}
+      {[{k:"run",l:"🤖 管道"},{k:"crew",l:"🧑‍✈️ Crew"},{k:"brainstorm",l:"🧠 脑风暴"},{k:"chat",l:"💬 对话"},{k:"history",l:"📜 历史"}].map(t=><button key={t.k} onClick={()=>setTab(t.k as any)} style={{padding:"8px 20px",border:"none",background:tab===t.k?"#fff":"transparent",borderBottom:tab===t.k?"2px solid #1677ff":"2px solid transparent",cursor:"pointer",fontSize:14,color:tab===t.k?"#1677ff":"#888",fontWeight:tab===t.k?500:400}}>{t.l}</button>)}
     </div>
     {tab==="run"&&<RunTab task={task} setTask={setTask} running={running} stage={stage} rawOut={rawOut} result={result} error={error} pct={pct} onStart={sr} onCancel={cr}/>}
+    {tab==="crew"&&<CrewTab data={crewData} loading={crewLoading} msg={crewMsg} onRefresh={loadCrew} onTrigger={triggerCrew} onResolve={resolveEsc}/>}
     {tab==="history"&&<div>
       <div style={{display:"flex",gap:12,marginBottom:12}}>
         <button onClick={()=>setRtHistTab(false)} style={{padding:"6px 18px",borderRadius:20,border:"none",background:!rtHistTab?"#1677ff":"#f0f0f0",color:!rtHistTab?"#fff":"#555",cursor:"pointer",fontSize:13}}>管道历史</button>
         <button onClick={()=>{setRtHistTab(true);lrt()}} style={{padding:"6px 18px",borderRadius:20,border:"none",background:rtHistTab?"#1677ff":"#f0f0f0",color:rtHistTab?"#fff":"#555",cursor:"pointer",fontSize:13}}>圆桌历史({rtHist.length})</button>
       </div>
-      {rtHistTab?<RtHisTab history={rtHist}/>:<HisTab history={history} showId={showId} detail={det} onLoad={ldDet}/>}
+      {rtHistTab?<RtHisTab history={rtHist}/>:<HisTab history={history} showId={showId} detail={det} onLoad={ldDet} typeFilter={histFilter} setTypeFilter={setHistFilter}/>}
     </div>}
 {tab==="brainstorm"&&<BrainstormTab q={brainstormQ} setQ={setBrainstormQ} agentA={brainstormAgentA} setAgentA={setBrainstormAgentA} agentB={brainstormAgentB} setAgentB={setBrainstormAgentB}/>}
     {tab==="chat"&&<div>
@@ -152,6 +158,59 @@ export default function ActorPipeline() {
       {chatMode==="single"&&<ChatSingle role={chatRole} setRole={setChatRole} msgs={chatMsgs} setMsgs={setChatMsgs} input={chatInput} setInput={setChatInput} loading={chatLoading} send={sc}/>}
       {chatMode==="roundtable"&&<RtTab rtRoles={rtRoles} setRtRoles={setRtRoles} rtQ={rtQ} setRtQ={setRtQ} rtRes={rtRes} rtLoad={rtLoad} onRun={rr}/>}
     </div>}
+  </div>
+}
+
+
+function CrewTab({data,loading,msg,onRefresh,onTrigger,onResolve}:any){
+  const crews=data?.crews||[]
+  const esc=data?.escalations||[]
+  const runs=data?.recent_runs||[]
+  const pending=esc.filter((e:any)=>e.status==='pending')
+  const statusColor=(s:string)=>s==='completed'?'#52c41a':s==='failed'?'#ff4d4f':s==='pending'?'#faad14':'#888'
+  return <div>
+    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
+      <div>
+        <div style={{fontSize:18,fontWeight:700}}>🧑‍✈️ Crew 控制台</div>
+        <div style={{fontSize:12,color:'#888'}}>查看 Crew 状态、手动触发任务、处理人工介入项</div>
+      </div>
+      <button onClick={onRefresh} disabled={loading} style={{padding:'8px 16px',borderRadius:20,border:'1px solid #1677ff',background:'#fff',color:'#1677ff',cursor:'pointer'}}>{loading?'刷新中...':'刷新'}</button>
+    </div>
+    {msg&&<div style={{marginBottom:12,padding:'8px 12px',borderRadius:10,background:msg.startsWith('✅')?'#f6ffed':'#fffbe6',border:'1px solid '+(msg.startsWith('✅')?'#b7eb8f':'#ffe58f'),fontSize:13}}>{msg}</div>}
+    <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(190px,1fr))',gap:10,marginBottom:16}}>
+      {crews.map((c:any)=><div key={c.name} style={{padding:12,border:'1px solid #e8e8e8',borderRadius:14,background:'#fff'}}>
+        <div style={{fontWeight:700,fontSize:14,marginBottom:4}}>{c.name}</div>
+        <div style={{fontSize:12,color:'#888',minHeight:34}}>{c.desc}</div>
+        <button onClick={()=>onTrigger(c.name)} style={{marginTop:10,width:'100%',padding:'7px 10px',borderRadius:18,border:'none',background:'#1677ff',color:'#fff',cursor:'pointer'}}>立即运行</button>
+      </div>)}
+      {crews.length===0&&<div style={{padding:20,color:'#aaa'}}>暂无 Crew 数据</div>}
+    </div>
+    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14}}>
+      <div style={{border:'1px solid #e8e8e8',borderRadius:14,overflow:'hidden'}}>
+        <div style={{padding:'10px 12px',background:'#fff7e6',fontWeight:700}}>📣 人工介入项 <span style={{color:'#fa8c16'}}>pending {pending.length}</span></div>
+        <div style={{maxHeight:360,overflow:'auto'}}>
+          {esc.length===0?<div style={{padding:18,color:'#aaa'}}>暂无介入项</div>:esc.map((e:any)=><div key={e.id} style={{padding:'10px 12px',borderTop:'1px solid #f0f0f0'}}>
+            <div style={{display:'flex',justifyContent:'space-between',gap:8}}><b style={{fontSize:13}}>#{e.task_id} · {e.crew_name}</b><span style={{fontSize:11,color:e.status==='pending'?'#fa8c16':'#999'}}>{e.status}</span></div>
+            <div style={{fontSize:12,color:'#666',marginTop:4,whiteSpace:'pre-wrap'}}>{e.reason}</div>
+            <div style={{fontSize:11,color:'#aaa',marginTop:4}}>{String(e.created_at||'')}</div>
+            {e.status==='pending'&&<div style={{display:'flex',gap:6,marginTop:8}}>
+              <button onClick={()=>onResolve(e.id,'resolved_by_actor')} style={{padding:'4px 10px',borderRadius:12,border:'none',background:'#52c41a',color:'#fff',fontSize:12,cursor:'pointer'}}>已处理</button>
+              <button onClick={()=>onResolve(e.id,'ignored_by_actor')} style={{padding:'4px 10px',borderRadius:12,border:'1px solid #d9d9d9',background:'#fff',fontSize:12,cursor:'pointer'}}>忽略</button>
+            </div>}
+          </div>)}
+        </div>
+      </div>
+      <div style={{border:'1px solid #e8e8e8',borderRadius:14,overflow:'hidden'}}>
+        <div style={{padding:'10px 12px',background:'#f6ffed',fontWeight:700}}>🧾 最近 Crew 执行</div>
+        <div style={{maxHeight:360,overflow:'auto'}}>
+          {runs.length===0?<div style={{padding:18,color:'#aaa'}}>暂无执行记录</div>:runs.map((r:any)=><div key={r.id} style={{padding:'10px 12px',borderTop:'1px solid #f0f0f0'}}>
+            <div style={{display:'flex',justifyContent:'space-between',gap:8}}><b style={{fontSize:13}}>{r.title}</b><span style={{fontSize:11,color:statusColor(r.status)}}>{r.status}</span></div>
+            <div style={{fontSize:12,color:'#666',marginTop:4,whiteSpace:'pre-wrap'}}>{(r.result_summary||'').slice(0,260)}</div>
+            <div style={{fontSize:11,color:'#aaa',marginTop:4}}>{String(r.created_at||'')}</div>
+          </div>)}
+        </div>
+      </div>
+    </div>
   </div>
 }
 
