@@ -45,6 +45,7 @@ const menuItems = [
   { path: '/calc-tasks', icon: '🔢', label: '计算' },
   { path: '/molecules', icon: '🧪', label: '和光智成' },
   { path: '/reactions', icon: '⚗️', label: '反应' },
+  { path: '/actor-pipeline', icon: '🎭', label: '扮演者' },
   { path: '/emails', icon: '📧', label: '邮件' },
   { path: '/personal', icon: '👤', label: '个人信息' },
   { path: '/company', icon: '🏢', label: '公司信息' },
@@ -219,6 +220,7 @@ export function Layout({ children }: LayoutProps) {
           <Link to="/system-monitor" className="nav-link">📈 系统监控</Link>
           <Link to="/calendar" className="nav-link">📅 日历</Link>
           <Link to="/pepi" className="nav-link">🤖 Pepi</Link>
+          <Link to="/actor-pipeline" className="nav-link">🎭 扮演者</Link>
           <button className="nav-link" onClick={() => setShowUpdates(true)}>📝 更新记录</button>
           <button className="chat-btn" onClick={() => navigate('/chat')}>💬 问Dudu</button>
           

@@ -342,4 +342,6 @@ function SystemPages() {
   )
 }
 
+export function PageViewTracker() { return null }
+
 export default SystemPages

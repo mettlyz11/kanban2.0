@@ -242,6 +242,14 @@ try:
     app.register_blueprint(brain_chat_api_bp)
     app.register_blueprint(tasks_api_bp)
 
+    from routes.actor_api import bp as actor_bp
+    app.register_blueprint(actor_bp)
+    logger.info("✅ 扮演者路由已注册")
+
+    from routes.brainstorm_api import bp as brainstorm_bp
+    app.register_blueprint(brainstorm_bp)
+    logger.info("✅ 脑风暴路由已注册")
+
     app.register_blueprint(resource_library_bp)
     app.register_blueprint(strategic_map_bp)
 #    app.register_blueprint(sds_api_bp)
