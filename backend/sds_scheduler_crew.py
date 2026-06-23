@@ -86,7 +86,7 @@ class SDSScheduler:
                 result = await self.run_self_healing_cycle()
                 # print(f"📊 周期结果: {json.dumps(result, ensure_ascii=False, indent=2)}")
             except Exception as e:
-                # print(f"❌ 周期异常: {e}")
+                pass  # keep scheduler alive on cycle errors
             
             if self.running:
                 await asyncio.sleep(interval)

@@ -12,5 +12,6 @@ for t in tables:
         # print(f'{t}: {cnt} rows, cols={cols}')
     except Exception as e:
         # print(f'{t} error: {e}')
+        pass
 
 conn.close()

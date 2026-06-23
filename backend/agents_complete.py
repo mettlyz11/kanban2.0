@@ -155,6 +155,7 @@ async def run_brainstorm_with_tools(question: str, agent_a_role: str, agent_b_ro
         result_a = await agent_a.think(context_a)
         # print(f"{result_a.get('emoji')} {result_a.get('agent')}: {result_a.get('content')[:200]}...")
         if result_a.get('tool_calls'):
+            pass
             # print(f"   🔧 工具调用: {[t['tool'] for t in result_a['tool_calls']]}")
         
         # Agent B 回应
@@ -162,6 +163,7 @@ async def run_brainstorm_with_tools(question: str, agent_a_role: str, agent_b_ro
         result_b = await agent_b.think(context_b)
         # print(f"{result_b.get('emoji')} {result_b.get('agent')}: {result_b.get('content')[:200]}...")
         if result_b.get('tool_calls'):
+            pass
             # print(f"   🔧 工具调用: {[t['tool'] for t in result_b['tool_calls']]}")
         
         all_rounds.append({

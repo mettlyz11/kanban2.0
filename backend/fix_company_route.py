@@ -6,9 +6,9 @@ with open('/opt/kanban-react/backend/app.py', 'r') as f:
 
 # 找到旧函数
 old_start = '@app.route(\'/api/company-info/companies/<company_id>\', methods=[\'GET\'])'
-old_content = old_start + '''
+old_content = old_start + """
 def get_company_detail(company_id):
-    """获取公司详情"""
+    # 获取公司详情
     try:
         conn = get_db()
         c = conn.cursor()
@@ -23,12 +23,12 @@ def get_company_detail(company_id):
         else:
             return jsonify({'success': False, 'error': 'Company not found'}), 404
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})'''
+        return jsonify({'success': False, 'error': str(e)})"""
 
 # 新函数内容
-new_content = '''@app.route('/api/company-info/companies/<company_id>', methods=['GET'])
+new_content = """@app.route('/api/company-info/companies/<company_id>', methods=['GET'])
 def get_company_detail(company_id):
-    """获取公司详情"""
+    # 获取公司详情
     try:
         # 尝试转换为整数（数字ID），如果失败则按slug/名称查找
         conn = get_db()
@@ -57,7 +57,7 @@ def get_company_detail(company_id):
         else:
             return jsonify({'success': False, 'error': 'Company not found'}), 404
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})'''
+        return jsonify({'success': False, 'error': str(e)})"""
 
 # 替换
 import re

@@ -65,6 +65,7 @@ import { ProjectDesign } from './pages/ProjectDesign'
 import { ProjectDocuments } from './pages/ProjectDocuments'
 import SelfDrivingSystem from './pages/SelfDrivingSystem'
 import Cockpit from './pages/Cockpit'
+import SDSCrewDialogue from './pages/SDSCrewDialogue'
 import './App.css'
 import './components/Layout.css'
 
@@ -146,6 +147,7 @@ function AppRoutes() {
       <Route path="/remote-desktop" element={<PrivateRoute><Layout><RemoteDesktop /></Layout></PrivateRoute>} />
       <Route path="/panorama" element={<PrivateRoute><Layout><RipplePanorama /></Layout></PrivateRoute>} />
       <Route path="/sds-console" element={<PrivateRoute><Layout><SDSConsole /></Layout></PrivateRoute>} />
+      <Route path="/sds-crew-dialogue" element={<PrivateRoute><Layout><SDSCrewDialogue /></Layout></PrivateRoute>} />
           </Routes>
   )
 }

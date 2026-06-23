@@ -13,10 +13,10 @@ CORS(app)
 
 # 数据库配置
 DB_CONFIG = {
-    'host': 'rm-2zew4su9p966e8x2ofo.mysql.rds.aliyuncs.com',
-    'user': 'kanban',
-    'password': 'Irc210Irc210!',
-    'database': 'kanban'
+    'host': os.getenv('DB_HOST'),
+    'user': os.getenv('DB_USER'),
+    'password': os.getenv('DB_PASSWORD'),
+    'database': os.getenv('DB_NAME', 'kanban')
 }
 
 UPLOAD_DIR = "/opt/kanban-react/backend/uploads"
@@ -153,17 +153,3 @@ def upload_task_attachment(task_id):
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5001, debug=True)
-
-@app.route('/api/tasks/<int:task_id>/execution-log', methods=['POST'])
-def update_execution_log(task_id):
-    更新任务执行详情记录
-    try:
-        data = request.json
-        execution_log = data.get('execution_log', '')
-        remaining_issues = data.get('remaining_issues', '')
-        improvement_suggestions = data.get('improvement_suggestions', '')
-        
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        
-        cursor.execute(

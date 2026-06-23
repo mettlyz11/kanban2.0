@@ -41,4 +41,4 @@ else:
     # find similar
     for line in c.split('\n'):
         if 'global macmini_ws' in line:
-            # print(f'  FOUND global macmini_ws at line: {line}')
+            pass  # previously printed matching line

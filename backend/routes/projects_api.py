@@ -15,7 +15,7 @@ def get_db():
         "host": os.environ.get("MYSQL_HOST", "rm-2zew4su9p966e8x2ofo.mysql.rds.aliyuncs.com"),
         "port": int(os.environ.get("MYSQL_PORT", "3306")),
         "user": os.environ.get("MYSQL_USER", "kanban"),
-        "password": os.environ.get("MYSQL_PASSWORD", "Irc210Irc210!"),
+        "password": os.environ.get("MYSQL_PASSWORD", ""),
         "database": os.environ.get("MYSQL_DATABASE", "kanban"),
         "charset": "utf8mb4",
         "cursorclass": pymysql.cursors.DictCursor,

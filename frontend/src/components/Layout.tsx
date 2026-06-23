@@ -13,6 +13,7 @@ const menuItems = [
   { path: '/remote-control', icon: '🎮', label: '远程控制' },
   { path: '/audit-log', icon: '🕵️', label: '审核流水' },
   { path: '/sds-console', icon: '🖥️', label: 'SDS 总控台' },
+  { path: '/sds-crew-dialogue', icon: '🐕', label: 'SDS Crew 对话' },
   { path: '/remote-desktop', icon: '💻', label: '远程桌面' },
   { path: '/tasks', icon: '✅', label: '任务' },
   { path: '/audit', icon: '👁️', label: '审计' },
@@ -221,6 +222,7 @@ export function Layout({ children }: LayoutProps) {
           <Link to="/calendar" className="nav-link">📅 日历</Link>
           <Link to="/pepi" className="nav-link">🤖 Pepi</Link>
           <Link to="/actor-pipeline" className="nav-link">🎭 扮演者</Link>
+          <Link to="/sds-crew-dialogue" className="nav-link">🐕 SDS Crew</Link>
           <button className="nav-link" onClick={() => setShowUpdates(true)}>📝 更新记录</button>
           <button className="chat-btn" onClick={() => navigate('/chat')}>💬 问Dudu</button>
           

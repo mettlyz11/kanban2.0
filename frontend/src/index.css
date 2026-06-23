@@ -1,4 +1,4 @@
-
+@import './App.css';
 /* 强制状态标签样式 - 高优先级 */
 .status-badge[class*="failed_retryable"] {
   background: #ffeeba !important;
@@ -21,7 +21,6 @@
 @tailwind components;
 @tailwind utilities;
 
-@import './App.css';
 
 :root {
   font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;

@@ -336,21 +336,21 @@
     "sds_processes": 1,
     "heartbeats": 1
   },
-  "updated_at": "2026-06-15T16:49:53.416584",
+  "updated_at": "2026-06-23T23:23:11.583090",
   "monitor": {
     "data": {
-      "cpu": 14.7,
-      "memory": 35.6,
-      "disk": 4.1,
-      "processes": 831,
-      "uptime": 1984072,
-      "network_sent_mb": 139563.5281276703,
-      "network_recv_mb": 148947.55798625946,
+      "cpu": 16.4,
+      "memory": 42.2,
+      "disk": 3.5,
+      "processes": 774,
+      "uptime": 2698870,
+      "network_sent_mb": 241418.93359565735,
+      "network_recv_mb": 229623.24285888672,
       "battery_percent": null,
       "battery_power_plugged": null,
       "hostname": "mettlyzdeMac-mini.local",
-      "timestamp": "2026-06-15T16:49:53.244629"
+      "timestamp": "2026-06-23T23:23:11.433393"
     },
-    "timestamp": "2026-06-15T16:49:53.244629"
+    "timestamp": "2026-06-23T23:23:11.433393"
   }
 }

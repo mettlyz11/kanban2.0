@@ -124,7 +124,7 @@ def main():
             # print("\n👋 采集已停止")
             break
         except Exception as e:
-            # print(f"[ERROR] {e}")
+            pass  # print(f"[ERROR] {e}")
         
         time.sleep(PUSH_INTERVAL)
 

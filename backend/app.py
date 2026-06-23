@@ -1,4 +1,20 @@
-from flask import Flask, request, jsonify, send_from_directory, send_file
+# ENV INJECTION
+import os as _os
+_env_path = "/etc/environment"
+if _os.path.exists(_env_path):
+    with open(_env_path) as _f:
+        for _line in _f:
+            _line = _line.strip()
+            if not _line or _line.startswith("#"):
+                continue
+            if "=" in _line:
+                _k, _v = _line.split("=", 1)
+                _k = _k.replace("export ", "").strip()
+                _v = _v.strip().strip('"').strip("'")
+                if _k not in _os.environ:
+                    _os.environ[_k] = _v
+
+from flask import Flask, request, jsonify, send_from_directory, send_file, Response, stream_with_context
 from flask_cors import CORS
 
 # ============================================
@@ -59,7 +75,7 @@ def before_send_event(event, hint):
             event.setdefault("extra", {})
             event["extra"]["url"] = request.url
             event["extra"]["method"] = request.method
-    except:
+    except Exception:
         pass
     return event
 
@@ -933,7 +949,7 @@ def get_table_counts():
             try:
                 c.execute(f'SELECT COUNT(*) FROM {table}')
                 counts[table] = list(c.fetchone().values())[0]
-            except:
+            except Exception:
                 counts[table] = 0
     
         conn.close()
@@ -1717,7 +1733,7 @@ def list_reflections():
                     'timestamp': reflection_data.get('timestamp', row['updated_at']),
                     'summary': reflection_data.get('questions', {})
                 })
-            except:
+            except Exception:
                 # 如果不是有效的JSON，跳过
                 pass
     
@@ -1953,7 +1969,7 @@ def capture_api_errors(response):
                         error_message=data.get('error', 'Validation Error'),
                         request_data={'method': request.method, 'path': request.path}
                     )
-            except:
+            except Exception:
                 pass
     
         # 同时尝试使用原生的PerceptionAgent（如果可用）
@@ -1970,7 +1986,7 @@ def capture_api_errors(response):
                             'args': dict(request.args)
                         }
                     )
-            except:
+            except Exception:
                 pass
     except Exception as e:
         logger.error(f"Error in capture_api_errors: {e}")
@@ -2455,7 +2471,7 @@ class PerceptionAgent:
             c = conn.cursor()
             c.execute('SELECT COUNT(*) FROM perception_events')
             return list(c.fetchone().values())[0]
-        except:
+        except Exception:
             return len(self.events)
 
     def get_events(self, limit=50, event_type=None):
@@ -2511,7 +2527,7 @@ class PerceptionAgent:
             try:
                 start = datetime.fromisoformat(self.status['start_time'])
                 uptime_seconds = int((datetime.now() - start).total_seconds())
-            except:
+            except Exception:
                 pass
     
         return {
@@ -3533,7 +3549,7 @@ def get_api_performance():
                     'status_code': metadata.get('status_code', 200),
                     'timestamp': row[4]
                 })
-            except:
+            except Exception:
                 pass
     
         # 统计信息
@@ -3640,7 +3656,7 @@ def get_person(person_id):
                 if attachments:
                     try:
                         attachments = json.loads(attachments)
-                    except:
+                    except Exception:
                         attachments = None
                 items_data.append({
                     'title': item['title'],
@@ -4924,7 +4940,7 @@ def get_activity_log():
         limit = request.args.get('limit', '50')
         try:
             limit = int(limit)
-        except:
+        except Exception:
             limit = 50
         
         c.execute('''
@@ -4987,7 +5003,7 @@ def get_wechat_contacts():
         limit = request.args.get('limit', '200')
         try:
             limit = int(limit)
-        except:
+        except Exception:
             limit = 200
         
         conn = get_db()
@@ -5167,7 +5183,7 @@ def get_life_goals():
                 try:
                     c.execute('SELECT id, description, target_value, current_value, unit, status FROM life_key_results WHERE life_goal_id = %s', (gid,))
                     goal['key_results'] = [row_to_dict(row, c) for row in c.fetchall()]
-                except:
+                except Exception:
                     goal['key_results'] = []
             conn.close()
             return jsonify({'success': True, 'goals': goals, 'source': 'mysql'})
@@ -5754,3 +5770,784 @@ def research_daily_content():
         return jsonify({'success': True, 'content': content})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
+
+
+# ===== SDS Autonomous Crew Dialogue Events API (v5) =====
+import json as _sds_json
+from pathlib import Path as _SDSPath
+_SDS_CREW_EVENTS_FILE = _SDSPath('/opt/kanban-react/backend/data/sds_crew_dialogue_events.jsonl')
+_SDS_CREW_EVENTS_FILE.parent.mkdir(parents=True, exist_ok=True)
+_SDS_CREW_TASKS_FILE = _SDSPath('/opt/kanban-react/backend/data/sds_crew_user_tasks.json')
+_SDS_CREW_HEARTBEAT_FILE = _SDSPath('/opt/kanban-react/backend/data/sds_crew_mac_agent_heartbeat.json')
+
+_SDS_CREW_PROTOCOLS = {
+    'agent2_ask_agent1': {
+        'title': 'Agent2 问 Agent1 的方案',
+        'owner': 'YuZhouProxyAgent',
+        'target': 'SDSDoctorAgent / Agent1',
+        'purpose': '把每个问题拆成可验证、可执行、可追踪的请求，避免 Agent1 泛泛回答。',
+        'steps': [
+            '1. 定义问题：给出问题ID、背景、目标、成功标准。',
+            '2. 给上下文：附当前任务、错误日志、约束、已尝试动作。',
+            '3. 要求方案：Agent1 必须给出根因假设、验证命令、修复步骤、回滚办法。',
+            '4. 设置边界：不能做破坏性操作；高风险动作必须先请示刘宇宙。',
+            '5. 要求结论格式：状态、证据、下一步、是否需要人工确认。'
+        ],
+        'template': '问题ID: {problem_id}\n目标: {goal}\n现象/证据: {evidence}\n约束: {constraints}\n请输出: 根因假设 + 验证方案 + 修复方案 + 回滚方案 + 需要刘宇宙确认的问题。'
+    },
+    'agent2_answer_agent1': {
+        'title': 'Agent2 回答 Agent1 的方案',
+        'owner': 'YuZhouProxyAgent',
+        'target': 'SDSDoctorAgent / Agent1',
+        'purpose': 'Agent2 对 Agent1 的提问或方案进行裁决、补充、授权或驳回。',
+        'steps': [
+            '1. 复述理解：确认 Agent1 的问题/方案没有误解。',
+            '2. 给出判断：批准、要求补证、降级执行、转人工。',
+            '3. 明确授权范围：允许执行的文件/API/命令/数据范围。',
+            '4. 要求执行记录：每一步必须回写事件流和最终总结。',
+            '5. 结束条件：通过验证、失败回滚、或等待刘宇宙确认。'
+        ],
+        'template': '收到 Agent1 请求: {request}\nAgent2 判断: {decision}\n授权范围: {scope}\n执行要求: {requirements}\n完成后必须输出: 问题总结 + 证据 + 后续建议。'
+    },
+    'problem_summary': {
+        'title': 'Agent2 每解决一个问题的自动总结',
+        'owner': 'YuZhouProxyAgent',
+        'target': '刘宇宙',
+        'purpose': '每个问题闭环后自动让用户看到摘要，不需要翻日志。',
+        'steps': [
+            '1. 问题：一句话说明处理了什么。',
+            '2. 动作：列出 Agent2/Agent1 做了哪些关键动作。',
+            '3. 结果：完成/部分完成/失败/需确认。',
+            '4. 证据：API、页面、日志、构建、测试结果。',
+            '5. 下一步：明确是否还需要用户决策。'
+        ],
+        'template': '【问题总结】\n问题: {problem}\n处理动作: {actions}\n结果: {result}\n证据: {evidence}\n下一步: {next_step}'
+    }
+}
+
+def _sds_crew_read_events(limit=300, channel=''):
+    if not _SDS_CREW_EVENTS_FILE.exists():
+        return []
+    lines = _SDS_CREW_EVENTS_FILE.read_text(encoding='utf-8').splitlines()[-max(1, min(int(limit or 300), 1000)):]
+    rows = []
+    for line in lines:
+        try:
+            row = _sds_json.loads(line)
+            if not channel or row.get('channel') == channel:
+                rows.append(row)
+        except Exception:
+            continue
+    return rows
+
+
+_SDS_CREW_EVENT_RESPONSE_CAP_BYTES = 900_000
+_SDS_CREW_EVENT_MESSAGE_MAX_CHARS = 4000
+_SDS_CREW_EVENT_META_MAX_CHARS = 2000
+
+
+def _sds_crew_trunc(value, max_chars):
+    text = str(value or '')
+    if len(text) <= max_chars:
+        return text
+    return text[:max_chars] + f"... [truncated {len(text) - max_chars} chars]"
+
+
+def _sds_crew_compact_meta(meta):
+    if not isinstance(meta, dict):
+        return {}
+    keep = {}
+    preferred = ['task_id', 'status', 'model', 'plan_id', 'risk', 'code', 'version', 'source', 'rounds', 'protocol_key']
+    for key in preferred:
+        if key in meta:
+            keep[key] = _sds_crew_trunc(meta.get(key), 240)
+    for key, value in meta.items():
+        if key in keep or len(keep) >= 16:
+            continue
+        if isinstance(value, (str, int, float, bool)) or value is None:
+            keep[str(key)[:80]] = _sds_crew_trunc(value, 240)
+    raw = _sds_json.dumps(keep, ensure_ascii=False, default=str)
+    if len(raw) > _SDS_CREW_EVENT_META_MAX_CHARS:
+        return {'summary': _sds_crew_trunc(raw, _SDS_CREW_EVENT_META_MAX_CHARS)}
+    return keep
+
+
+def _sds_crew_sanitize_event(row):
+    if not isinstance(row, dict):
+        return {}
+    event_type = str(row.get('event_type') or row.get('type') or 'event')
+    sender = str(row.get('sender') or '')
+    receiver = str(row.get('receiver') or '')
+    channel = str(row.get('channel') or '')
+    # Historical scheduled health_scan/task_start rows were written as channel='user'
+    # even though they are Agent2→Agent1/system status. Do not let them pollute the user lane.
+    if event_type == 'task_start' and sender not in ['刘宇宙', 'LiuYuZhou'] and receiver not in ['刘宇宙', 'LiuYuZhou']:
+        channel = 'agent1'
+    return {
+        'id': _sds_crew_trunc(row.get('id', ''), 80),
+        'time': _sds_crew_trunc(row.get('time') or row.get('created_at') or row.get('timestamp') or '', 64),
+        'channel': _sds_crew_trunc(channel, 32),
+        'sender': _sds_crew_trunc(sender, 80),
+        'receiver': _sds_crew_trunc(receiver, 80),
+        'event_type': _sds_crew_trunc(event_type, 80),
+        'message': _sds_crew_trunc(row.get('message') or row.get('content') or row.get('text') or '', _SDS_CREW_EVENT_MESSAGE_MAX_CHARS),
+        'meta': _sds_crew_compact_meta(row.get('meta') or {}),
+    }
+
+
+def _sds_crew_is_dashboard_user_echo(row):
+    meta = row.get('meta') if isinstance(row.get('meta'), dict) else {}
+    msg = str(row.get('message') or '')
+    return (
+        row.get('channel') == 'user'
+        and row.get('event_type') == 'user_task'
+        and meta.get('source') == 'dashboard'
+        and msg.startswith('用户发起Agent2任务：')
+    )
+
+
+def _sds_crew_is_hidden_or_smoke(row):
+    meta = row.get('meta') if isinstance(row.get('meta'), dict) else {}
+    source = str(meta.get('source') or '')
+    event_type = str(row.get('event_type') or '')
+    msg = str(row.get('message') or '')
+    tool = str(meta.get('tool') or '')
+    phase = str(meta.get('phase') or '')
+    llm = meta.get('llm') if isinstance(meta.get('llm'), dict) else {}
+    return (
+        str(meta.get('hidden')).lower() == 'true'
+        or str(meta.get('smoke_test')).lower() == 'true'
+        or str(meta.get('internal')).lower() == 'true'
+        or source.startswith('smoke')
+        or source.endswith('-smoke')
+        or event_type in {'agent2_llm_plan_internal_error', 'agent2_llm_summary', 'queued', 'claimed', 'protocol', 'task_start', 'mac_worker_started', 'mac_worker_completed'}
+        or (event_type == 'agent2_llm_plan' and (llm.get('error') == 'json_parse_failed' or 'json_parse_failed' in msg))
+        or (tool == 'send_user_summary')
+        or (phase == 'user_delivery')
+    )
+
+
+def _sds_crew_filter_duplicate_user_summaries(rows):
+    # If Agent2 already emitted the natural user-facing summary, hide the
+    # mechanical `problem_summary` wrapper for the same task. This prevents two
+    # Agent2 bubbles for one completed task while preserving failure-only
+    # problem_summary events that have no agent2_user_summary companion.
+    summary_task_ids = set()
+    for r in rows:
+        if r.get('event_type') == 'agent2_user_summary':
+            meta = r.get('meta') if isinstance(r.get('meta'), dict) else {}
+            tid = str(meta.get('task_id') or meta.get('kanban_task_id') or '')
+            if tid:
+                summary_task_ids.add(tid)
+    out = []
+    for r in rows:
+        meta = r.get('meta') if isinstance(r.get('meta'), dict) else {}
+        tid = str(meta.get('task_id') or meta.get('kanban_task_id') or '')
+        if r.get('channel') == 'user' and r.get('event_type') == 'problem_summary' and tid in summary_task_ids:
+            continue
+        out.append(r)
+    return out
+
+
+def _sds_crew_build_dialogue_payload(rows, include_protocols=False):
+    rows = [_sds_crew_sanitize_event(r) for r in rows if isinstance(r, dict)]
+    rows = [r for r in rows if not _sds_crew_is_hidden_or_smoke(r)]
+    rows = [r for r in rows if not _sds_crew_is_dashboard_user_echo(r)]
+    rows = _sds_crew_filter_duplicate_user_summaries(rows)
+    payload = {
+        'success': True,
+        'events': rows,
+        'agent1': [r for r in rows if r.get('channel') == 'agent1'][-250:],
+        'user': [r for r in rows if r.get('channel') == 'user'][-250:],
+        'total': len(rows),
+        'truncated': False,
+        'response_cap_bytes': _SDS_CREW_EVENT_RESPONSE_CAP_BYTES,
+    }
+    if include_protocols:
+        # Send a compact protocol index instead of full prompt/template objects.
+        payload['protocols'] = {
+            k: {
+                'title': v.get('title'),
+                'owner': v.get('owner'),
+                'target': v.get('target'),
+                'purpose': _sds_crew_trunc(v.get('purpose'), 240),
+            }
+            for k, v in _SDS_CREW_PROTOCOLS.items()
+        }
+    while len(_sds_json.dumps(payload, ensure_ascii=False, default=str).encode('utf-8')) > _SDS_CREW_EVENT_RESPONSE_CAP_BYTES and len(rows) > 20:
+        payload['truncated'] = True
+        rows = rows[-max(20, int(len(rows) * 0.75)):]
+        payload['events'] = rows
+        payload['agent1'] = [r for r in rows if r.get('channel') == 'agent1'][-250:]
+        payload['user'] = [r for r in rows if r.get('channel') == 'user'][-250:]
+        payload['total'] = len(rows)
+    return payload
+
+def _sds_crew_protocol_event(protocol_key: str, channel: str = 'agent1'):
+    proto = _SDS_CREW_PROTOCOLS.get(protocol_key, {})
+    return {
+        'id': f"protocol-{protocol_key}",
+        'time': datetime.now().isoformat(timespec='seconds'),
+        'channel': channel,
+        'sender': 'YuZhouProxyAgent',
+        'receiver': proto.get('target', 'unknown'),
+        'event_type': 'protocol',
+        'message': proto.get('title', protocol_key),
+        'meta': {'protocol_key': protocol_key, 'protocol': proto}
+    }
+
+@app.route('/api/sds-crew/protocols', methods=['GET'])
+def sds_crew_protocols():
+    return jsonify({'success': True, 'protocols': _SDS_CREW_PROTOCOLS})
+
+@app.route('/api/sds-crew/dialogue-events/stream', methods=['GET'])
+def sds_crew_dialogue_events_stream():
+    @stream_with_context
+    def gen():
+        last_size = -1
+        while True:
+            try:
+                size = _SDS_CREW_EVENTS_FILE.stat().st_size if _SDS_CREW_EVENTS_FILE.exists() else 0
+                if size != last_size:
+                    rows = _sds_crew_read_events(limit=500)
+                    rows = [_sds_crew_sanitize_event(r) for r in rows if isinstance(r, dict)]
+                    rows = [r for r in rows if not _sds_crew_is_hidden_or_smoke(r)]
+                    rows = [r for r in rows if not _sds_crew_is_dashboard_user_echo(r)]
+                    rows = _sds_crew_filter_duplicate_user_summaries(rows)
+                    agent1 = [r for r in rows if r.get('channel') == 'agent1'][-250:]
+                    user = [r for r in rows if r.get('channel') == 'user'][-250:]
+                    payload = {'success': True, 'events': rows, 'agent1': agent1, 'user': user, 'total': len(rows)}
+                    yield 'data: ' + _sds_json.dumps(payload, ensure_ascii=False) + '\n\n'
+                    last_size = size
+                time.sleep(2)
+            except GeneratorExit:
+                break
+            except Exception as e:
+                yield 'event: error\ndata: ' + _sds_json.dumps({'success': False, 'error': str(e)}, ensure_ascii=False) + '\n\n'
+                time.sleep(5)
+    return Response(gen(), mimetype='text/event-stream', headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'})
+
+@app.route('/api/sds-crew/dialogue-events', methods=['GET', 'POST'])
+def sds_crew_dialogue_events():
+    if request.method == 'POST':
+        expected_token = os.environ.get('SDS_CREW_EVENT_TOKEN', '')
+        if expected_token and request.headers.get('X-SDS-Crew-Token') != expected_token:
+            return jsonify({'success': False, 'error': 'forbidden'}), 403
+        payload = request.get_json(silent=True) or {}
+        events = payload.get('events') or []
+        if isinstance(events, dict):
+            events = [events]
+        accepted = 0
+        # Phase-2 realtime pushes may be followed by kanban_worker final_push.
+        # De-dupe by event id to avoid duplicate chat bubbles.
+        existing_ids = set()
+        try:
+            if _SDS_CREW_EVENTS_FILE.exists():
+                for line in _SDS_CREW_EVENTS_FILE.read_text(encoding='utf-8').splitlines()[-3000:]:
+                    try:
+                        rid = str((_sds_json.loads(line) or {}).get('id') or '')
+                        if rid:
+                            existing_ids.add(rid)
+                    except Exception:
+                        continue
+        except Exception:
+            existing_ids = set()
+        with _SDS_CREW_EVENTS_FILE.open('a', encoding='utf-8') as f:
+            for ev in events[:200]:
+                if not isinstance(ev, dict):
+                    continue
+                row = {
+                    'id': str(ev.get('id') or int(datetime.now().timestamp() * 1000000)),
+                    'time': ev.get('time') or datetime.now().isoformat(timespec='seconds'),
+                    'channel': _sds_crew_normalize_event_channel(ev),
+                    'sender': str(ev.get('sender') or ''),
+                    'receiver': str(ev.get('receiver') or ''),
+                    'event_type': str(ev.get('event_type') or 'message'),
+                    'message': str(ev.get('message') or '')[:5000],
+                    'meta': ev.get('meta') if isinstance(ev.get('meta'), dict) else {},
+                }
+                if row['id'] in existing_ids:
+                    continue
+                f.write(_sds_json.dumps(row, ensure_ascii=False) + '\n')
+                existing_ids.add(row['id'])
+                accepted += 1
+        return jsonify({'success': True, 'accepted': accepted})
+    limit = request.args.get('limit', 300)
+    channel = request.args.get('channel', '')
+    include_protocols = request.args.get('include_protocols', '0') == '1'
+    try:
+        rows = _sds_crew_read_events(limit=limit, channel=channel)
+        if include_protocols:
+            rows = [
+                _sds_crew_protocol_event('agent2_ask_agent1', 'agent1'),
+                _sds_crew_protocol_event('agent2_answer_agent1', 'agent1'),
+                _sds_crew_protocol_event('problem_summary', 'user'),
+            ] + rows
+        return jsonify(_sds_crew_build_dialogue_payload(rows, include_protocols=include_protocols))
+    except Exception as e:
+        return jsonify({'success': False, 'error': 'dialogue_events_read_failed', 'detail': _sds_crew_trunc(e, 500), 'events': [], 'agent1': [], 'user': []})
+
+
+
+def _sds_crew_normalize_event_channel(ev):
+    event_type = str(ev.get('event_type') or 'message')
+    sender = str(ev.get('sender') or '')
+    receiver = str(ev.get('receiver') or '')
+    user_types = {'user_task', 'problem_summary', 'summary', 'agent2_to_user', 'agent2_user_summary', 'approval_request', 'approval_response', 'agent2_ack', 'agent2_to_user_status'}
+    agent1_types = {'task_start', 'ask', 'agent2_ask', 'agent2_to_agent1', 'agent2_instruction', 'agent2_followup', 'doctor_report', 'agent1_reply', 'agent1_to_agent2', 'agent1_followup_answer', 'agent1_work_summary', 'agent1_tool_start', 'agent1_tool_result', 'agent1_tool_error', 'agent2_decision', 'completed', 'answer'}
+    if sender in ['刘宇宙', 'LiuYuZhou'] or receiver in ['刘宇宙', 'LiuYuZhou'] or event_type in user_types:
+        return 'user'
+    if event_type in agent1_types and (sender in ['YuZhouProxyAgent', 'SDSDoctorAgent'] or receiver in ['YuZhouProxyAgent', 'SDSDoctorAgent']):
+        return 'agent1'
+    ch = ev.get('channel')
+    return ch if ch in ['agent1', 'user'] else 'agent1'
+
+def _sds_crew_append_events(events):
+    accepted = 0
+    with _SDS_CREW_EVENTS_FILE.open('a', encoding='utf-8') as f:
+        for ev in events[:200]:
+            if not isinstance(ev, dict):
+                continue
+            row = {
+                'id': str(ev.get('id') or int(datetime.now().timestamp() * 1000000)),
+                'time': ev.get('time') or datetime.now().isoformat(timespec='seconds'),
+                'channel': _sds_crew_normalize_event_channel(ev),
+                'sender': str(ev.get('sender') or ''),
+                'receiver': str(ev.get('receiver') or ''),
+                'event_type': str(ev.get('event_type') or 'message'),
+                'message': str(ev.get('message') or '')[:8000],
+                'meta': ev.get('meta') if isinstance(ev.get('meta'), dict) else {},
+            }
+            f.write(_sds_json.dumps(row, ensure_ascii=False) + '\n')
+            accepted += 1
+    return accepted
+
+
+def _sds_event(channel, sender, receiver, event_type, message, meta=None):
+    return {
+        'id': str(int(datetime.now().timestamp() * 1000000)),
+        'time': datetime.now().isoformat(timespec='seconds'),
+        'channel': channel,
+        'sender': sender,
+        'receiver': receiver,
+        'event_type': event_type,
+        'message': message,
+        'meta': meta or {},
+    }
+
+
+
+def _sds_load_env_value(key):
+    val = os.environ.get(key, '')
+    if val:
+        return val
+    for env_path in ['/opt/kanban-react/.env', '/opt/kanban-react/backend/.env', '/opt/sds1/.env']:
+        try:
+            ep = _SDSPath(env_path)
+            if not ep.exists():
+                continue
+            for line in ep.read_text(encoding='utf-8', errors='ignore').splitlines():
+                if not line or line.strip().startswith('#') or '=' not in line:
+                    continue
+                k, v = line.split('=', 1)
+                if k.strip() == key:
+                    return v.strip().strip('"').strip("'")
+        except Exception:
+            continue
+    return ''
+
+
+
+def _sds_llm_providers():
+    """v5.6.1 multi-provider fallback chain. Fast, configured providers first."""
+    return [
+        {
+            'name': 'huoshan/doubao-seed-2-0-pro-260215',
+            'key_names': ['ARK_API_KEY'],
+            'url': 'https://ark.cn-beijing.volces.com/api/v3/chat/completions',
+            'model': 'doubao-seed-2-0-pro-260215',
+            'timeout': 12,
+        },
+        {
+            'name': 'deepseek/deepseek-chat',
+            'key_names': ['DEEPSEEK_API_KEY'],
+            'url': 'https://api.deepseek.com/v1/chat/completions',
+            'model': 'deepseek-chat',
+            'timeout': 12,
+        },
+        {
+            'name': 'moonshot/kimi-k2.5',
+            'key_names': ['MOONSHOT_API_KEY'],
+            'url': 'https://api.moonshot.cn/v1/chat/completions',
+            'model': 'kimi-k2.5',
+            'timeout': 12,
+        },
+        {
+            'name': 'aliyun/qwen-plus',
+            'key_names': ['ALIYUN_API_KEY', 'DASHSCOPE_API_KEY'],
+            'url': 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions',
+            'model': 'qwen-plus',
+            'timeout': 12,
+        },
+    ]
+
+
+def _sds_llm_provider_key(provider):
+    for key_name in provider.get('key_names', []):
+        key = _sds_load_env_value(key_name)
+        if key:
+            return key, key_name
+    return '', ''
+
+
+def _sds_call_openai_compatible(provider, prompt, max_tokens=2000, temperature=0.3):
+    import urllib.request
+    key, key_name = _sds_llm_provider_key(provider)
+    if not key:
+        raise RuntimeError('missing api key: ' + ','.join(provider.get('key_names', [])))
+    body = _sds_json.dumps({
+        'model': provider['model'],
+        'messages': [
+            {'role': 'system', 'content': '你是严谨、直接、可执行的系统分析助手。'},
+            {'role': 'user', 'content': prompt},
+        ],
+        'max_tokens': max_tokens,
+        'temperature': temperature,
+    }, ensure_ascii=False).encode('utf-8')
+    req = urllib.request.Request(
+        provider['url'],
+        data=body,
+        headers={'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key},
+        method='POST',
+    )
+    with urllib.request.urlopen(req, timeout=provider.get('timeout', 45)) as resp:
+        data = _sds_json.loads(resp.read().decode('utf-8'))
+    content = (((data.get('choices') or [{}])[0].get('message') or {}).get('content') or '').strip()
+    if not content:
+        raise RuntimeError('LLM returned empty content')
+    return content, provider['name']
+
+
+def _sds_user_task_llm(prompt, max_tokens=2000, temperature=0.3):
+    """v5.6: try multiple LLM providers before deterministic fallback."""
+    errors = []
+    for provider in _sds_llm_providers():
+        try:
+            return _sds_call_openai_compatible(provider, prompt, max_tokens=max_tokens, temperature=temperature)
+        except Exception as e:
+            errors.append(provider['name'] + ': ' + str(e)[:300])
+            continue
+    raise RuntimeError('all LLM providers failed; ' + ' | '.join(errors))
+
+def _sds_safe_user_task_llm(prompt, role, question, max_tokens=2000, temperature=0.3):
+    """v5.6 wrapper: multi-provider fallback first, deterministic fallback last."""
+    try:
+        return _sds_user_task_llm(prompt, max_tokens=max_tokens, temperature=temperature)
+    except Exception as e:
+        err = str(e)[:1200]
+        if role == 'agent1':
+            content = (
+                '1. 问题理解：收到用户通过Agent2发起的问题，需要给出可验证诊断。\n'
+                '2. 关键判断：多Provider LLM均临时失败，但Agent2→Agent1事件链路仍可记录；当前应先按系统探针/API/日志证据判断。\n'
+                f'3. 推理依据：user-task已创建，Agent2 ask事件已写入；多Provider错误摘要：{err}\n'
+                '4. 可执行建议：检查 /api/sds-crew/dialogue-events、/api/sds-crew/user-task/<task_id>、sds-crewai.service、nginx /sds-crew-dialogue 路由；任一Provider恢复后再重试智能分析。\n'
+                '5. 风险与需确认项：不要因为单次DNS/API失败修改模型链或删除fallback；只做降级记录与网络/配置诊断。'
+            )
+        else:
+            content = (
+                '🐕 Agent2自动总结 🐕\n'
+                f'- 问题：{question}\n'
+                '- 结论：任务链路已进入降级完成模式；多Provider均失败时也不再导致整条链路失败。\n'
+                '- Agent1核心依据：Agent2已写入用户任务和Agent2→Agent1提问事件；Agent1智能回答因所有外部Provider暂不可用而降级。\n'
+                f'- 证据：多Provider错误摘要：{err}\n'
+                '- 建议动作：继续核验页面、API、事件流、服务状态；不要删除fallback或调整单模型超时。\n'
+                '- 下一步：等待网络/模型恢复后可重新发起任务，或由系统探针给出确定性诊断。'
+            )
+        return content, 'deterministic-fallback'
+
+def _sds_run_user_task(task_id, question):
+    meta = {'task_id': task_id, 'source': 'user_task'}
+    try:
+        _sds_crew_append_events([
+            _sds_event('user', '刘宇宙', 'YuZhouProxyAgent', 'user_task', f'用户发起Agent2任务：\n{question}', meta),
+            _sds_event('agent1', 'YuZhouProxyAgent', 'SDSDoctorAgent', 'ask',
+                'Agent2按标准协议向Agent1提问：\n'
+                f'问题ID: {task_id}\n'
+                f'目标: 回答刘宇宙的问题，并给出可验证依据、行动建议、风险边界。\n'
+                f'用户原问题: {question}\n'
+                '请输出: 1) 问题理解 2) 关键判断 3) 推理依据 4) 可执行建议 5) 风险/需确认项。',
+                {**meta, 'protocol_key': 'agent2_ask_agent1'})
+        ])
+
+        agent1_prompt = f"""
+你是 Agent1 / SDSDoctorAgent，是给 Agent2 提供专业分析与执行建议的系统医生。
+请严格回答刘宇宙通过 Agent2 发来的问题。
+
+【用户问题】
+{question}
+
+【输出要求】
+1. 问题理解：一句话复述
+2. 关键判断：直接给结论
+3. 推理依据：列出证据/逻辑
+4. 可执行建议：按优先级列步骤
+5. 风险与需确认项：哪些需要刘宇宙确认
+
+要求：具体、可执行、不要空话。如果信息不足，明确说明需要补什么。
+""".strip()
+        agent1_answer, agent1_model = _sds_safe_user_task_llm(agent1_prompt, 'agent1', question, max_tokens=2500, temperature=0.3)
+        _sds_crew_append_events([
+            _sds_event('agent1', 'SDSDoctorAgent', 'YuZhouProxyAgent', 'answer', agent1_answer, {**meta, 'model': agent1_model})
+        ])
+
+        agent2_prompt = f"""
+你是 Agent2 / YuZhouProxyAgent，是刘宇宙的代理与裁决者。
+请把 Agent1 的回答整理成刘宇宙能直接看的最终答复。
+
+刘宇宙刚明确要求：Agent2 给他的回复不要那么格式化，要说人话。
+所以不要写“🐕 Agent2自动总结 🐕”，不要使用固定报告栏目，不要列一堆模板字段。
+
+刘宇宙原问题：
+{question}
+
+Agent1回答：
+{agent1_answer}
+
+请用自然口吻回复：
+- 第一段直接说结论。
+- 后面最多 2-4 条短句，说清 Agent1 做了什么、你怎么判断、下一步要不要刘宇宙确认。
+- 简洁、直接、有信息密度；不要说你是AI；不要伪装成自己亲自执行了 Agent1 的工作。
+""".strip()
+        agent2_summary, agent2_model = _sds_safe_user_task_llm(agent2_prompt, 'agent2', question, max_tokens=1600, temperature=0.2)
+        _sds_crew_append_events([
+            _sds_event('user', 'YuZhouProxyAgent', '刘宇宙', 'problem_summary', agent2_summary, {**meta, 'model': agent2_model, 'status': 'completed'})
+        ])
+    except Exception as e:
+        _sds_crew_append_events([
+            _sds_event('user', 'YuZhouProxyAgent', '刘宇宙', 'problem_summary',
+                '【Agent2自动问题总结】\n'
+                f'问题：用户发起任务 {task_id}\n'
+                '结果：失败\n'
+                f'证据：{str(e)[:1800]}\n'
+                '下一步：请检查 LLM 配置或稍后重试。',
+                {**meta, 'status': 'failed'})
+        ])
+
+
+
+def _sds_queue_auth_ok():
+    expected = os.environ.get('SDS_CREW_QUEUE_TOKEN') or os.environ.get('SDS_CREW_EVENT_TOKEN') or ''
+    # If no token is configured, allow same-machine/dev access only; production should configure token.
+    if not expected:
+        return True
+    return request.headers.get('X-SDS-Crew-Token') == expected
+
+
+def _sds_json_file_load(path, default):
+    try:
+        if not path.exists():
+            return default
+        return _sds_json.loads(path.read_text(encoding='utf-8') or 'null') or default
+    except Exception:
+        return default
+
+
+def _sds_json_file_save(path, data):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(path.suffix + '.tmp')
+    tmp.write_text(_sds_json.dumps(data, ensure_ascii=False, indent=2), encoding='utf-8')
+    tmp.replace(path)
+
+
+def _sds_task_store_load():
+    data = _sds_json_file_load(_SDS_CREW_TASKS_FILE, {'tasks': []})
+    if not isinstance(data, dict):
+        data = {'tasks': []}
+    if not isinstance(data.get('tasks'), list):
+        data['tasks'] = []
+    return data
+
+
+def _sds_task_store_save(data):
+    _sds_json_file_save(_SDS_CREW_TASKS_FILE, data)
+
+
+def _sds_find_task(data, task_id):
+    for t in data.get('tasks', []):
+        if t.get('task_id') == task_id:
+            return t
+    return None
+
+
+def _sds_latest_heartbeat():
+    hb = _sds_json_file_load(_SDS_CREW_HEARTBEAT_FILE, {})
+    if not isinstance(hb, dict):
+        hb = {}
+    return hb
+
+
+
+@app.route('/api/sds-crew/status-lights', methods=['GET'])
+def sds_crew_status_lights():
+    """v5.8.2/v5.6.3: server is display/queue; Mac mini is the Agent/LLM executor."""
+    import subprocess
+    now = datetime.now().isoformat(timespec='seconds')
+    lights = {
+        'api': {'ok': True, 'label': 'API', 'detail': 'backend responding', 'checked_at': now},
+        'events': {'ok': False, 'label': '事件流', 'detail': '', 'checked_at': now},
+        'crew_service': {'ok': False, 'label': 'Crew service', 'detail': '', 'checked_at': now},
+        'mac_agent': {'ok': False, 'label': 'Mac mini Agent', 'detail': 'no heartbeat', 'checked_at': now},
+        'llm': {'ok': False, 'label': 'LLM', 'detail': 'runs on Mac mini; waiting heartbeat', 'checked_at': now},
+        'latest_task': {'ok': False, 'label': '最近任务', 'detail': 'no user task found', 'checked_at': now},
+    }
+    try:
+        exists = _SDS_CREW_EVENTS_FILE.exists()
+        size = _SDS_CREW_EVENTS_FILE.stat().st_size if exists else 0
+        rows = _sds_crew_read_events(limit=500)
+        lights['events'].update({'ok': exists and size >= 0, 'detail': f'{len(rows)} recent events, file {size} bytes'})
+        task_rows = [r for r in rows if r.get('meta', {}).get('task_id')]
+        if task_rows:
+            task_id = task_rows[-1].get('meta', {}).get('task_id')
+            same = [r for r in rows if r.get('meta', {}).get('task_id') == task_id]
+            status = 'running'
+            latest_model = ''
+            for r in reversed(same):
+                latest_model = (r.get('meta') or {}).get('model') or latest_model
+                if r.get('event_type') in ['problem_summary', 'agent2_user_summary', 'approval_execution_summary']:
+                    status = r.get('meta', {}).get('status') or 'completed'
+                    break
+            lights['latest_task'].update({'ok': status in ['completed', 'running'], 'detail': f'{task_id} status={status}, events={len(same)}, model={latest_model or "mac-agent"}', 'task_id': task_id, 'status': status, 'model': latest_model})
+    except Exception as e:
+        lights['events']['detail'] = str(e)[:300]
+    try:
+        r = subprocess.run(['systemctl', 'is-active', 'sds-crewai.service'], capture_output=True, text=True, timeout=3)
+        active = (r.stdout.strip() == 'active')
+        lights['crew_service'].update({'ok': active, 'detail': 'display/queue service active' if active else (r.stdout.strip() or r.stderr.strip()[:200])})
+    except Exception as e:
+        lights['crew_service']['detail'] = str(e)[:300]
+    hb = _sds_latest_heartbeat()
+    try:
+        hb_ts = hb.get('ts') or ''
+        age = 999999
+        if hb_ts:
+            age = (datetime.now() - datetime.fromisoformat(hb_ts.replace('Z',''))).total_seconds()
+        mac_ok = age < 90
+        detail = f"{hb.get('worker_id','mac-mini')} age={int(age)}s status={hb.get('status','unknown')}" if hb else 'no heartbeat'
+        lights['mac_agent'].update({'ok': mac_ok, 'detail': detail, 'heartbeat': hb})
+        llm_status = hb.get('llm_status') or {}
+        llm_ok = bool(mac_ok and llm_status.get('ok', True))
+        lights['llm'].update({'ok': llm_ok, 'detail': 'executed on Mac mini; server has no LLM keys' + (f"; {llm_status.get('detail')}" if llm_status.get('detail') else ''), 'mac_report': llm_status})
+    except Exception as e:
+        lights['mac_agent']['detail'] = str(e)[:300]
+    return jsonify({'success': True, 'version': 'v5.8.2-mac-agent', 'architecture': 'aliyun-display-queue/mac-mini-agent-executor', 'lights': lights})
+
+@app.route('/api/sds-crew/user-task', methods=['POST'])
+def sds_crew_user_task():
+    """v5.6.3: create pending task only. Real Agent/LLM execution happens on Mac mini worker."""
+    payload = request.get_json(silent=True) or {}
+    question = str(payload.get('question') or payload.get('message') or '').strip()
+    if not question:
+        return jsonify({'success': False, 'error': 'question is required'}), 400
+    if len(question) > 4000:
+        return jsonify({'success': False, 'error': 'question too long, max 4000 chars'}), 400
+    task_id = 'ut-' + datetime.now().strftime('%Y%m%d%H%M%S%f')
+    now = datetime.now().isoformat(timespec='seconds')
+    task = {'task_id': task_id, 'question': question, 'status': 'pending', 'created_at': now, 'updated_at': now, 'source': str(payload.get('source') or 'dashboard'), 'attempts': 0}
+    data = _sds_task_store_load()
+    data['tasks'].append(task)
+    data['tasks'] = data['tasks'][-500:]
+    _sds_task_store_save(data)
+    _sds_crew_append_events([
+        # Do not echo dashboard submission as user dialogue. The Mac mini worker
+        # writes the real user_task when it actually claims and executes the job.
+        # Keeping this as an internal queue event prevents the user window from
+        # showing the same utterance twice (dashboard enqueue + worker execution).
+        _sds_event('agent1', 'KanbanQueue', 'MacMiniSDSCrewWorker', 'queued', f'任务已进入阿里云展示队列，等待 Mac mini Agent 领取：{task_id}', {'task_id': task_id, 'source': 'dashboard', 'status': 'pending', 'architecture': 'mac-mini-agent-executor', 'question_preview': question[:200]})
+    ])
+    return jsonify({'success': True, 'task_id': task_id, 'status': 'pending', 'executor': 'mac-mini-agent-worker'})
+
+@app.route('/api/sds-crew/pending-tasks', methods=['GET'])
+def sds_crew_pending_tasks():
+    if not _sds_queue_auth_ok():
+        return jsonify({'success': False, 'error': 'forbidden'}), 403
+    limit = max(1, min(int(request.args.get('limit', 10) or 10), 50))
+    data = _sds_task_store_load()
+    tasks = [t for t in data.get('tasks', []) if t.get('status') in ['pending', 'claimed']]
+    return jsonify({'success': True, 'tasks': tasks[:limit], 'total': len(tasks)})
+
+@app.route('/api/sds-crew/claim-task', methods=['POST'])
+def sds_crew_claim_task():
+    if not _sds_queue_auth_ok():
+        return jsonify({'success': False, 'error': 'forbidden'}), 403
+    payload = request.get_json(silent=True) or {}
+    worker_id = str(payload.get('worker_id') or 'mac-mini')[:80]
+    requested = str(payload.get('task_id') or '')
+    now = datetime.now().isoformat(timespec='seconds')
+    data = _sds_task_store_load()
+    chosen = None
+    for t in data.get('tasks', []):
+        if requested and t.get('task_id') != requested:
+            continue
+        if t.get('status') == 'pending':
+            chosen = t
+            break
+    if not chosen:
+        return jsonify({'success': True, 'task': None, 'status': 'empty'})
+    chosen['status'] = 'claimed'
+    chosen['worker_id'] = worker_id
+    chosen['claimed_at'] = now
+    chosen['updated_at'] = now
+    chosen['attempts'] = int(chosen.get('attempts') or 0) + 1
+    _sds_task_store_save(data)
+    _sds_crew_append_events([_sds_event('agent1', 'MacMiniSDSCrewWorker', 'YuZhouProxyAgent', 'claimed', f'Mac mini Agent 已领取任务：{chosen.get("task_id")}', {'task_id': chosen.get('task_id'), 'worker_id': worker_id, 'status': 'claimed'})])
+    return jsonify({'success': True, 'task': chosen, 'status': 'claimed'})
+
+@app.route('/api/sds-crew/complete-task', methods=['POST'])
+def sds_crew_complete_task():
+    if not _sds_queue_auth_ok():
+        return jsonify({'success': False, 'error': 'forbidden'}), 403
+    payload = request.get_json(silent=True) or {}
+    task_id = str(payload.get('task_id') or '')
+    status = str(payload.get('status') or 'completed')
+    if status not in ['completed', 'failed']:
+        status = 'completed'
+    data = _sds_task_store_load()
+    t = _sds_find_task(data, task_id)
+    if not t:
+        return jsonify({'success': False, 'error': 'task not found'}), 404
+    t['status'] = status
+    t['updated_at'] = datetime.now().isoformat(timespec='seconds')
+    t['completed_at'] = t['updated_at']
+    t['summary'] = str(payload.get('summary') or '')[:1000]
+    if payload.get('error'):
+        t['error'] = str(payload.get('error'))[:2000]
+    _sds_task_store_save(data)
+    return jsonify({'success': True, 'task': t})
+
+@app.route('/api/sds-crew/worker-heartbeat', methods=['POST'])
+def sds_crew_worker_heartbeat():
+    if not _sds_queue_auth_ok():
+        return jsonify({'success': False, 'error': 'forbidden'}), 403
+    payload = request.get_json(silent=True) or {}
+    hb = {
+        'worker_id': str(payload.get('worker_id') or 'mac-mini')[:80],
+        'ts': datetime.now().isoformat(timespec='seconds'),
+        'status': str(payload.get('status') or 'ok')[:80],
+        'version': str(payload.get('version') or 'v5.6.3')[:80],
+        'llm_status': payload.get('llm_status') if isinstance(payload.get('llm_status'), dict) else {},
+    }
+    _sds_json_file_save(_SDS_CREW_HEARTBEAT_FILE, hb)
+    return jsonify({'success': True, 'heartbeat': hb})
+
+@app.route('/api/sds-crew/user-task/<task_id>', methods=['GET'])
+def sds_crew_user_task_status(task_id):
+    rows = [r for r in _sds_crew_read_events(limit=1000) if r.get('meta', {}).get('task_id') == task_id]
+    data = _sds_task_store_load()
+    task = _sds_find_task(data, task_id) or {}
+    status = task.get('status') or 'running'
+    for r in reversed(rows):
+        if r.get('event_type') in ['problem_summary', 'agent2_user_summary', 'approval_execution_summary']:
+            status = r.get('meta', {}).get('status') or 'completed'
+            break
+    return jsonify({'success': True, 'task_id': task_id, 'status': status, 'task': task, 'events': rows})
+
+

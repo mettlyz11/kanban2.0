@@ -67,6 +67,8 @@ import KnowledgeLibrary from './pages/KnowledgeLibrary'
 import Contacts from './pages/Contacts'
 import SysConfig from './pages/SysConfig'
 import KanbanOverview from './pages/KanbanOverview'
+import ActorPipeline from "./pages/ActorPipeline"
+import SDSCrewDialogue from "./pages/SDSCrewDialogue"
 
 function LocationTracker() {
   const location = useLocation();
@@ -157,7 +159,9 @@ export default function Router() {
           <Route path="/knowledge-library" element={<KnowledgeLibrary />} />
           <Route path="/contacts" element={<Contacts />} />
           <Route path="/sys-config" element={<SysConfig />} />
+          <Route path="/actor-pipeline" element={<ActorPipeline />} />
           <Route path="/overview" element={<KanbanOverview />} />
+          <Route path="/sds-crew-dialogue" element={<SDSCrewDialogue />} />
         </Route>
       </Routes>
     </BrowserRouter>

@@ -14,6 +14,46 @@ logger = __import__("logging").getLogger(__name__)
 # Upload directory config
 UPLOAD_DIR = "/opt/kanban-react/backend/uploads"
 
+
+def _truncate_for_list(value, max_chars=800):
+    """Return a safe list-view string while preserving useful context."""
+    if value is None:
+        return value
+    text = str(value)
+    if len(text) <= max_chars:
+        return text
+    return text[:max_chars] + f"... [truncated {len(text) - max_chars} chars; use fields=full for complete value]"
+
+
+def _compact_task_for_list(task):
+    """Trim heavy text fields for task-list responses without changing schema."""
+    if not isinstance(task, dict):
+        return task
+    limits = {
+        # List cards only need previews; fields=full keeps complete values.
+        'description': 240,
+        'text_description': 240,
+        'notes': 200,
+        'execution_log': 240,
+        'result_summary': 300,
+        'task_summary': 240,
+        'acceptance_criteria': 240,
+        'review_feedback': 240,
+        'remaining_issues': 240,
+        'improvement_suggestions': 240,
+        'stage_history': 240,
+        'user_rules': 200,
+        'user_approval_notes': 200,
+        'blocked_reason': 160,
+        'difficulty_reason': 160,
+    }
+    out = dict(task)
+    for key, max_chars in limits.items():
+        if key in out:
+            out[key] = _truncate_for_list(out.get(key), max_chars)
+    out['_fields'] = 'compact'
+    return out
+
 @bp.route('/api/tasks/', methods=['GET'])
 @bp.route('/api/tasks', methods=['GET'])
 def get_tasks():
@@ -94,15 +134,36 @@ def get_tasks():
             query += ' AND (YEAR(t.created_at) = YEAR(CURDATE()) AND MONTH(t.created_at) = MONTH(CURDATE()) OR YEAR(t.updated_at) = YEAR(CURDATE()) AND MONTH(t.updated_at) = MONTH(CURDATE()))'
 
     # 排序与分页
-    page = request.args.get('page', 1, type=int)
-    per_page = request.args.get('per_page', 5000, type=int)
-    per_page = min(per_page, 5000)
+    # 兼容历史前端：仍支持 per_page；新增 limit 别名，避免 /api/tasks?limit=1 被忽略。
+    # 原默认 per_page=5000 会导致约 30MB 响应，线上默认降到 50；显式请求最多 1000。
+    page = request.args.get('page', 1, type=int) or 1
+    requested_per_page = request.args.get('per_page', type=int)
+    requested_limit = request.args.get('limit', type=int)
+    if requested_limit is not None and requested_per_page is None:
+        per_page = requested_limit
+    elif requested_per_page is not None:
+        per_page = requested_per_page
+    else:
+        per_page = 50
+    page = max(1, page)
+    per_page = max(1, min(per_page, 1000))
     offset = (page - 1) * per_page
+
+    # Count uses the same filters without ORDER/LIMIT so clients can page safely.
+    count_query = 'SELECT COUNT(*) as total FROM (' + query + ') _tasks_count'
+    c.execute(count_query, tuple(params))
+    total_row = c.fetchone()
+    total = int((total_row or {}).get('total', 0))
     
     query += f' ORDER BY t.{sort_field} {sort_order.upper()} LIMIT {per_page} OFFSET {offset}'
 
     c.execute(query, tuple(params))
     tasks = [row_to_dict(row, c) for row in c.fetchall()]
+
+    fields = (request.args.get('fields') or request.args.get('view') or 'compact').lower()
+    compact = fields not in ['full', 'all', 'raw']
+    if compact:
+        tasks = [_compact_task_for_list(task) for task in tasks]
     
     # 补充依赖关系（从 task_dependencies 表读取）
     for task in tasks:
@@ -114,7 +175,17 @@ def get_tasks():
     
     conn.close()
 
-    return jsonify({'success': True, 'tasks': tasks})
+    return jsonify({
+        'success': True,
+        'tasks': tasks,
+        'fields': 'compact' if compact else 'full',
+        'pagination': {
+            'page': page,
+            'per_page': per_page,
+            'total': total,
+            'has_more': (offset + len(tasks)) < total,
+        }
+    })
 
 @bp.route('/api/tasks/stats', methods=['GET'])
 def get_tasks_stats():
@@ -610,15 +681,23 @@ def get_stats():
     c.execute('SELECT COUNT(*) FROM projects WHERE status != "deleted"')
     project_count = list(c.fetchone().values())[0]
 
-    # 任务统计
-    c.execute('SELECT COUNT(*) FROM tasks WHERE status != "deleted"')
-    task_count = list(c.fetchone().values())[0]
-
-    c.execute("SELECT COUNT(*) FROM tasks WHERE status = 'done'")
-    completed_count = list(c.fetchone().values())[0]
-
-    c.execute("SELECT COUNT(*) FROM tasks WHERE status = 'progress'")
-    in_progress_count = list(c.fetchone().values())[0]
+    # 任务统计：兼容历史 done/progress/todo 与当前 completed/in_progress/pending 状态。
+    c.execute('''
+        SELECT status, COUNT(*) AS count
+        FROM tasks
+        WHERE status != "deleted"
+        GROUP BY status
+    ''')
+    task_status_counts = {}
+    for row in c.fetchall():
+        row_dict = row_to_dict(row, c)
+        task_status_counts[row_dict['status']] = int(row_dict['count'])
+    task_count = sum(task_status_counts.values())
+    completed_count = task_status_counts.get('completed', 0) + task_status_counts.get('done', 0)
+    in_progress_count = task_status_counts.get('in_progress', 0) + task_status_counts.get('progress', 0)
+    todo_count = sum(task_status_counts.get(s, 0) for s in [
+        'pending', 'todo', 'pending_review', 'pending_actor_review', 'waiting_for_user', 'needs_human'
+    ])
 
     # 股票统计
     c.execute('SELECT COUNT(*) FROM stocks')
@@ -634,7 +713,8 @@ def get_stats():
                 'total': task_count,
                 'done': completed_count,
                 'progress': in_progress_count,
-                'todo': task_count - completed_count - in_progress_count
+                'todo': todo_count,
+                'by_status': task_status_counts
             },
             'stocks': stock_count
         }

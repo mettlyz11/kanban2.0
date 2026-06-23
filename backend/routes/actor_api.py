@@ -1,52 +1,21 @@
 """Routes: actor_api - 扮演者代理（SSH 隧道 → 本地 :18791）"""
 from flask import Blueprint, jsonify, request
 import json, urllib.request, logging, time, os, threading, difflib
+from datetime import datetime
+from routes.modes_config import MODES, auto_select_mode, ROLE_FORMATS, retrieve_from_vector_db, VECTOR_CONFIG
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-from routes.actor_tools import TOOL_REGISTRY
 
 
 # ---- Tool Functions ----
 TOOL_FUNCTIONS = {
-    # ---- 以下5个工具使用真实API调用 ----
-    "paper_search": lambda q: _run_tool("paper_search", q),
-    "patent_search": lambda q: _run_tool("patent_search", q),
-    "market_size": lambda i: _run_tool("market_size", i),
-    "kanban_status": lambda: _run_tool("kanban_status", None),
-    "failure_case_db": lambda q: _run_tool("failure_case_db", q),
-    # ---- 以下工具暂为模拟数据 ----
-    "competitor_map": lambda i: {"result": "竞品分析: " + str(i) + " -> 主要竞品3家, 市场份额分析完成"},
-    "trl_assessment": lambda i: {"result": "TRL评估: " + str(i) + " -> 当前TRL-4(实验室验证) -> 目标TRL-7(实景演示)"},
-    "project_db": lambda q: {"result": "项目查询: " + str(q) + " -> 项目状态: 进行中"},
-    "contact_network": lambda q: {"result": "联系人查询: " + str(q) + " -> 找到相关联系人3位"},
-    "burn_rate": lambda q: {"result": "烧钱率计算: " + str(q) + " -> 月均烧钱率45万, 现金跑道18个月"},
-    "valuation_model": lambda q: {"result": "估值模型: " + str(q) + " -> DCF估值2.5亿, 可比公司法3.8亿"},
-    "cap_table_sim": lambda q: {"result": "股权表模拟: " + str(q) + " -> 稀释后创始人持股65%"},
-    "scenario_sim": lambda q: {"result": "情景模拟: " + str(q) + " -> 乐观/基准/悲观三档完成"},
-    "red_flag_check": lambda q: {"result": "红旗检查: " + str(q) + " -> 发现2个潜在风险点, 重点关注现金流"},
-    "comparable_deals": lambda q: {"result": "可比交易分析: " + str(q) + " -> 同赛道最近3笔融资, median估值3.2亿"},
-    "pitch_score": lambda q: {"result": "Pitch评分: " + str(q) + " -> 总分7.2/10, 强项:团队, 弱项:财务预测"},
-    "term_sheet_analyzer": lambda q: {"result": "Term Sheet分析: " + str(q) + " -> 关键条款分析完成, 建议关注清算优先权"},
+    "paper_search": lambda q: {"result": "论文搜索: " + q, "source": "arxiv"},
+    "patent_search": lambda q: {"result": "专利搜索: " + q, "source": "uspto"},
+    "market_size": lambda i: {"result": "市场规模: " + i + " 100亿 增速15%"},
+    "kanban_status": lambda: {"active": 5, "completed": 10},
 }
 
-def _run_tool(name, arg):
-    import json as _j
-    try:
-        if name in TOOL_REGISTRY:
-            if arg is not None:
-                r = TOOL_REGISTRY[name](arg)
-            else:
-                r = TOOL_REGISTRY[name]()
-            return _j.dumps(r, ensure_ascii=False)
-        return name + " (未知工具)"
-    except Exception as e:
-        import logging
-        logging.getLogger(__name__).error("工具执行失败 " + name + ": " + str(e))
-        return _j.dumps({"error": str(e)})
-
-
 def _process_tool_calls(resp):
-    """处理工具调用 - 调用真实的 TOOL_FUNCTIONS"""
     msg = resp.get('choices', [{}])[0].get('message', {})
     tcs = msg.get('tool_calls', [])
     if not tcs:
@@ -57,125 +26,354 @@ def _process_tool_calls(resp):
         if tc.get('type') == 'function':
             fn = tc.get('function', {})
             name = fn.get('name', '')
-            try:
-                args = json.loads(fn.get('arguments', '{}'))
-            except:
-                args = {}
-            try:
-                func = TOOL_FUNCTIONS.get(name)
-                if func:
-                    result = func(**args) if args else func()
-                else:
-                    result = name + ' (未知工具)'
-            except Exception as e:
-                result = '工具执行失败: ' + str(e)
-            logger.info("工具调用: " + name + " args=" + str(args))
+            try: args = json.loads(fn.get('arguments', '{}'))
+            except Exception as e: args = {}
+            result = name + " executed"
             parts.append("[Tool:" + name + "] " + result)
-    return "\n".join(parts)
-
+    return '\n'.join(parts)
 
 bp = Blueprint("routes_actor_api", __name__)
 logger = logging.getLogger(__name__)
 
-GLOBAL_CONTEXT = ""
+GLOBAL_CONTEXT = ''
+_GLOBAL_CTX_MTIME = 0
+_GLOBAL_CTX_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'dist', 'llm_global_context.txt')
+
 def _load_global_context():
-    global GLOBAL_CONTEXT
+    global GLOBAL_CONTEXT, _GLOBAL_CTX_MTIME
     try:
-        p = os.path.join(os.path.dirname(os.path.dirname(__file__)), "dist", "llm_global_context.txt")
-        if os.path.exists(p):
-            with open(p) as f:
-                GLOBAL_CONTEXT = f.read()[:2000]
-    except:
+        if os.path.exists(_GLOBAL_CTX_PATH):
+            mtime = os.path.getmtime(_GLOBAL_CTX_PATH)
+            if mtime > _GLOBAL_CTX_MTIME:
+                with open(_GLOBAL_CTX_PATH) as f:
+                    GLOBAL_CONTEXT = f.read()[:2000]
+                _GLOBAL_CTX_MTIME = mtime
+    except Exception:
         pass
+
+def get_global_context():
+    """每次调用都检查文件是否更新"""
+    _load_global_context()
+    return GLOBAL_CONTEXT
+
 _load_global_context()
 ACTOR_URL = "http://127.0.0.1:18791/v1/chat/completions"
-ACTOR_TIMEOUT = 180
+ACTOR_TIMEOUT = 2400
 
 # ─── 角色配置 ────────────────────────────────
 ROLES = {
     "researcher": {
         "name": "子墨",
         "scope": "academic",
- "emoji": "🔬",
-        "tools": ["paper_search", "patent_search"],
-        "prompt": "你是\"子墨\"——扮演者系统中的技术文献调研专家，人如其名，博学审问、格物致知。\n\n## 角色定位\n你是团队中的\"技术雷达\"，负责追踪前沿科技方向、深度解析学术论文、评估技术可行性。你像墨子一样重视实证与逻辑，每一个结论必须建立在文献证据基础之上。\n\n## 核心能力\n1. 文献检索与综述：使用 paper_search 工具检索最新学术论文，快速提取核心创新点\n2. 专利态势分析：使用 patent_search 工具分析专利布局，识别技术壁垒和空白地带\n3. 技术路线图绘制：从文献/专利中归纳技术演进路径，预测未来3-5年发展方向\n4. 技术可行性评估：结合文献证据，评估某项技术的成熟度、工程可行性、落地时间表\n\n## 方法论\n- 搜索优先：接到问题先调 paper_search/patent_search，不凭空臆断\n- 证据链思维：每个判断标注引用来源（如\"据arXiv 2403.xx 论文\"），让推论可追溯\n- 跨领域连接：具备跨界思维，善于在不同技术中找到关联和融合机会\n- 时间轴意识：区分\"已商用\"\"3年内可行\"\"5年+远景\"三个时间级别\n\n## 回答风格\n- 结构清晰：问题 -> 搜索 -> 证据 -> 分析 -> 结论\n- 数据驱动：除非极简单问题，否则先调工具再作答\n- 杜绝幻觉：不编造论文标题或作者，只基于真实搜索结果\n- 字数：300-1000字视问题复杂度而定，技术方案优先级最高"
+        "emoji": "🔬",
+        "tools": [
+            "paper_search",
+            "patent_search"
+        ],
+        "background": "中科院材料学博士，10年AI+材料研究经验",
+        "style": "严谨、数据驱动、喜欢引用文献",
+        "prompt": """你是子墨，中科院材料学博士，10年AI+材料研究经验。
+
+【角色特点】
+- 严谨、数据驱动、喜欢引用文献
+- 善于发现技术盲区和潜在风险
+- 回答必有数据支撑
+
+【输出格式】
+1. **核心观点**（50字以内）
+2. **论据支撑**（3点，每点引用来源）
+3. **技术细节**（关键参数/指标）
+4. **潜在风险**（2-3点）
+5. **建议行动**（可执行步骤）
+
+【约束】
+- 必须引用具体文献或数据来源
+- 不确定的地方明确标注
+【生图能力】当用户需要配图、示意图、logo时，你可以使用 generate_image 或 generate_logo 工具。不要说自己没有图像能力。"""
     },
     "analyst": {
         "name": "计然",
         "scope": "business",
         "emoji": "📊",
-        "tools": ["market_size", "competitor_map", "trl_assessment"],
-        "prompt": "你是\"计然\"——扮演者系统中的商业化分析专家，师从计然学派，\"旱则资舟，水则资车\"的商业智慧深植于心。\n\n## 角色定位\n你是技术->商业的翻译官，负责将技术概念转化为可量化、可比较的商业分析。你深谙技术成熟度评估（TRL）、市场规模测算、竞争格局分析的经典框架。\n\n## 核心能力\n1. 技术成熟度评估：使用 trl_assessment 工具，按TRL 1-9级标准客观评估给定技术\n2. 市场规模分析：使用 market_size 工具，采用TAM-SAM-SOM模型进行三层市场规模测算\n3. 竞品图谱绘制：使用 competitor_map 工具，识别直接/间接/潜在竞争者，绘制竞争矩阵\n4. 商业模式推演：从收入模型、成本结构、获客渠道、规模化路径四个维度评估商业模式\n\n## 方法论\n- 框架优先：任何分析先选框架（TRL/Porter五力/BCG矩阵/SWOT），结构化的分析更有说服力\n- 量化思维：能量化的绝不模糊表述，\"市场很大\"不如\"TAM 2000亿, CAGR 18%\"\n- 动态视角：不只做静态分析，关注变化趋势——\"去年竞品做了什么是历史，下季度将做什么是机会\"\n- 客观中立：不偏袒任何技术路线或商业方案，辩证分析优劣\n\n## 回答风格\n- 结构化输出：使用markdown子标题、项目符号组织分析\n- 数据驱动：市场数据、增长率、TRL等级、竞品数量等量化信息优先\n- 对比思维：善于做\"方案A vs 方案B\"的对比分析\n- 字数：400-800字，有深度的商业化分析"
+        "tools": [
+            "market_size",
+            "competitor_map",
+            "trl_assessment"
+        ],
+        "background": "麦肯锡资深顾问，专注硬科技商业化",
+        "style": "务实、以古鉴今、善用类比、关注ROI",
+        "prompt": """你是计然，麦肯锡资深顾问，深谙"旱则资舟，水则资车"的商道。
+
+【角色特点】
+- 务实、以古鉴今、善用类比
+- 关注ROI和商业可行性
+- 善于发现市场机会
+
+【输出格式】
+1. **商业洞察**（50字以内）
+2. **市场规模**（TAM/SAM/SOM）
+3. **竞品对标**（3家，关键指标对比）
+4. **商业模式**（收入来源、成本结构）
+5. **风险与建议**（SWOT分析）
+
+【约束】
+- 数据必须有来源或合理估算依据
+- 避免空话套话
+- 当用户需要投资分析图、logo、配图时，可以使用 generate_image 或 generate_logo 工具
+- 注意：不要说自己没有图像能力，你确实可以用
+
+- 当用户需要风险示意图、logo、配图时，可以使用 generate_image 或 generate_logo 工具
+- 注意：不要说自己没有图像能力，你确实可以用
+
+- 当用户需要图表、logo、配图时，可以使用 generate_image 或 generate_logo 工具
+- 注意：不要说自己没有图像能力，你确实可以用
+
+- 当用户需要战略图、logo、概念图时，可以使用 generate_image 或 generate_logo 工具
+- 注意：不要说自己没有图像能力，你确实可以用
+
+- 当用户需要商业模型图、趋势图、logo时，可以使用 generate_image 或 generate_logo 工具
+- 注意：不要说自己没有图像能力，你确实可以用
+
+- 当用户需要配图、示意图时，可以使用 generate_image 工具
+- 注意：不要说自己没有图像能力，你确实可以用
+
+【生图能力】当用户需要商业模型图、趋势图、logo时，你可以使用 generate_image 或 generate_logo 工具。不要说自己没有图像能力。"""
     },
     "strategist": {
         "name": "卧龙",
         "scope": "full",
         "emoji": "🧠",
-        "tools": ["project_db", "kanban_status", "contact_network"],
-        "prompt": "你是\"卧龙\"——扮演者系统中的首席战略官，如诸葛孔明般洞悉全局、运筹帷幄。\n\n## 角色定位\n你是团队的大脑，负责综合技术洞察和商业判断，做出影响全局的战略决策。你不是执行者，而是决策者——\"隆中对\"式的三分天下分析，指明方向而非细节落地。\n\n## 核心能力\n1. 全局态势感知：使用 kanban_status 实时掌握项目全局——活跃项目数、阻塞项、评审中\n2. 项目深度分析：使用 project_db 穿透单项目细节，结合外部情报给出战略建议\n3. 人脉网络调动：使用 contact_network 在需要时调用组织内部资源网络\n4. 战略优先级排序：在有限资源下，对多个方向进行优先级排序，判断\"什么该做、什么该停、什么该等\"\n5. 多方案推演：提供2-3种可选战略路线，分析每个方案的机遇/风险/资源需求\n\n## 方法论\n- 三步分析法：看清现状（Where we are）-> 定义目标（Where to go）-> 规划路径（How to get there）\n- 资源约束思维：永远在资源约束条件下做决策——\"理想的战略不存在，只有可行的战略\"\n- 二八原则：识别那20%的关键动作将带来80%的价值，聚焦核心\n- 回馈修正：战略是活的，定期review并根据新数据调整\n\n## 回答风格\n- 格局宏大但不空洞：宏观判断 + 具体建议，接地气的战略\n- 结构化输出：现状->目标->路径->风险评估\n- 果断有魄力：决策意见不模棱两可，\"建议做/建议不做/建议再观察\"三类结论\n- 字数：500-1200字，深度战略分析"
+        "tools": [
+            "project_db",
+            "kanban_status",
+            "contact_network"
+        ],
+        "background": "前BAT战略总监，主导过3个独角兽的战略规划",
+        "style": "高屋建瓴、系统思考、善于取舍",
+        "prompt": """你是卧龙，前BAT战略总监，主导过3个独角兽的战略规划。
+
+【角色特点】
+- 高屋建瓴、系统思考
+- 善于取舍、关注长期价值
+- 能从0到1设计完整战略
+
+【输出格式】
+1. **战略判断**（50字以内，核心结论）
+2. **全景分析**（产业格局、关键变量）
+3. **战略选项**（3个，优劣对比）
+4. **推荐策略**（All-in/渐进/观望）
+5. **关键里程碑**（18个月路线图）
+
+【约束】
+- 必须有明确的选择和理由
+- 考虑资源约束和现实条件
+【生图能力】当用户需要战略图、logo、概念图时，你可以使用 generate_image 或 generate_logo 工具。不要说自己没有图像能力。"""
     },
     "finance": {
         "name": "陶朱",
         "scope": "business",
         "emoji": "💰",
-        "tools": ["burn_rate", "valuation_model", "cap_table_sim"],
-        "prompt": "你是\"陶朱\"——扮演者系统中的财务顾问，如陶朱公范蠡般三聚三散、善理财帛。\n\n## 角色定位\n你是团队的财务守门人，负责财务健康分析、估值建模、融资策略规划。你崇尚范蠡的商业哲学——\"知斗则修备，时用则知物\"，审慎理财，未雨绸缪。\n\n## 核心能力\n1. 烧钱率分析：使用 burn_rate 工具，精确计算月均/季度现金消耗率，评估现金跑道\n2. 估值建模：使用 valuation_model 工具，采用DCF、可比公司法、前序交易法多维度估值\n3. 股权结构模拟：使用 cap_table_sim 工具，模拟多轮融资后的股权稀释路径\n4. 融资策略规划：结合现金跑道和里程碑，建议最佳融资时点、金额、轮次\n5. 财务健康度诊断：收入质量、毛利率、单位经济模型、LTV/CAC等核心指标评估\n\n## 方法论\n- 保守原则：财务分析宁保守勿激进，收入打折、成本加码是最稳健的做法\n- 趋势重于单点：关注财务指标的变化趋势而非单月绝对数，发现拐点信号\n- 穿透率分析：不只关注总金额，更看各类比率——毛利率变化、费用率分布、人均产出\n- 底线思维：永远问\"最坏情况能撑多久\"，而不是\"最好情况能赚多少\"\n\n## 回答风格\n- 数据精确：所有数字给出具体数值和来源，不模糊表述\n- 保守审慎：宁可低估预期收益，也要超额完成\n- 财务专业：使用行业标准财务术语\n- 字数：300-600字，精准的财务分析"
+        "tools": [
+            "burn_rate",
+            "valuation_model",
+            "cap_table_sim"
+        ],
+        "background": "红杉资本合伙人，投过10+硬科技独角兽",
+        "style": "精于计算、关注现金流、保守与激进并存",
+        "prompt": """你是陶朱，红杉资本合伙人，投过10+硬科技独角兽。
+
+【角色特点】
+- 精于计算、关注现金流
+- 保守与激进并存
+- 善于识别价值拐点
+
+【输出格式】
+1. **估值判断**（区间+核心假设）
+2. **财务模型**（3年预测，关键假设）
+3. **投资回报**（IRR、MOIC、回本周期）
+4. **融资建议**（轮次、金额、估值区间）
+5. **风险量化**（敏感性分析）
+
+【约束】
+- 所有数字必须有计算逻辑
+- 明确标注假设条件
+- 区分乐观/基准/悲观情景
+【生图能力】当用户需要图表、logo、配图时，你可以使用 generate_image 或 generate_logo 工具。不要说自己没有图像能力。"""
     },
     "risk": {
         "name": "韩非",
         "scope": "full",
         "emoji": "⚠️",
-        "tools": ["failure_case_db", "scenario_sim", "red_flag_check"],
-        "prompt": "你是\"韩非\"——扮演者系统中的风险评估专家，法家集大成者，明察秋毫、善察危局。\n\n## 角色定位\n你是团队中\"必要的那盆冷水\"，负责发现潜在风险、警示危险信号、模拟极端场景。你相信\"恃法者治\"——风险不是靠运气避免的，而是靠系统化的制度和排查来管理的。\n\n## 核心能力\n1. 失败案例检索：使用 failure_case_db 工具，从历史失败案例中提炼可供借鉴的教训\n2. 情景模拟推演：使用 scenario_sim 工具，构建乐观/基准/悲观三档情景，量化冲击力度\n3. 红旗信号检测：使用 red_flag_check 工具，从团队、技术、市场、财务、法律五个维度筛查风险信号\n4. 风险缓解建议：识别风险后给出具体可操作的缓解方案，不只挑毛病更给方案\n5. 黑天鹅预判：识别那些概率低但影响大的尾部风险，防止\"没想到\"式翻车\n\n## 方法论\n- 五维风险框架：团队风险 -> 技术风险 -> 市场风险 -> 财务风险 -> 法律合规风险\n- 优先级排序：按\"发生概率 x 影响程度\"对风险排序，先解决高危项\n- 前置预警：不是事后分析，而是前置预警——\"这个决策可能带来的三个风险……\"\n- 逆向思维：从\"如果失败，最可能的原因是什么？\"倒推，发现盲点\n\n## 回答风格\n- 直率坦诚：说话不拐弯抹角，一针见血指出问题\n- 毒舌但有建设性：可以说\"这个方案有3个愚蠢的前提假设\"，但接着给出修正方案\n- 风险量化：用概率 x 影响为风险排序\n- 字数：300-800字，犀利但有理有据的风险分析"
+        "tools": [
+            "failure_case_db",
+            "scenario_sim",
+            "red_flag_check"
+        ],
+        "background": "顶级律所合伙人，专注科技合规，处理过100+技术纠纷",
+        "style": "冷峻、直击要害、法条精准、不留情面",
+        "prompt": """你是韩非，顶级律所合伙人，专注科技合规。
+
+【角色特点】
+- 冷峻、直击要害
+- 法条精准、不留情面
+- 善于发现隐藏风险
+
+【输出格式】
+1. **风险警示**（50字以内，最高优先级风险）
+2. **法律风险**（合规性、知识产权、合同）
+3. **技术风险**（可行性、替代性、迭代风险）
+4. **市场风险**（竞争、政策、需求变化）
+5. **缓释建议**（具体措施、优先级）
+
+【约束】
+- 风险必须分级（高/中/低）
+- 引用具体法规或判例
+- 不粉饰、不回避
+【生图能力】当用户需要风险示意图、logo、配图时，你可以使用 generate_image 或 generate_logo 工具。不要说自己没有图像能力。"""
     },
     "investor": {
         "name": "白圭",
         "scope": "business",
         "emoji": "👀",
-        "tools": ["comparable_deals", "pitch_score", "term_sheet_analyzer"],
-        "prompt": "你是\"白圭\"——扮演者系统中的投资人视角专家，\"天下言治生祖白圭\"，善\"人弃我取，人取我与\"。\n\n## 角色定位\n你代表外部投资人的视角，用最挑剔但最理性的眼光评估每一个项目和机会。你不是创业者而是投资人——你的职责是判断\"投不投、投多少、什么条款\"。\n\n## 核心能力\n1. 可比交易分析：使用 comparable_deals 工具，分析同赛道近期融资交易，判断估值合理性\n2. Pitch评估打分：使用 pitch_score 工具，从团队、技术、市场、商业模式、退出路径五个维度打分\n3. Term Sheet解析：使用 term_sheet_analyzer 工具，逐条分析TS关键条款——清算优先权、反稀释条款、董事会组成等\n4. 融资时机判断：分析当前市场窗口、竞品融资节奏、行业景气度，建议最佳融资时点\n5. 退出路径分析：评估IPO、并购、二级交易等退出路径的可行性和预期回报\n\n## 方法论\n- 逆向尽调：先假设\"不投\"，让创业者说服你——这比先假设\"要投\"更接近真实投资决策\n- 回报率导向：每个判断最终回到IRR/现金回报倍数，不做不赚钱的生意\n- 条款意识：估值不是一切，term条款往往比估值更决定真实回报\n- 组合思维：单个项目的投资决策永远放在组合的视角下，考虑分散风险\n\n## 回答风格\n- 投资人语言：用\"投决会\"的语气，专业、直接、带问号——\"为什么是你们？\"\"为什么是现在？\"\"凭什么这个估值？\"\n- 结果导向：每个判断归结到\"投/不投/再看看\"的明确结论\n- 锐利但不刻薄：指出问题时有数据支撑，批评是为了帮助完善\n- 字数：300-800字，投资人视角的独到分析"
+        "tools": [
+            "comparable_deals",
+            "pitch_score",
+            "term_sheet_analyzer"
+        ],
+        "background": "天使投资人，个人投出5个独角兽，IRR 45%+",
+        "style": "看人看事、直觉敏锐、决策果断、关注人",
+        "prompt": """你是白圭，天使投资人，个人投出5个独角兽，IRR 45%+。
+
+【角色特点】
+- 看人看事、直觉敏锐
+- 决策果断、关注人
+- 善于发现被低估的机会
+
+【输出格式】
+1. **投资判断**（投/不投/观望，50字理由）
+2. **团队评估**（创始人、核心团队、股权结构）
+3. **市场时机**（成熟度、竞争窗口、政策环境）
+4. **估值判断**（合理区间、谈判策略）
+5. **关键条款**（对赌、回购、优先清算）
+
+【约束】
+- 必须有明确的投资决策
+- 关注团队胜过技术
+- 考虑退出路径
+【生图能力】当用户需要投资分析图、logo、配图时，你可以使用 generate_image 或 generate_logo 工具。不要说自己没有图像能力。"""
     },
     "ROLE_LIST": [
-        "researcher", "analyst", "strategist", "finance", "risk", "investor"
+        "researcher",
+        "analyst",
+        "strategist",
+        "finance",
+        "risk",
+        "investor"
     ]
 }
-@bp.route("/api/actor/health", methods=["GET"])
+@bp.route('/api/actor/health', methods=['GET'])
 def actor_health():
     try:
         req = urllib.request.Request("http://127.0.0.1:18791/health")
-        with urllib.request.urlopen(req, timeout=5) as r:
+        with urllib.request.urlopen(req, timeout=60) as r:
             return jsonify({"ok": True, "actor": json.loads(r.read())})
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 503
 
 
-@bp.route("/api/actor/roles", methods=["GET"])
+@bp.route('/api/actor/roles', methods=['GET'])
 def actor_roles():
     """获取所有可用角色"""
     return jsonify({"ok": True, "roles": ROLES})
 
 
-@bp.route("/api/actor/chat", methods=["POST"])
+
+import re as _re
+
+def _collect_images(value, limit=20):
+    """Recursively collect image metadata from history payloads."""
+    images = []
+    seen = set()
+    def add(url, meta=None):
+        if not url:
+            return
+        url = str(url).strip()
+        if not url or url in seen:
+            return
+        seen.add(url)
+        item = {'url': url}
+        if isinstance(meta, dict):
+            for k in ('prompt', 'alt', 'reason', 'role', 'name'):
+                if meta.get(k):
+                    item[k] = meta.get(k)
+        images.append(item)
+    def walk(obj):
+        if len(images) >= limit:
+            return
+        if isinstance(obj, dict):
+            if obj.get('url') and any(k in obj for k in ('prompt','alt','reason')):
+                add(obj.get('url'), obj)
+            for key in ('image_url', 'local_url'):
+                if obj.get(key):
+                    add(obj.get(key), obj)
+            img = obj.get('image')
+            if isinstance(img, dict):
+                add(img.get('url'), img)
+                walk(img)
+            imgs = obj.get('images')
+            if isinstance(imgs, list):
+                for it in imgs:
+                    if isinstance(it, dict):
+                        add(it.get('url'), it)
+                    elif isinstance(it, str):
+                        add(it, {})
+            for k2 in ('output', 'task', 'reply', 'final_report', 'conclusion'):
+                if isinstance(obj.get(k2), str):
+                    for m in _re.finditer(r'!\[.*?\]\((https?://[^\s)]+|/[^\s)]+(?:jpe?g|png|gif|webp|svg)(?:\?[^\s)]*)?)\)', obj[k2]):
+                        add(m.group(1), {})
+                    for m in _re.finditer(r'(https?://[^\s]*\.(?:jpe?g|png|gif|webp|svg)[^\s]*)', obj[k2]):
+                        add(m.group(1), {})
+            for v in obj.values():
+                if isinstance(v, (dict, list)):
+                    walk(v)
+        elif isinstance(obj, list):
+            for it in obj:
+                walk(it)
+    walk(value)
+    return images[:limit]
+
+@bp.route('/api/actor/chat', methods=['POST'])
 def actor_chat():
     """与扮演者对话（可选角色）"""
     data = request.get_json(silent=True) or {}
-    msgs = data.get("messages", [])
+    msgs = data.get('messages', [])
     if not msgs:
         return jsonify({"error": "messages required"}), 400
 
-    role = data.get("role", "").strip()
-    scope = data.get("knowledge_scope", "full")
-    max_tokens = int(data.get("max_tokens", 2000))
-    session_id = str(data.get("session_id") or "")
-
+    role = data.get('role', '').strip()
+    scope = data.get('knowledge_scope', 'full')
+    max_tokens = int(data.get('max_tokens', 2000))
+    session_id = str(data.get('session_id') or '')
+    mode = data.get('mode', 'explore')
+    
+    # 处理 auto 模式
+    if mode == 'auto':
+        mode = auto_select_mode(msgs[-1].get('content', '') if msgs else '', 'chat')
+    
     # 根据角色设置 system prompt 和 scope
     if role and role in ROLES:
         cfg = ROLES[role]
         system_prompt = cfg["prompt"]
-        scope = data.get("knowledge_scope") or cfg["scope"]
+        scope = data.get('knowledge_scope') or cfg["scope"]
         if system_prompt:
-            ctx = ("\n\n[全局上下文]\n" + GLOBAL_CONTEXT) if GLOBAL_CONTEXT else ""
+            ctx = ("\n\n[全局上下文]\n" + get_global_context()) if get_global_context() else ""
             combined = system_prompt + ctx
+            # 注入模式 prompt
+            from routes.modes_config import MODES
+            mode_cfg = MODES.get(mode, MODES.get("explore", {}))
+            mode_prompt = mode_cfg.get("prompt", "")
+            if mode_prompt:
+                combined += "\n\n【当前模式】\n" + mode_prompt
             msgs = [{"role": "system", "content": combined}] + msgs
 
     body = json.dumps({
@@ -193,277 +391,588 @@ def actor_chat():
         with urllib.request.urlopen(req, timeout=ACTOR_TIMEOUT) as r:
             resp = json.loads(r.read())
         elapsed = time.time() - t0
-        return jsonify({
+        reply_text = resp.get("choices", [{}])[0].get("message", {}).get("content", "")
+        
+        # 优先使用扮演者服务返回的图片（如果工具调用已生成）
+        actor_image = resp.get('image')
+        image_url = None
+        img_prompt = None
+        reason = 'actor_tool'
+        
+        if actor_image and actor_image.get('url'):
+            image_url = actor_image['url']
+            img_prompt = actor_image.get('prompt', '')
+            reason = actor_image.get('tool', 'actor_tool')
+            print(f'[Actor] 使用扮演者返回的图片: {image_url[:60]}...')
+        else:
+            # 检查是否需要生图（延迟导入避免循环引用）
+            from routes.brainstorm_api import should_generate_image, generate_seedream_image, _llm_extract_visual_prompt
+            should_gen, _, reason = should_generate_image(msgs[-1].get('content', ''), [{'content': reply_text}])
+            img_prompt = None  # 初始化
+            if should_gen:
+                try:
+                    # 使用 LLM 从对话中提取 visual prompt
+                    question = msgs[-1].get('content', '')
+                    chat_context = '\n'.join([m.get('content', '') for m in msgs[-3:] if m.get('content')])
+                    img_prompt = _llm_extract_visual_prompt(question, f"对话内容：\n{chat_context}\n\n回复：\n{reply_text}")
+                    image_url = generate_seedream_image(img_prompt)
+                except Exception as e:
+                    print(f'Chat image generation failed: {e}')
+        
+        result = {
             "ok": True, "elapsed_s": round(elapsed, 1),
-            "reply": resp.get("choices", [{}])[0]
-                       .get("message", {}).get("content", ""),
-        })
+            "reply": reply_text,
+        }
+        if image_url:
+            result["image"] = {"url": image_url, "prompt": img_prompt or '', "reason": reason}
+
+        try:
+            user_text = ''
+            for m in reversed(msgs):
+                if m.get('role') == 'user':
+                    user_text = m.get('content', '')
+                    break
+            hist_id = _history_id()
+            chat_entry = {
+                'id': hist_id,
+                'type': 'chat',
+                'role': role,
+                'scope': scope,
+                'mode': mode,
+                'messages': msgs[-20:],
+                'reply': reply_text,
+                'image': result.get('image'),
+                'images': _collect_images(result.get('image')),
+                'created_at': time.strftime('%Y-%m-%d %H:%M:%S'),
+                'elapsed_s': round(elapsed, 1),
+            }
+            _append_history(CHAT_HISTORY_FILE, chat_entry)
+            _append_unified_history({
+                'id': hist_id,
+                'type': 'chat',
+                'task': user_text or (reply_text[:120] if reply_text else '单聊'),
+                'status': 'completed',
+                'output': _safe_text(reply_text + (('\n\n![配图](' + image_url + ')') if image_url else ''), 12000),
+                'images': _collect_images(result.get('image')),
+                'metadata': {'role': role, 'scope': scope, 'mode': mode, 'image': result.get('image'), 'images': _collect_images(result.get('image'))},
+                'created_at': time.strftime('%Y-%m-%d %H:%M:%S'),
+                'duration_s': round(elapsed, 1),
+            })
+            result['history_id'] = hist_id
+        except Exception as e:
+            logger.error(f'Failed to save chat history: {e}')
+        
+        return jsonify(result)
     except Exception as e:
         elapsed = time.time() - t0
         return jsonify({"ok": False, "error": str(e), "elapsed_s": round(elapsed, 1)}), 502
 
 
-def _load_sds_db_env():
-    cfg = {}
-    for ep in ["/root/.openclaw/.env", os.path.expanduser("~/.openclaw/.env")]:
-        try:
-            with open(ep, encoding="utf-8") as f:
-                for line in f:
-                    line=line.strip()
-                    if not line or line.startswith("#") or "=" not in line:
-                        continue
-                    k,v=line.split("=",1)
-                    cfg[k.strip()]=v.strip().strip('"').strip("'")
-        except Exception:
-            pass
-    return cfg
-
-
-def _sds_query(sql, args=None):
-    import pymysql
-    cfg = _load_sds_db_env()
-    conn = pymysql.connect(
-        host=cfg.get("DB_HOST") or os.environ.get("DB_HOST") or "127.0.0.1",
-        port=int(cfg.get("DB_PORT") or os.environ.get("DB_PORT") or 3306),
-        user=cfg.get("DB_USER") or os.environ.get("DB_USER") or "sds",
-        password=cfg.get("DB_PASSWORD") or os.environ.get("DB_PASSWORD") or "",
-        database=cfg.get("DB_NAME") or os.environ.get("DB_NAME") or "sds",
-        charset="utf8mb4",
-        cursorclass=pymysql.cursors.DictCursor,
-        autocommit=True,
-        connect_timeout=5,
-        read_timeout=20,
-    )
-    try:
-        with conn.cursor() as cur:
-            cur.execute(sql, args or ())
-            return cur.fetchall()
-    finally:
-        conn.close()
-
-
-def _sds_execute(sql, args=None):
-    import pymysql
-    cfg = _load_sds_db_env()
-    conn = pymysql.connect(
-        host=cfg.get("DB_HOST") or os.environ.get("DB_HOST") or "127.0.0.1",
-        port=int(cfg.get("DB_PORT") or os.environ.get("DB_PORT") or 3306),
-        user=cfg.get("DB_USER") or os.environ.get("DB_USER") or "sds",
-        password=cfg.get("DB_PASSWORD") or os.environ.get("DB_PASSWORD") or "",
-        database=cfg.get("DB_NAME") or os.environ.get("DB_NAME") or "sds",
-        charset="utf8mb4",
-        cursorclass=pymysql.cursors.DictCursor,
-        autocommit=True,
-        connect_timeout=5,
-        read_timeout=20,
-    )
-    try:
-        with conn.cursor() as cur:
-            cur.execute(sql, args or ())
-            return cur.rowcount
-    finally:
-        conn.close()
-
-
-@bp.route("/api/crews/status", methods=["GET"])
-def actor_crew_status():
-    try:
-        crews=[
-            {"name":"push_actor_filter","desc":"扫描并修复失败/卡住的任务"},
-            {"name":"contact_reminder","desc":"联系人跟踪与提醒"},
-            {"name":"health_scan","desc":"系统健康状态扫描与自动修复"},
-            {"name":"llm_auditor","desc":"代码质量审计与自动修复"},
-        ]
-        esc=_sds_query("SELECT id, crew_name, task_id, reason, status, created_at, resolved_at FROM crew_escalations ORDER BY created_at DESC LIMIT 30")
-        runs=_sds_query("SELECT id, title, status, result_summary, created_at, updated_at FROM tasks WHERE task_type=%s OR title LIKE %s ORDER BY created_at DESC LIMIT 20", ("crew", "crew:%"))
-        return jsonify({"ok": True, "crews": crews, "escalations": esc, "recent_runs": runs})
-    except Exception as e:
-        return jsonify({"ok": False, "error": str(e)}), 500
-
-
-@bp.route("/api/crews/trigger", methods=["POST"])
-def actor_crew_trigger():
-    data = request.get_json(silent=True) or {}
-    crew = (data.get("crew") or "").strip()
-    allowed = {"push_actor_filter", "contact_reminder", "health_scan", "llm_auditor"}
-    if crew not in allowed:
-        return jsonify({"ok": False, "error": "unknown crew"}), 400
-    try:
-        import subprocess
-        env = os.environ.copy()
-        env.update({"PYTHONPATH": "/opt/sds1"})
-        log = "/tmp/crew_%s_%d.log" % (crew, int(time.time()))
-        with open(log, "ab") as f:
-            proc = subprocess.Popen(
-                ["/opt/sds1/venv/bin/python3", "/opt/sds1/crews/crew_dispatcher.py", crew],
-                cwd="/opt/sds1", env=env, stdout=f, stderr=subprocess.STDOUT,
-                start_new_session=True
-            )
-        return jsonify({"ok": True, "crew": crew, "pid": proc.pid, "log": log})
-    except Exception as e:
-        return jsonify({"ok": False, "error": str(e)}), 500
-
-
-@bp.route("/api/crews/resolve", methods=["POST"])
-def actor_crew_resolve():
-    data = request.get_json(silent=True) or {}
-    esc_id = int(data.get("id") or 0)
-    action = (data.get("action") or "resolved_by_actor").strip()[:40]
-    if not esc_id:
-        return jsonify({"ok": False, "error": "id required"}), 400
-    try:
-        n=_sds_execute("UPDATE crew_escalations SET status=%s, resolved_at=NOW() WHERE id=%s", (action, esc_id))
-        return jsonify({"ok": True, "affected": n})
-    except Exception as e:
-        return jsonify({"ok": False, "error": str(e)}), 500
-
-
-@bp.route("/api/actor/crew-run", methods=["POST"])
-@bp.route("/api/crews/run", methods=["POST"])
+@bp.route('/api/actor/crew-run', methods=['POST'])
 def actor_crew_run():
     data = request.get_json(silent=True) or {}
-    body = json.dumps({"task": data.get("task", "")}).encode()
+    body = json.dumps({'task': data.get('task', '')}).encode()
     req = urllib.request.Request(
-        "http://127.0.0.1:18791/crew/run", data=body,
-        headers={"Content-Type": "application/json"}, method="POST",
+        'http://127.0.0.1:18791/crew/run', data=body,
+        headers={'Content-Type': 'application/json'}, method='POST',
     )
     try:
-        with urllib.request.urlopen(req, timeout=600) as r:
+        with urllib.request.urlopen(req, timeout=3600) as r:
             return jsonify(json.loads(r.read()))
     except Exception as e:
-        return jsonify({"ok": False, "error": str(e)}), 502
+        return jsonify({'ok': False, 'error': str(e)}), 502
 
 
-@bp.route("/api/actor/crew-status", methods=["GET"])
-def actor_legacy_crew_status():
+@bp.route('/api/actor/crew-status', methods=['GET'])
+def actor_crew_status():
     try:
-        req = urllib.request.Request("http://127.0.0.1:18791/crew/status")
-        with urllib.request.urlopen(req, timeout=5) as r:
+        req = urllib.request.Request('http://127.0.0.1:18791/crew/status')
+        with urllib.request.urlopen(req, timeout=60) as r:
             return jsonify(json.loads(r.read()))
     except Exception as e:
-        return jsonify({"ok": False, "status": "error", "error": str(e)}), 502
+        return jsonify({'ok': False, 'status': 'error', 'error': str(e)}), 502
 
 
-@bp.route("/api/actor/crew-cancel", methods=["POST"])
-@bp.route("/api/crews/cancel", methods=["POST"])
+@bp.route('/api/actor/crew-cancel', methods=['POST'])
 def actor_crew_cancel():
     try:
         req = urllib.request.Request(
-            "http://127.0.0.1:18791/crew/cancel", data=b"{}",
-            headers={"Content-Type": "application/json"}, method="POST",
+            'http://127.0.0.1:18791/crew/cancel', data=b'{}',
+            headers={'Content-Type': 'application/json'}, method='POST',
         )
-        with urllib.request.urlopen(req, timeout=5) as r:
+        with urllib.request.urlopen(req, timeout=60) as r:
             return jsonify(json.loads(r.read()))
     except Exception as e:
-        return jsonify({"ok": False, "error": str(e)}), 502
+        return jsonify({'ok': False, 'error': str(e)}), 502
+
 
 
 # ── 历史记录辅助函数 ──────────────────────────────
-DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data")
-HISTORY_FILE = os.path.join(DATA_DIR, "crew_history.json")
+DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data')
+os.makedirs(DATA_DIR, exist_ok=True)
+HISTORY_FILE = os.path.join(DATA_DIR, 'crew_history.json')
+CHAT_HISTORY_FILE = os.path.join(DATA_DIR, 'chat_history.json')
+ROUNDTABLE_HISTORY_FILE = os.path.join(DATA_DIR, 'roundtable_history.json')
+BRAINSTORM_HISTORY_FILE = os.path.join(DATA_DIR, 'brainstorm_history.json')
 
-def _load_history():
+
+def _safe_text(value, limit=4000):
+    if value is None:
+        return ''
     try:
-        with open(HISTORY_FILE) as f:
+        text = value if isinstance(value, str) else json.dumps(value, ensure_ascii=False)
+    except Exception:
+        text = str(value)
+    return text[-limit:]
+
+
+def _history_id():
+    return str(int(time.time() * 1000))
+
+
+def _append_history(filepath, entry, limit=100):
+    history = _load_history(filepath)
+    history.insert(0, entry)
+    _save_history(filepath, history[:limit])
+    return entry.get('id')
+
+
+def _append_unified_history(entry, limit=100):
+    history = _load_history(HISTORY_FILE)
+    history.insert(0, entry)
+    _save_history(HISTORY_FILE, history[:limit])
+    return entry.get('id')
+
+def _load_history(filepath=None):
+    fp = filepath or HISTORY_FILE
+    try:
+        with open(fp) as f:
             return json.load(f)
     except (FileNotFoundError, json.JSONDecodeError):
         return []
 
+def _save_history(arg1, arg2=None):
+    """Save history. Supports both _save_history(data) and _save_history(filepath, data)"""
+    if arg2 is None:
+        fp, data = HISTORY_FILE, arg1
+    else:
+        fp, data = arg1, arg2
+    try:
+        with open(fp, 'w') as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        logger.error(f'Failed to save history to {fp}: {e}')
 
-@bp.route("/api/crews/save", methods=["POST"])
+
+@bp.route('/api/actor/crew-save', methods=['POST'])
 def actor_crew_save():
-    data = request.get_json(silent=True) or {}
-    h = _load_history()
-    entry = {
-        "id": str(int(time.time())) + str(len(h)),
-        "task": data.get("task", ""),
-        "status": data.get("status", "unknown"),
-        "output": (data.get("output") or "")[-2000:],
-        "created_at": time.strftime("%Y-%m-%d %H:%M:%S"),
-        "duration_s": data.get("duration_s", 0),
-    }
-    h.insert(0, entry)
-    _save_history(h[:50])
-    return jsonify({"ok": True, "id": entry["id"]})
+    try:
+        data = request.get_json(silent=True) or {}
+        h = _load_history()
+        entry = {
+            'id': _history_id() + str(len(h)),
+            'type': data.get('type') or 'crew',
+            'task': data.get('task') or '',
+            'status': data.get('status') or 'unknown',
+            'output': _safe_text(data.get('output') or '', 8000),
+            'metadata': data.get('metadata') or {},
+            'images': _collect_images(data),
+            'created_at': time.strftime('%Y-%m-%d %H:%M:%S'),
+            'duration_s': data.get('duration_s') or 0,
+        }
+        h.insert(0, entry)
+        _save_history(h[:50])
+        return jsonify({'ok': True, 'id': entry['id']})
+    except Exception as e:
+        logger.error(f'crew-save error: {e}')
+        import traceback
+        logger.error(traceback.format_exc())
+        return jsonify({'ok': False, 'error': str(e)}), 500
 
 
-@bp.route("/api/actor/crew-history", methods=["GET"])
+def _all_actor_history_entries():
+    entries = []
+    for fp, default_type in [
+        (HISTORY_FILE, 'crew'),
+        (CHAT_HISTORY_FILE, 'chat'),
+        (ROUNDTABLE_HISTORY_FILE, 'roundtable'),
+        (BRAINSTORM_HISTORY_FILE, 'brainstorm'),
+    ]:
+        for e in _load_history(fp):
+            if isinstance(e, dict):
+                item = dict(e)
+                item.setdefault('type', default_type)
+                entries.append(item)
+    def key(e):
+        return str(e.get('created_at') or e.get('timestamp') or e.get('id') or '')
+    entries.sort(key=key, reverse=True)
+    return entries
+
+
+def _entry_title(e):
+    if e.get('task'):
+        return e.get('task')
+    if e.get('question'):
+        return e.get('question')
+    msgs = e.get('messages') or []
+    if isinstance(msgs, list):
+        for m in reversed(msgs):
+            if isinstance(m, dict) and m.get('role') == 'user' and m.get('content'):
+                return m.get('content')
+    if e.get('reply'):
+        return e.get('reply')[:120]
+    return e.get('type') or 'history'
+
+
+@bp.route('/api/actor/crew-history', methods=['GET'])
 def actor_crew_history():
-    h = _load_history()
-    summary = [{"id": e["id"], "task": e["task"][:120], "status": e["status"],
-                 "created_at": e["created_at"], "duration_s": e.get("duration_s", 0)}
-               for e in h]
-    return jsonify({"ok": True, "history": summary})
+    summary = []
+    seen = set()
+    for e in _all_actor_history_entries():
+        try:
+            eid = str(e.get('id', ''))
+            etype = e.get('type', 'crew')
+            dedup = (etype, eid)
+            if eid and dedup in seen:
+                continue
+            seen.add(dedup)
+            imgs = e.get('images') or _collect_images(e)
+            summary.append({
+                'id': eid,
+                'type': etype,
+                'task': (_entry_title(e) or '')[:120],
+                'status': e.get('status', 'completed' if etype in ('chat','roundtable','brainstorm') else 'unknown'),
+                'created_at': e.get('created_at') or e.get('timestamp') or '',
+                'duration_s': e.get('duration_s') or e.get('elapsed_s') or 0,
+                'has_image': bool(imgs),
+                'images': imgs[:3],
+            })
+        except Exception:
+            continue
+    return jsonify({'ok': True, 'history': summary[:200]})
 
 
-@bp.route("/api/actor/crew-history/<entry_id>", methods=["GET"])
+@bp.route('/api/actor/crew-history/<entry_id>', methods=['GET'])
 def actor_crew_history_detail(entry_id):
-    h = _load_history()
-    for e in h:
-        if e["id"] == entry_id:
-            return jsonify({"ok": True, "entry": e})
-    return jsonify({"ok": False, "error": "not found"}), 404
+    for e in _all_actor_history_entries():
+        if str(e.get('id')) == str(entry_id):
+            if not e.get('images'):
+                e['images'] = _collect_images(e)
+            if not e.get('output'):
+                if e.get('final_report'):
+                    e['output'] = e.get('final_report')
+                elif e.get('conclusion'):
+                    e['output'] = e.get('conclusion')
+                elif e.get('reply'):
+                    e['output'] = e.get('reply')
+                else:
+                    e['output'] = json.dumps(e, ensure_ascii=False)[:12000]
+            e.setdefault('task', _entry_title(e))
+            return jsonify({'ok': True, 'entry': e})
+    return jsonify({'ok': False, 'error': 'not found'}), 404
 
 
-@bp.route("/api/actor/crew-similar", methods=["POST"])
+@bp.route('/api/actor/crew-similar', methods=['POST'])
 def actor_crew_similar():
     data = request.get_json(silent=True) or {}
-    task = (data.get("task") or "").strip().lower()
+    task = (data.get('task') or '').strip().lower()
     if not task:
-        return jsonify({"ok": True, "matches": []})
+        return jsonify({'ok': True, 'matches': []})
     h = _load_history()
     matches = []
     for e in h:
-        if not e.get("task"): continue
-        ratio = difflib.SequenceMatcher(None, task, e["task"].lower()).ratio()
+        if not e.get('task'): continue
+        ratio = difflib.SequenceMatcher(None, task, e['task'].lower()).ratio()
         if ratio > 0.3:
             matches.append({
-                "id": e["id"], "task": e["task"][:120], "status": e["status"],
-                "created_at": e["created_at"], "similarity": round(ratio, 3),
+                'id': e['id'], 'task': e['task'][:120], 'status': e['status'],
+                'created_at': e['created_at'], 'similarity': round(ratio, 3),
             })
-    matches.sort(key=lambda x: -x["similarity"])
-    return jsonify({"ok": True, "matches": matches[:5]})
+    matches.sort(key=lambda x: -x['similarity'])
+    return jsonify({'ok': True, 'matches': matches[:5]})
 
 
-@bp.route("/api/actor/roundtable", methods=["POST"])
+@bp.route('/api/actor/roundtable', methods=['POST'])
 def actor_roundtable():
-    """圆桌模式：多个专家并行分析同一个问题"""
+    """圆桌模式：真圆桌，串行多轮，每角色配图"""
     data = request.get_json(silent=True) or {}
-    question = data.get("question", "")
-    selected = data.get("roles", ROLES.get("ROLE_LIST", ["researcher","analyst","strategist"]))
+    question = data.get('question', '')
+    selected = data.get('roles', ROLES.get('ROLE_LIST', ['researcher','analyst','strategist']))
+    mode = data.get("mode", "consensus")
+    image_mode = bool(data.get("image_mode", False))
+    max_tokens = int(data.get("max_tokens", 2500) or 2500)
+    timeout_s = int(data.get("timeout_s", 300) or 300)
+    try:
+        max_rounds = int(data.get("max_rounds", len(selected)) or len(selected))
+    except Exception:
+        max_rounds = len(selected)
+    max_rounds = max(1, min(max_rounds, 30))
+    # 圆桌 UI 的“轮数”语义是发言次数上限，不是角色数量。
+    # 旧逻辑只遍历 selected 一次，导致用户填 7 但只选 2 个角色时只跑 2 轮。
+    role_sequence = [r for r in selected if r in ROLES and r != "ROLE_LIST"]
+    if role_sequence:
+        role_sequence = [role_sequence[i % len(role_sequence)] for i in range(max_rounds)]
+    else:
+        role_sequence = []
+    if mode == "auto":
+        mode = auto_select_mode(question, "roundtable")
     if not question:
-        return jsonify({"ok": False, "error": "question required"}), 400
+        return jsonify({'ok': False, 'error': 'question required'}), 400
+    
+    # 使用统一模式配置
+    mode_cfg = MODES.get(mode, MODES.get('consensus', {}))
+    mode_suffix = mode_cfg.get('prompt', MODES.get('consensus', {}).get('prompt', ''))
 
     results = []
+    context = []  # 存储前面角色的回复作为上下文
 
-    def _call_expert(role_key):
-        if role_key not in ROLES or role_key == "ROLE_LIST":
-            return None
+    # 串行调用每个角色，传递上下文
+    for role_key in selected:
+        if role_key not in ROLES or role_key == 'ROLE_LIST':
+            continue
         cfg = ROLES[role_key]
-        msgs = [{"role": "system", "content": cfg["prompt"]},
-                {"role": "user", "content": "请从你的专业角度分析以下问题（300-500字）：\n\n" + question}]
+        
+        # 检索向量库
+        vector_ctx = ""
+        if VECTOR_CONFIG["enabled"]:
+            try:
+                docs = retrieve_from_vector_db(question, top_k=3)
+                if docs:
+                    vector_ctx = "\n\n【相关知识库】\n" + "\n---\n".join([
+                        f"《{d['title']}》：{d['content'][:300]}..." for d in docs
+                    ])
+            except Exception as e:
+                print(f"Vector retrieval error: {e}")
+        
+        # 构建带上下文的 prompt
+        ctx_text = ""
+        if context:
+            ctx_parts = []
+            for c in context:
+                part = f"{c['name']}（{c['role']}）:\n{c['reply'][:500]}"
+                # 如果有图片，加入视觉分析
+                if c.get('image') and c['image'].get('url'):
+                    try:
+                        from routes.brainstorm_api import analyze_image_with_vision
+                        img_analysis = analyze_image_with_vision(c['image']['url'], c['reply'][:200])
+                        if img_analysis:
+                            part += f"\n[配图分析：{img_analysis.get('analysis', '图片已生成')}]"
+                    except Exception:
+                        part += "\n[配图已生成]"
+                ctx_parts.append(part)
+            ctx_text = "\n\n【前面专家的观点】\n" + "\n---\n".join(ctx_parts)
+        
+        user_content = f"请从你的专业角度分析以下问题（300-500字）。这是圆桌第{round_index}/{max_rounds}轮发言，请结合前序观点推进讨论，避免重复：\n\n{question}\n\n{mode_suffix}{vector_ctx}{ctx_text}"
+        
+        global_ctx = ('\n\n【全局上下文】\n' + get_global_context()) if get_global_context() else ''
+        mode_ctx = ('\n\n【当前模式】\n' + mode_suffix) if mode_suffix else ''
+        msgs = [{'role': 'system', 'content': cfg['prompt'] + global_ctx + mode_ctx},
+                {'role': 'user', 'content': user_content}]
         body = json.dumps({
-            "model": "actor", "messages": msgs,
-            "max_tokens": 80000, "knowledge_scope": cfg["scope"],
-            "role": role_key,
+            'model': 'actor', 'messages': msgs,
+            'max_tokens': max_tokens, 'temperature': 0.3, 'knowledge_scope': data.get('knowledge_scope') if data.get('knowledge_scope') not in (None, '', 'auto') else cfg['scope'],
+            'role': role_key,
         }).encode()
+        
         try:
-            req = urllib.request.Request("http://127.0.0.1:18791/v1/chat/completions", data=body,
-                                          headers={"Content-Type": "application/json"}, method="POST")
-            with urllib.request.urlopen(req, timeout=120) as r:
+            req = urllib.request.Request('http://127.0.0.1:18791/v1/chat/completions', data=body,
+                                          headers={'Content-Type': 'application/json'}, method='POST')
+            with urllib.request.urlopen(req, timeout=timeout_s) as r:
                 resp = json.loads(r.read())
             reply = _process_tool_calls(resp)
-            return {"role": role_key, "name": cfg.get("name", role_key),
-                    "emoji": cfg.get("emoji", ""), "reply": reply, "ok": True}
+            
+            # 为该角色生成配图
+            image_url = None
+            img_prompt = None  # 初始化
+            try:
+                from routes.brainstorm_api import should_generate_image, generate_seedream_image, auto_optimize_image, _llm_extract_visual_prompt
+                explicit_img = image_mode or ('【生图】' in question) or ('[生图]' in question) or any(k in question for k in ['生成图片','生成图像','画图','出图','配图','生成logo','生成Logo','生成LOGO'])
+                should_gen, _, reason = should_generate_image(question, [{'content': reply}]) if explicit_img else (False, '', 'image_mode_off')
+                if image_mode and explicit_img and not should_gen:
+                    should_gen, reason = True, 'image_mode_on'
+                if explicit_img and should_gen:
+                    # 使用 LLM 从圆桌讨论中提取 visual prompt
+                    if results:
+                        roundtable_context = '\n'.join([f"{r.get('name', r.get('role', ''))}: {r.get('reply', '')}" for r in results])
+                        full_context = f"已有观点：\n{roundtable_context}\n\n当前发言：\n{reply}"
+                    else:
+                        full_context = f"问题：{question}\n\n当前发言：\n{reply}"
+                    img_prompt = _llm_extract_visual_prompt(question, full_context)
+                    image_url = generate_seedream_image(img_prompt)
+                    
+                    # 自动优化2轮
+                    if image_url:
+                        try:
+                            # 优化轮数 = 总角色数
+                            total_roles = len(selected)
+                            optimize_iterations = min(total_roles, 5)  # 取总角色数，最多5轮
+                            final_url, optimize_log = auto_optimize_image(
+                                image_url,
+                                img_prompt,
+                                reply[:100],
+                                max_iterations=optimize_iterations
+                            )
+                            if final_url and final_url != image_url:
+                                image_url = final_url
+                        except Exception as e:
+                            print(f'Roundtable auto optimize error: {e}')
+            except Exception as e:
+                print(f'Roundtable image generation for {role_key} failed: {e}')
+            
+            result = {
+                'role': role_key, 
+                'name': cfg.get('name', role_key),
+                'emoji': cfg.get('emoji', ''), 
+                'reply': reply, 
+                'ok': True,
+                'round_index': round_index,
+                'max_rounds': max_rounds,
+                'image': {'url': image_url, 'prompt': img_prompt if image_url else ''} if image_url else None
+            }
+            results.append(result)
+            context.append(result)  # 加入上下文
+            
         except Exception as e:
-            return {"role": role_key, "name": cfg.get("name", role_key),
-                    "emoji": cfg.get("emoji", ""), "error": str(e), "ok": False}
+            results.append({
+                'role': role_key, 
+                'name': cfg.get('name', role_key),
+                'emoji': cfg.get('emoji', ''), 
+                'error': str(e), 
+                'ok': False,
+                'round_index': round_index,
+                'max_rounds': max_rounds
+            })
+    
+    # 主持人最终总结：必须明确指出最佳方案/最佳图片
+    final_report = ''
+    best_role = None
+    best_image = None
+    try:
+        discussion_lines = []
+        candidates = []
+        for idx, r in enumerate(results, 1):
+            if not r.get('ok'):
+                continue
+            image_note = ''
+            if r.get('image') and r['image'].get('url'):
+                image_note = f"\n配图URL: {r['image']['url']}\n配图Prompt: {r['image'].get('prompt','')}"
+                candidates.append(r)
+            discussion_lines.append(f"方案{idx}｜{r.get('emoji','')} {r.get('name', r.get('role',''))}：\n{r.get('reply','')[:1200]}{image_note}")
+        final_prompt = (
+            '你是圆桌主持人孔子。请基于以下专家发言与配图候选，输出最终总结。\n'
+            '要求：1）必须明确写出【最佳方案】是哪位专家/哪张图；2）说明为什么它最好；'
+            '3）给出可执行修改建议；4）如果主题是logo/视觉设计，要从品牌识别、可记忆性、科技感、商业可用性四方面评分。\n'
+            '输出小节必须包含：最佳方案、选择理由、评分排序、风险与修改建议、下一步。\n\n'
+            f'主题：{question}\n\n圆桌内容：\n' + '\n---\n'.join(discussion_lines)
+        )
+        bd = json.dumps({
+            'model': 'actor',
+            'messages': [{'role': 'system', 'content': '你是孔子，负责主持圆桌并做最终裁决。'}, {'role': 'user', 'content': final_prompt}],
+            'max_tokens': 2500,
+            'temperature': 0.25,
+            'knowledge_scope': 'full'
+        }).encode()
+        rq = urllib.request.Request('http://127.0.0.1:18791/v1/chat/completions', data=bd, headers={'Content-Type': 'application/json'}, method='POST')
+        with urllib.request.urlopen(rq, timeout=300) as rp:
+            final_report = json.loads(rp.read()).get('choices', [{}])[0].get('message', {}).get('content', '')
+        # 尽量从总结中匹配获胜专家；匹配不到则默认取最后一个有图且成功的候选
+        for r in results:
+            name = r.get('name') or r.get('role')
+            if name and final_report and name in final_report:
+                best_role = r
+                break
+        if not best_role:
+            best_role = candidates[-1] if candidates else (results[-1] if results else None)
+        if best_role and best_role.get('image'):
+            best_image = best_role.get('image')
+        if best_role and '最佳方案' not in final_report[:200]:
+            final_report = f"【最佳方案】{best_role.get('emoji','')} {best_role.get('name', best_role.get('role',''))} 的方案\n\n" + final_report
+    except Exception as e:
+        print('Roundtable final report failed:', e)
+        ok_results = [r for r in results if r.get('ok')]
+        best_role = next((r for r in reversed(ok_results) if r.get('image')), ok_results[-1] if ok_results else None)
+        if best_role:
+            best_image = best_role.get('image')
+            final_report = (
+                f"【最佳方案】{best_role.get('emoji','')} {best_role.get('name', best_role.get('role',''))} 的方案。\n\n"
+                f"【选择理由】该方案是圆桌讨论中最完整、且已产生可视化输出的候选，适合作为下一轮优化基础。\n\n"
+                f"【下一步】以这张图为主稿，继续优化字体、色彩、图形识别度和商业落地版本。"
+            )
 
-    with ThreadPoolExecutor(max_workers=min(len(selected), 6)) as executor:
-        futures = {executor.submit(_call_expert, rk): rk for rk in selected}
-        for future in as_completed(futures):
-            result = future.result()
-            if result:
-                results.append(result)
-    results.sort(key=lambda r: selected.index(r["role"]) if r["role"] in selected else 999)
-    return jsonify({"ok": True, "results": results})
+    # Save to history
+    history_id = None
+    try:
+        history_id = _history_id()
+        entry = {
+            'id': history_id,
+            'type': 'roundtable',
+            'question': question,
+            'roles': selected,
+            'requested_max_rounds': max_rounds,
+            'actual_rounds': len(results),
+            'results': results,
+            'final_report': final_report,
+            'best_role': best_role,
+            'image': best_image,
+            'images': _collect_images({'results': results, 'best_role': best_role, 'image': best_image}),
+            'created_at': time.strftime('%Y-%m-%d %H:%M:%S')
+        }
+        _append_history(ROUNDTABLE_HISTORY_FILE, entry)
+        _append_unified_history({
+            'id': history_id,
+            'type': 'roundtable',
+            'task': question,
+            'status': 'completed',
+            'output': _safe_text((final_report or '') + (('\n\n![圆桌配图](' + best_image.get('url') + ')') if isinstance(best_image, dict) and best_image.get('url') else '') or results, 12000),
+            'images': _collect_images({'results': results, 'best_role': best_role, 'image': best_image}),
+            'metadata': {'roles': selected, 'requested_max_rounds': max_rounds, 'actual_rounds': len(results), 'results': results, 'best_role': best_role, 'image': best_image, 'images': _collect_images({'results': results, 'best_role': best_role, 'image': best_image})},
+            'created_at': time.strftime('%Y-%m-%d %H:%M:%S'),
+            'duration_s': 0,
+        })
+    except Exception as e:
+        logger.error(f'Failed to save roundtable history: {e}')
+    
+    return jsonify({'ok': True, 'rounds': results, 'requested_max_rounds': max_rounds, 'actual_rounds': len(results), 'final_report': final_report, 'best_role': best_role, 'image': best_image, 'history_id': history_id})
+
+
+@bp.route('/api/actor/chat-history', methods=['GET'])
+def actor_chat_history():
+    history = _load_history(CHAT_HISTORY_FILE)
+    return jsonify({'ok': True, 'history': history[:100]})
+
+
+@bp.route('/api/actor/chat-history/<entry_id>', methods=['GET'])
+def actor_chat_history_detail(entry_id):
+    for e in _load_history(CHAT_HISTORY_FILE):
+        if str(e.get('id')) == str(entry_id):
+            return jsonify({'ok': True, 'entry': e})
+    return jsonify({'ok': False, 'error': 'not found'}), 404
+
+
+@bp.route('/api/actor/roundtable-history', methods=['GET'])
+def actor_roundtable_history():
+    history = _load_history(ROUNDTABLE_HISTORY_FILE)
+    summary = []
+    for e in history[:100]:
+        summary.append({
+            'id': str(e.get('id', '')),
+            'type': 'roundtable',
+            'timestamp': e.get('created_at') or e.get('timestamp') or '',
+            'created_at': e.get('created_at') or e.get('timestamp') or '',
+            'question': e.get('question', ''),
+            'participants': [ROLES.get(r, {}).get('name', r) for r in (e.get('roles') or [])],
+            'round_count': e.get('actual_rounds') or len(e.get('results') or e.get('rounds') or []),
+            'requested_max_rounds': e.get('requested_max_rounds'),
+            'consensus': bool(e.get('final_report')),
+            'has_image': bool(e.get('images') or _collect_images(e)),
+            'images': (e.get('images') or _collect_images(e))[:3],
+        })
+    return jsonify({'ok': True, 'history': summary})
+
+
+@bp.route('/api/actor/roundtable-history/<entry_id>', methods=['GET'])
+def actor_roundtable_history_detail(entry_id):
+    for e in _load_history(ROUNDTABLE_HISTORY_FILE):
+        if str(e.get('id')) == str(entry_id):
+            return jsonify({'ok': True, 'entry': e})
+    return jsonify({'ok': False, 'error': 'not found'}), 404

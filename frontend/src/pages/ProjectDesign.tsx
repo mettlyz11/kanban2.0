@@ -1,4 +1,10 @@
 import React, { useState } from 'react'
+import SdsArchDiagram from '../components/SdsArchDiagram'
+import T109ArchDiagram from '../components/arch/T109ArchDiagram';
+import DeployArchDiagram from '../components/arch/DeployArchDiagram';
+import KanbanArchDiagram from '../components/arch/KanbanArchDiagram';
+import SdsSchedulerDiagram from '../components/arch/SdsSchedulerDiagram';
+import ActorArchDiagram from '../components/arch/ActorArchDiagram';
 
 const s: Record<string, React.CSSProperties> = {
   page: { background: '#f0f2f5', minHeight: 'calc(100vh - 80px)', color: '#333', fontFamily: 'sans-serif' },
@@ -82,6 +88,17 @@ const EvolutionTab = () => (
     </div>
 
     <h4 style={{ fontSize: '16px', fontWeight: 600, color: '#333', margin: '20px 0 12px' }}>🏗️ 系统架构</h4>
+    
+    {/* SDS架构图 */}
+    <div style={{ background: '#fff', border: '1px solid #e0e0e0', borderRadius: '8px', padding: '16px', marginBottom: '20px', textAlign: 'center' }}>
+      <SdsArchDiagram style={{ maxWidth: '1000px' }} />
+      <p style={{ fontSize: '12px', color: '#666', marginTop: '12px', textAlign: 'left' }}>
+        <b>SDS 自我驱动系统架构</b> — 展示从用户触发到任务完成的完整数据流。
+        核心处理层包含任务分析、生成、守卫、调度、验证五个阶段，
+        通过 LLM Client 统一调用大模型，由 Subagent Executor 执行子代理任务。
+      </p>
+    </div>
+    
     <div style={s.arch}>
       <div style={s.archItem}>
         <div style={{ fontSize: '13px', fontWeight: 600, color: '#333', marginBottom: '8px' }}>🎯 进化控制层</div>
@@ -214,35 +231,9 @@ const T109Tab = () => (
       </div>
     </div>
 
-    <h4 style={{ fontSize: '16px', fontWeight: 600, color: '#333', margin: '20px 0 12px' }}>🏗️ 部署架构</h4>
-    <div style={s.arch}>
-      <div style={s.archItem}>
-        <div style={{ fontSize: '13px', fontWeight: 600, color: '#333', marginBottom: '8px' }}>🎯 后端层</div>
-        <div style={{ fontSize: '12px', color: '#666', lineHeight: '1.8' }}>
-          simple_db_api.py (5,720行)<br />
-          pyscf_db_api.py (6,725行)<br />
-          simple_async_api.py (1,478行)<br />
-          qchem_tasks.py (3,555行)
-        </div>
-      </div>
-      <div style={s.archItem}>
-        <div style={{ fontSize: '13px', fontWeight: 600, color: '#333', marginBottom: '8px' }}>🖥️ 服务器3</div>
-        <div style={{ fontSize: '12px', color: '#666', lineHeight: '1.8' }}>
-          60.205.197.9 (aliyun)<br />
-          nginx (80端口)<br />
-          gunicorn 8087 (kanban-mirror)<br />
-          T109 API 8000
-        </div>
-      </div>
-      <div style={s.archItem}>
-        <div style={{ fontSize: '13px', fontWeight: 600, color: '#333', marginBottom: '8px' }}>🔬 前端</div>
-        <div style={{ fontSize: '12px', color: '#666', lineHeight: '1.8' }}>
-          React + Vite<br />
-          dist已构建<br />
-          未绑定域名 (HTTP only)<br />
-          nginx代理 /api/ → 8000
-        </div>
-      </div>
+    <h4 style={{ fontSize: '16px', fontWeight: 600, color: '#333', margin: '20px 0 12px' }}>🏗️ 系统架构图</h4>
+    <div style={{ background: '#fff', border: '1px solid #e0e0e0', borderRadius: '8px', padding: '10px', marginBottom: '12px', textAlign: 'center' }}>
+      <T109ArchDiagram />
     </div>
 
     <div style={s.flow}>
@@ -322,6 +313,10 @@ const SdsTab = () => (
         <Item icon="📝" bg="#f3e5f5" title="结果回写" badge={['blue', 'DB']} desc="执行日志+结果摘要自动入库" />
       </div>
     </div>
+    <h4 style={{ fontSize: '16px', fontWeight: 600, color: '#333', margin: '20px 0 12px' }}>🏗️ 调度架构图</h4>
+    <div style={{ background: '#fff', border: '1px solid #e0e0e0', borderRadius: '8px', padding: '10px', marginBottom: '12px', textAlign: 'center' }}>
+      <SdsSchedulerDiagram />
+    </div>
     <div style={s.flow}>
       <div style={s.flowBox}>扫描pending</div><span style={{color:'#999'}}>→</span>
       <div style={s.flowBox}>优先排序</div><span style={{color:'#999'}}>→</span>
@@ -329,6 +324,92 @@ const SdsTab = () => (
       <div style={s.flowBox}>子代理spawn</div><span style={{color:'#999'}}>→</span>
       <div style={s.flowBox}>执行+审计</div><span style={{color:'#999'}}>→</span>
       <div style={s.flowBox}>DB入库</div>
+    </div>
+  </>
+)
+
+
+const SdsArchTab = () => (
+  <>
+    <div style={s.stats}>
+      <StatsCard value="5阶段" label="核心处理层" color="#1565c0" />
+      <StatsCard value="300s" label="调度周期" color="#2e7d32" />
+      <StatsCard value="3600s" label="分析周期" color="#e53935" />
+      <StatsCard value="9Provider" label="LLM Fallback" />
+      <StatsCard value="64模型" label="可用模型数" />
+    </div>
+    
+    {/* SDS架构图 */}
+    <div style={{ background: '#fff', border: '1px solid #e0e0e0', borderRadius: '8px', padding: '10px', marginBottom: '10px', textAlign: 'center' }}>
+      <h3 style={{ fontSize: '14px', fontWeight: 600, color: '#333', marginBottom: '8px', textAlign: 'left' }}>🏗️ SDS 自我驱动系统架构图</h3>
+      <SdsArchDiagram style={{ maxWidth: '1000px' }} />
+      <div style={{ background: '#f8f9fa', padding: '8px', borderRadius: '4px', marginTop: '8px', textAlign: 'left' }}>
+        <h4 style={{ fontSize: '13px', fontWeight: 600, color: '#333', marginBottom: '6px' }}>📋 架构说明</h4>
+        <p style={{ fontSize: '12px', color: '#666', lineHeight: '1.5', marginBottom: '6px' }}>
+          <b>SDS（Self-Driving System）自我驱动系统</b>是一个全自动化的任务调度与执行平台。
+          系统采用分层架构设计，从用户交互到任务执行形成完整闭环。
+        </p>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '6px', marginTop: '6px' }}>
+          <div style={{ background: '#e3f2fd', padding: '8px', borderRadius: '4px' }}>
+            <div style={{ fontSize: '12px', fontWeight: 600, color: '#1565c0', marginBottom: '6px' }}>👤 用户层</div>
+            <div style={{ fontSize: '11px', color: '#666' }}>用户触发查询，与系统交互</div>
+          </div>
+          <div style={{ background: '#e8f5e9', padding: '12px', borderRadius: '6px' }}>
+            <div style={{ fontSize: '12px', fontWeight: 600, color: '#2e7d32', marginBottom: '6px' }}>🎯 主循环层</div>
+            <div style={{ fontSize: '11px', color: '#666' }}>sds_main.py 每5分钟执行完整周期</div>
+          </div>
+          <div style={{ background: '#fff3e0', padding: '12px', borderRadius: '6px' }}>
+            <div style={{ fontSize: '12px', fontWeight: 600, color: '#ef6c00', marginBottom: '6px' }}>⚙️ 核心处理层</div>
+            <div style={{ fontSize: '11px', color: '#666' }}>分析→生成→守卫→调度→验证</div>
+          </div>
+          <div style={{ background: '#fce4ec', padding: '12px', borderRadius: '6px' }}>
+            <div style={{ fontSize: '12px', fontWeight: 600, color: '#c2185b', marginBottom: '6px' }}>🤖 执行层</div>
+            <div style={{ fontSize: '11px', color: '#666' }}>LLM Client + Subagent Executor</div>
+          </div>
+          <div style={{ background: '#f3e5f5', padding: '12px', borderRadius: '6px' }}>
+            <div style={{ fontSize: '12px', fontWeight: 600, color: '#7b1fa2', marginBottom: '6px' }}>💾 数据层</div>
+            <div style={{ fontSize: '11px', color: '#666' }}>看板数据库 + 配置中心 + 仪表盘</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    {/* 数据流说明 */}
+    <div style={s.grid3}>
+      <div style={s.card}>
+        <h3 style={{ fontSize: '15px', marginBottom: '12px', color: '#333' }}>🔵 主数据流</h3>
+        <Item icon="1" bg="#e3f2fd" title="任务生成" desc="AutoTaskGenerator 调用 LLM 生成推荐任务" />
+        <Item icon="2" bg="#e8f5e9" title="守卫检查" desc="Guard V48 三重保障验证任务合法性" />
+        <Item icon="3" bg="#fff3e0" title="子代理执行" desc="SubagentScheduler 分配任务给子代理" />
+        <Item icon="4" bg="#fce4ec" title="结果验证" desc="ResultCollector 验证执行结果质量" />
+      </div>
+      <div style={s.card}>
+        <h3 style={{ fontSize: '15px', marginBottom: '12px', color: '#333' }}>🟠 控制/触发</h3>
+        <Item icon="⏱️" bg="#e3f2fd" title="每300秒" desc="调度器 + 验证器 + 健康监控执行" />
+        <Item icon="⏰" bg="#e8f5e9" title="每3600秒" desc="任务分析 + 任务生成执行" />
+        <Item icon="🔄" bg="#fff3e0" title="每周期" desc="守卫检查 + 预防层扫描" />
+        <Item icon="📊" bg="#fce4ec" title="仪表盘更新" desc="可观测性页面实时更新" />
+      </div>
+      <div style={s.card}>
+        <h3 style={{ fontSize: '15px', marginBottom: '12px', color: '#333' }}>🟣 LLM调用链</h3>
+        <Item icon="1" bg="#e3f2fd" title="Primary" desc="deepseek-v4-flash 主模型" />
+        <Item icon="2" bg="#e8f5e9" title="Fallback 1-2" desc="alicodingplan / alitokenplan" />
+        <Item icon="3" bg="#fff3e0" title="Fallback 3-4" desc="kimicode / huoshanCoding" />
+        <Item icon="4" bg="#fce4ec" title="总计" desc="9 Provider / 64 模型" />
+      </div>
+    </div>
+    
+    {/* 图例 */}
+    <div style={{ background: '#fff', padding: '8px', borderRadius: '6px', marginTop: '8px', border: '1px solid #e0e0e0' }}>
+      <h4 style={{ fontSize: '12px', fontWeight: 600, color: '#333', marginBottom: '6px' }}>📊 图例说明</h4>
+      <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', fontSize: '12px', color: '#666' }}>
+        <span><span style={{ color: '#2563eb' }}>━━</span> 主数据流</span>
+        <span><span style={{ color: '#ea580c' }}>━━</span> 控制/触发</span>
+        <span><span style={{ color: '#059669' }}>━━</span> 数据读取</span>
+        <span><span style={{ color: '#059669', textDecoration: 'line-through' }}>━━</span> 数据写入</span>
+        <span><span style={{ color: '#7c3aed' }}>━━</span> LLM调用</span>
+        <span><span style={{ color: '#6b7280' }}>- -</span> 异步事件</span>
+      </div>
     </div>
   </>
 )
@@ -367,6 +448,10 @@ const ActorTab = () => (
         <Item icon="💓" bg="#fce4ec" title="heartbeat.py" badge={['green', '30s']} desc="心跳监控，自动清理断连用户" />
         <Item icon="📡" bg="#f3e5f5" title="events.py" badge={['blue', '事件']} desc="所有事件处理器 (12+事件类型)" />
       </div>
+    </div>
+    <h4 style={{ fontSize: '16px', fontWeight: 600, color: '#333', margin: '20px 0 12px' }}>🏗️ 通道架构图</h4>
+    <div style={{ background: '#fff', border: '1px solid #e0e0e0', borderRadius: '8px', padding: '10px', marginBottom: '12px', textAlign: 'center' }}>
+      <ActorArchDiagram />
     </div>
     <div style={s.flow}>
       <div style={s.flowBox}>SocketIO init</div><span style={{color:'#999'}}>→</span>
@@ -578,6 +663,10 @@ const KanbanTab = () => (
         <Item icon="📋" bg="#f3e5f5" title="+14个页面" badge={['blue', '路由']} desc="看板总览/LLM/联系人文库配置等" />
       </div>
     </div>
+    <h4 style={{ fontSize: '16px', fontWeight: 600, color: '#333', margin: '20px 0 12px' }}>🏗️ 看板架构图</h4>
+    <div style={{ background: '#fff', border: '1px solid #e0e0e0', borderRadius: '8px', padding: '10px', marginBottom: '12px', textAlign: 'center' }}>
+      <KanbanArchDiagram />
+    </div>
     <div style={s.flow}>
       <div style={s.flowBox}>nignx 443/80</div><span style={{color:'#999'}}>→</span>
       <div style={s.flowBox}>dist静态文件</div><span style={{color:'#999'}}>→</span>
@@ -662,6 +751,10 @@ const DeployTab = () => (
         <Item icon="📡" bg="#f3e5f5" title="版本控制" badge={['blue', 'GitHub+GitLab']} desc="GitHub(远程) + GitLab(自建) 双备份" />
       </div>
     </div>
+    <h4 style={{ fontSize: '16px', fontWeight: 600, color: '#333', margin: '20px 0 12px' }}>🏗️ 部署架构图</h4>
+    <div style={{ background: '#fff', border: '1px solid #e0e0e0', borderRadius: '8px', padding: '10px', marginBottom: '12px', textAlign: 'center' }}>
+      <DeployArchDiagram />
+    </div>
     <div style={s.flow}>
       <div style={s.flowBox}>Edit</div><span style={{color:'#999'}}>→</span>
       <div style={s.flowBox}>Build (38s)</div><span style={{color:'#999'}}>→</span>
@@ -695,6 +788,7 @@ const ProjectDesign: React.FC = () => {
           <TabBtn id="evolution" label="🧠 镜像进化" />
           <TabBtn id="t109" label="📋 T109" />
           <TabBtn id="sds" label="🧬 SDS调度" />
+          <TabBtn id="sds-arch" label="🏗️ SDS架构" />
           <TabBtn id="actor" label="⚡ Actor通道" />
           <TabBtn id="monitor" label="📡 监控告警" />
           <TabBtn id="data" label="🗄️ 数据架构" />
@@ -708,6 +802,7 @@ const ProjectDesign: React.FC = () => {
         {tab === 'evolution' && <EvolutionTab />}
         {tab === 't109' && <T109Tab />}
         {tab === 'sds' && <SdsTab />}
+        {tab === 'sds-arch' && <SdsArchTab />}
         {tab === 'actor' && <ActorTab />}
         {tab === 'monitor' && <MonitorTab />}
         {tab === 'data' && <DataTab />}
