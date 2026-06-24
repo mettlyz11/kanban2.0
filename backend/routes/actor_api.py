@@ -294,12 +294,12 @@ def actors_alias():
 
 @bp.route('/api/actor/modes', methods=['GET'])
 def actor_modes():
-    from routes.modes_config import MODE_CATEGORIES, SCENE_MODES
+    from routes import modes_config
     return jsonify({
         "ok": True,
         "modes": MODES,
-        "categories": MODE_CATEGORIES,
-        "scene_modes": SCENE_MODES,
+        "categories": getattr(modes_config, "MODE_CATEGORIES", {}),
+        "scene_modes": getattr(modes_config, "SCENE_MODES", {}),
     })
 
 
