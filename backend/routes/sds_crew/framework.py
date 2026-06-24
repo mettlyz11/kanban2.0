@@ -36,11 +36,14 @@ def _run_crew_dispatcher(crew_name: str, **kwargs) -> Tuple[str, bool]:
     """通过 crew_dispatcher.py 派发真实 Crew"""
     try:
         env = os.environ.copy()
+        db_password = os.getenv("DB_PASSWORD") or os.getenv("MYSQL_PASSWORD")
+        if not db_password:
+            return "❌ 缺少 DB_PASSWORD/MYSQL_PASSWORD 环境变量", False
         env.update({
-            "DB_HOST": "localhost",
-            "DB_USER": "sds",
-            "DB_PASSWORD": "sds123",
-            "DB_NAME": "sds",
+            "DB_HOST": os.getenv("DB_HOST", "localhost"),
+            "DB_USER": os.getenv("DB_USER", "sds"),
+            "DB_PASSWORD": db_password,
+            "DB_NAME": os.getenv("DB_NAME", "sds"),
         })
         cmd = [
             sys.executable, CREW_DISPATCHER, crew_name
