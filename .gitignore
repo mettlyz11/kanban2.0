@@ -101,3 +101,6 @@ qa-reports/*.log
 tmp/
 **/tmp/
 remote_kanban_patches_*/
+
+# Runtime file index generated on production host
+backend/local_files_index.json
