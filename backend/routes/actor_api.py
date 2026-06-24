@@ -1,6 +1,6 @@
 """Routes: actor_api - 扮演者代理（SSH 隧道 → 本地 :18791）"""
 from flask import Blueprint, jsonify, request
-import json, urllib.request, logging, time, os, threading, difflib
+import json, urllib.request, logging, time, os, threading, difflib, hashlib
 from datetime import datetime
 from routes.modes_config import MODES, auto_select_mode, ROLE_FORMATS, retrieve_from_vector_db, VECTOR_CONFIG
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -314,8 +314,7 @@ def llm_global_context():
         "exists": exists,
         "mtime": mtime,
         "length": len(ctx),
-        "preview": ctx[:200],
-        "truncated": len(ctx) > 200,
+        "sha256": hashlib.sha256(ctx.encode("utf-8")).hexdigest() if ctx else None,
     })
 
 import re as _re
