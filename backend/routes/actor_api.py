@@ -287,9 +287,29 @@ def actor_roles():
     return jsonify({"ok": True, "roles": ROLES})
 
 
+def _public_role_contract():
+    public = {}
+    for key, value in ROLES.items():
+        if not isinstance(value, dict):
+            public[key] = value
+            continue
+        public[key] = {k: value.get(k) for k in ("name", "scope", "emoji", "tools", "background", "style") if k in value}
+    return public
+
+
+def _public_mode_contract(modes):
+    public = {}
+    for key, value in modes.items():
+        if not isinstance(value, dict):
+            public[key] = value
+            continue
+        public[key] = {k: value.get(k) for k in ("label", "desc", "icon", "category") if k in value}
+    return public
+
+
 @bp.route('/api/actors', methods=['GET'])
 def actors_alias():
-    return jsonify({"ok": True, "roles": ROLES})
+    return jsonify({"ok": True, "roles": _public_role_contract()})
 
 
 @bp.route('/api/actor/modes', methods=['GET'])
@@ -297,7 +317,7 @@ def actor_modes():
     from routes import modes_config
     return jsonify({
         "ok": True,
-        "modes": MODES,
+        "modes": _public_mode_contract(MODES),
         "categories": getattr(modes_config, "MODE_CATEGORIES", {}),
         "scene_modes": getattr(modes_config, "SCENE_MODES", {}),
     })
