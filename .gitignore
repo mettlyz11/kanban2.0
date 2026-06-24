@@ -10,11 +10,7 @@ dist/
 .DS_Store
 
 # Python cache
-__pycache__/
-*.pyc
-*.pyo
 *.sql.gz
-*.bak*
 *.bak.*
 *.backup*
 /tmp/
@@ -104,3 +100,16 @@ remote_kanban_patches_*/
 
 # Runtime file index generated on production host
 backend/local_files_index.json
+
+# Source-only release hygiene: keep runtime/generated files off Git
+backend/Files/output/
+backend/dist/
+backend/__pycache__/
+backend/routes/**/__pycache__/
+*.before_*
+*.broken*
+*.fixed*
+*.planbak
+*.vinebak
+frontend/src/charts-section.txt
+backend/routes/actor_api.py.mybak

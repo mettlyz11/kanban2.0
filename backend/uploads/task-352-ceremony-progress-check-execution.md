@@ -1,1 +1,0 @@
-# task-352-ceremony-progress-check-execution.md

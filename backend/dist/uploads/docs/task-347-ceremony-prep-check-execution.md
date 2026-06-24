@@ -1,1 +1,0 @@
-# task-347-ceremony-prep-check-execution.md

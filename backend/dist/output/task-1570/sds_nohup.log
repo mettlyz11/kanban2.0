@@ -1,7 +1,0 @@
-[2026-04-23 08:40:25] SDS核心模块初始化完成
-Traceback (most recent call last):
-  File "/Users/mettlyz/.openclaw/workspace/output/task-1570/sds_core.py", line 128, in <module>
-    gaps = sds.analyze_project_gaps(65)
-  File "/Users/mettlyz/.openclaw/workspace/output/task-1570/sds_core.py", line 39, in analyze_project_gaps
-    task_count = c.fetchone()[0]
-KeyError: 0

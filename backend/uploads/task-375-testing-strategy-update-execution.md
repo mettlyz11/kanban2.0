@@ -1,1 +1,0 @@
-# task-375-testing-strategy-update-execution.md

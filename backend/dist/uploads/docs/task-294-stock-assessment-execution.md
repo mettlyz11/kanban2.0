@@ -1,1 +1,0 @@
-# task-294-stock-assessment-execution.md
