@@ -138,3 +138,6 @@ frontend/**/*.orig
 frontend/**/*backup*
 frontend/**/*bak*
 frontend/**/*patched*
+
+# Generated output and backup artifacts still tracked
+frontend/public/output/

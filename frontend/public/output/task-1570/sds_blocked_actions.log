@@ -1,1 +1,0 @@
-{"timestamp": "2026-04-23T08:52:16.660855", "action": "危险任务", "reason": "发现[{'category': 'destructive', 'pattern': '\\\\brm\\\\s+-rf\\\\b', 'risk_level': 'CRITICAL', 'matched_text': 'rm -rf'}]个CRITICAL风险", "context": "请执行 rm -rf / 清理磁盘"}
