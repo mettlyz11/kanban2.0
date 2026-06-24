@@ -355,11 +355,11 @@ def actor_chat():
     max_tokens = int(data.get('max_tokens', 2000))
     session_id = str(data.get('session_id') or '')
     mode = data.get('mode', 'explore')
-    
+
     # 处理 auto 模式
     if mode == 'auto':
         mode = auto_select_mode(msgs[-1].get('content', '') if msgs else '', 'chat')
-    
+
     # 根据角色设置 system prompt 和 scope
     if role and role in ROLES:
         cfg = ROLES[role]
@@ -392,13 +392,13 @@ def actor_chat():
             resp = json.loads(r.read())
         elapsed = time.time() - t0
         reply_text = resp.get("choices", [{}])[0].get("message", {}).get("content", "")
-        
+
         # 优先使用扮演者服务返回的图片（如果工具调用已生成）
         actor_image = resp.get('image')
         image_url = None
         img_prompt = None
         reason = 'actor_tool'
-        
+
         if actor_image and actor_image.get('url'):
             image_url = actor_image['url']
             img_prompt = actor_image.get('prompt', '')
@@ -418,7 +418,7 @@ def actor_chat():
                     image_url = generate_seedream_image(img_prompt)
                 except Exception as e:
                     print(f'Chat image generation failed: {e}')
-        
+
         result = {
             "ok": True, "elapsed_s": round(elapsed, 1),
             "reply": reply_text,
@@ -461,7 +461,7 @@ def actor_chat():
             result['history_id'] = hist_id
         except Exception as e:
             logger.error(f'Failed to save chat history: {e}')
-        
+
         return jsonify(result)
     except Exception as e:
         elapsed = time.time() - t0
@@ -718,7 +718,7 @@ def actor_roundtable():
         mode = auto_select_mode(question, "roundtable")
     if not question:
         return jsonify({'ok': False, 'error': 'question required'}), 400
-    
+
     # 使用统一模式配置
     mode_cfg = MODES.get(mode, MODES.get('consensus', {}))
     mode_suffix = mode_cfg.get('prompt', MODES.get('consensus', {}).get('prompt', ''))
@@ -727,11 +727,11 @@ def actor_roundtable():
     context = []  # 存储前面角色的回复作为上下文
 
     # 串行调用每个角色，传递上下文
-    for role_key in selected:
+    for round_index, role_key in enumerate(role_sequence, 1):
         if role_key not in ROLES or role_key == 'ROLE_LIST':
             continue
         cfg = ROLES[role_key]
-        
+
         # 检索向量库
         vector_ctx = ""
         if VECTOR_CONFIG["enabled"]:
@@ -743,7 +743,7 @@ def actor_roundtable():
                     ])
             except Exception as e:
                 print(f"Vector retrieval error: {e}")
-        
+
         # 构建带上下文的 prompt
         ctx_text = ""
         if context:
@@ -761,9 +761,9 @@ def actor_roundtable():
                         part += "\n[配图已生成]"
                 ctx_parts.append(part)
             ctx_text = "\n\n【前面专家的观点】\n" + "\n---\n".join(ctx_parts)
-        
+
         user_content = f"请从你的专业角度分析以下问题（300-500字）。这是圆桌第{round_index}/{max_rounds}轮发言，请结合前序观点推进讨论，避免重复：\n\n{question}\n\n{mode_suffix}{vector_ctx}{ctx_text}"
-        
+
         global_ctx = ('\n\n【全局上下文】\n' + get_global_context()) if get_global_context() else ''
         mode_ctx = ('\n\n【当前模式】\n' + mode_suffix) if mode_suffix else ''
         msgs = [{'role': 'system', 'content': cfg['prompt'] + global_ctx + mode_ctx},
@@ -773,14 +773,14 @@ def actor_roundtable():
             'max_tokens': max_tokens, 'temperature': 0.3, 'knowledge_scope': data.get('knowledge_scope') if data.get('knowledge_scope') not in (None, '', 'auto') else cfg['scope'],
             'role': role_key,
         }).encode()
-        
+
         try:
             req = urllib.request.Request('http://127.0.0.1:18791/v1/chat/completions', data=body,
                                           headers={'Content-Type': 'application/json'}, method='POST')
             with urllib.request.urlopen(req, timeout=timeout_s) as r:
                 resp = json.loads(r.read())
             reply = _process_tool_calls(resp)
-            
+
             # 为该角色生成配图
             image_url = None
             img_prompt = None  # 初始化
@@ -799,7 +799,7 @@ def actor_roundtable():
                         full_context = f"问题：{question}\n\n当前发言：\n{reply}"
                     img_prompt = _llm_extract_visual_prompt(question, full_context)
                     image_url = generate_seedream_image(img_prompt)
-                    
+
                     # 自动优化2轮
                     if image_url:
                         try:
@@ -818,12 +818,12 @@ def actor_roundtable():
                             print(f'Roundtable auto optimize error: {e}')
             except Exception as e:
                 print(f'Roundtable image generation for {role_key} failed: {e}')
-            
+
             result = {
-                'role': role_key, 
+                'role': role_key,
                 'name': cfg.get('name', role_key),
-                'emoji': cfg.get('emoji', ''), 
-                'reply': reply, 
+                'emoji': cfg.get('emoji', ''),
+                'reply': reply,
                 'ok': True,
                 'round_index': round_index,
                 'max_rounds': max_rounds,
@@ -831,18 +831,18 @@ def actor_roundtable():
             }
             results.append(result)
             context.append(result)  # 加入上下文
-            
+
         except Exception as e:
             results.append({
-                'role': role_key, 
+                'role': role_key,
                 'name': cfg.get('name', role_key),
-                'emoji': cfg.get('emoji', ''), 
-                'error': str(e), 
+                'emoji': cfg.get('emoji', ''),
+                'error': str(e),
                 'ok': False,
                 'round_index': round_index,
                 'max_rounds': max_rounds
             })
-    
+
     # 主持人最终总结：必须明确指出最佳方案/最佳图片
     final_report = ''
     best_role = None
@@ -931,7 +931,7 @@ def actor_roundtable():
         })
     except Exception as e:
         logger.error(f'Failed to save roundtable history: {e}')
-    
+
     return jsonify({'ok': True, 'rounds': results, 'requested_max_rounds': max_rounds, 'actual_rounds': len(results), 'final_report': final_report, 'best_role': best_role, 'image': best_image, 'history_id': history_id})
 
 

@@ -179,13 +179,33 @@ const EvolutionTrend: React.FC = () => {
   const daemonUpdatedAt = ds?.updated_at ? new Date(ds.updated_at) : null
   const daemonLagSeconds = daemonUpdatedAt ? Math.max(0, Math.floor((Date.now() - daemonUpdatedAt.getTime()) / 1000)) : null
   const isDaemonStale = daemonLagSeconds !== null && daemonLagSeconds > 180
+  const parseTodayTime = (value?: string) => {
+    if (!value) return null
+    const m = value.match(/(\d{1,2}):(\d{2})(?::(\d{2}))?/)
+    if (!m) return null
+    const d = new Date()
+    d.setHours(Number(m[1]), Number(m[2]), Number(m[3] || 0), 0)
+    if (d.getTime() - Date.now() > 12 * 60 * 60 * 1000) d.setDate(d.getDate() - 1)
+    return d
+  }
+  const trendUpdatedAt = parseTodayTime(data.timestamp || latestCycle?.time)
+  const trendLagSeconds = trendUpdatedAt ? Math.max(0, Math.floor((Date.now() - trendUpdatedAt.getTime()) / 1000)) : null
+  const isTrendDataStale = trendLagSeconds !== null && trendLagSeconds > 600
+  const formatLag = (seconds: number | null) => {
+    if (seconds === null) return '-'
+    if (seconds < 60) return seconds + 's'
+    const minutes = Math.floor(seconds / 60)
+    const remain = seconds % 60
+    if (minutes < 60) return minutes + 'm' + (remain ? remain + 's' : '')
+    return Math.floor(minutes / 60) + 'h' + (minutes % 60 ? (minutes % 60) + 'm' : '')
+  }
 
   return (
     <div style={{ padding: '20px', minHeight: 'calc(100vh - 80px)', background: COLORS.bg, color: COLORS.text, fontFamily: 'sans-serif' }}>
       <h1 style={{ fontSize: '22px', marginBottom: '6px', color: COLORS.line }}>SDS 质量进化趋势</h1>
       <div style={{ fontSize: '12px', color: COLORS.subtext, marginBottom: '20px', display: 'flex', flexWrap: 'wrap', gap: '10px', alignItems: 'center' }}>
         <span>共 {cycles.length} 个进化周期</span>
-        <span>· 数据文件更新: {data.timestamp || '近期'}</span>
+        <span>· 数据文件更新: {data.timestamp || '近期'}{trendLagSeconds !== null ? ` (${formatLag(trendLagSeconds)} 前)` : ''}</span>
         <span>· 页面刷新: {lastDataRefresh || '-'}</span>
         <span>· 最新周期: {latestCycleLabel} ({latestCycle?.time || '-'})</span>
         <button
@@ -194,6 +214,7 @@ const EvolutionTrend: React.FC = () => {
           title="强制重新加载页面"
         >手动刷新</button>
         {dataRefreshErr && <span style={{ color: '#f87171' }}>趋势数据刷新失败: {dataRefreshErr}</span>}
+        {isTrendDataStale && <span style={{ color: '#f87171' }}>⚠️ 趋势数据 {formatLag(trendLagSeconds)} 未更新</span>}
         {isCycleBehind && <span style={{ color: '#fbbf24' }}>⚠️ 图表周期 {latestCycleLabel} 与守护进程 {daemonCycleLabel} 不一致，等待下一次同步</span>}
         {isDaemonStale && <span style={{ color: '#f87171' }}>⚠️ 守护进程状态 {daemonLagSeconds}s 未更新</span>}
       </div>
