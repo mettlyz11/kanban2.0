@@ -1,0 +1,6 @@
+backend/kanban.db	0	.gitignore:85:backend/kanban.db	backend/kanban.db
+backend/dist.prev_evolution_data_lag_20260623_233719/index.html	0	.gitignore:50:**/dist.prev_*/	backend/dist.prev_evolution_data_lag_20260623_233719/index.html
+backend/data/sds_crew_dialogue_events.jsonl	0	.gitignore:92:backend/data/*.jsonl	backend/data/sds_crew_dialogue_events.jsonl
+frontend/public/uploads/docs/example.md	0	.gitignore:96:frontend/public/uploads/	frontend/public/uploads/docs/example.md
+backups/example/file.txt	0	.gitignore:59:**/backups/	backups/example/file.txt
+backend/__pycache__/app.cpython-312.pyc	1	
