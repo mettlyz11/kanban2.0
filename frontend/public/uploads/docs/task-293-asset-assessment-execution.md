@@ -1,1 +1,0 @@
-# task-293-asset-assessment-execution.md

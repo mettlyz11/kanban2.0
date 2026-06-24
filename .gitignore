@@ -113,3 +113,12 @@ backend/routes/**/__pycache__/
 *.vinebak
 frontend/src/charts-section.txt
 backend/routes/actor_api.py.mybak
+
+# Additional static/generated exports
+static/output/
+static/uploads/
+static/attachments/
+static/files/
+static/task-*/
+sprout-export/static/
+frontend/public/docs/

@@ -1,1 +1,0 @@
-# task-331-health-checkup-execution.md
