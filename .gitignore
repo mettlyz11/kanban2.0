@@ -29,3 +29,75 @@ frontend/node_modules/
 # DB backups
 backend/backups/
 backend/backup/
+
+# Engineering hygiene: generated/runtime artifacts (2026-06-24)
+# Python / caches
+**/__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Frontend dependencies/build output
+**/node_modules/
+**/dist/
+build/
+**/build/
+**/.vite/
+
+# Historical build snapshots / ad-hoc deployment backups
+dist.prev_*/
+**/dist.prev_*/
+dist.badmerge_*/
+**/dist.badmerge_*/
+backend.backup.*/
+frontend.backup.*/
+backend_old/
+backup_*/
+.backups/
+backups/
+**/backups/
+**/backup/
+*.bak
+*.backup
+*.backup.*
+*.break.*
+
+# Runtime logs / pid files
+logs/
+**/logs/
+*.pid
+gunicorn*.log
+flask.log
+server.log
+socketio.log
+access.log
+error.log
+startup.log
+
+# Local/runtime databases and sync state
+*.db
+*.sqlite
+*.sqlite3
+kanban.db
+kanban_v5.db
+monitoring.db
+backend/kanban.db
+backend/kanban_v5.db
+backend/monitoring.db
+backend/macmini_sync_data.json
+
+# App runtime data / user uploads (not source)
+backend/data/*.json
+backend/data/*.jsonl
+backend/data/*.db
+backend/uploads/
+uploads/
+frontend/public/uploads/
+Files/output/
+qa-reports/*.log
+
+# Temporary patch/work directories
+tmp/
+**/tmp/
+remote_kanban_patches_*/
