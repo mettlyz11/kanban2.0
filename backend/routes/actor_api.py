@@ -305,18 +305,18 @@ def actor_modes():
 
 @bp.route('/api/llm/global-context', methods=['GET'])
 def llm_global_context():
+    # Expose health/metadata without leaking full prompt content.
     ctx = get_global_context() or ""
     exists = os.path.exists(_GLOBAL_CTX_PATH)
     mtime = os.path.getmtime(_GLOBAL_CTX_PATH) if exists else None
     return jsonify({
         "ok": True,
-        "path": _GLOBAL_CTX_PATH,
         "exists": exists,
         "mtime": mtime,
         "length": len(ctx),
-        "content": ctx,
+        "preview": ctx[:200],
+        "truncated": len(ctx) > 200,
     })
-
 
 import re as _re
 
