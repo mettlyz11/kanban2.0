@@ -122,3 +122,19 @@ static/files/
 static/task-*/
 sprout-export/static/
 frontend/public/docs/
+
+# Residual runtime/temp/database artifacts
+*.orig
+backend/*.db
+backend/*.sqlite
+backend/*.pid
+backend/*backup*
+backend/*_patch*.py
+backend/patch_*.py
+backend/fix_*.py
+backend/check_*.py
+backend/_verify_*.py
+frontend/**/*.orig
+frontend/**/*backup*
+frontend/**/*bak*
+frontend/**/*patched*
