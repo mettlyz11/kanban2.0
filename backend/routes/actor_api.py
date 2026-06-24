@@ -287,6 +287,36 @@ def actor_roles():
     return jsonify({"ok": True, "roles": ROLES})
 
 
+@bp.route('/api/actors', methods=['GET'])
+def actors_alias():
+    return jsonify({"ok": True, "roles": ROLES})
+
+
+@bp.route('/api/actor/modes', methods=['GET'])
+def actor_modes():
+    from routes.modes_config import MODE_CATEGORIES, SCENE_MODES
+    return jsonify({
+        "ok": True,
+        "modes": MODES,
+        "categories": MODE_CATEGORIES,
+        "scene_modes": SCENE_MODES,
+    })
+
+
+@bp.route('/api/llm/global-context', methods=['GET'])
+def llm_global_context():
+    ctx = get_global_context() or ""
+    exists = os.path.exists(_GLOBAL_CTX_PATH)
+    mtime = os.path.getmtime(_GLOBAL_CTX_PATH) if exists else None
+    return jsonify({
+        "ok": True,
+        "path": _GLOBAL_CTX_PATH,
+        "exists": exists,
+        "mtime": mtime,
+        "length": len(ctx),
+        "content": ctx,
+    })
+
 
 import re as _re
 
